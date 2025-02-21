@@ -1,5 +1,5 @@
-// Package qmeta provides embedded meta data feature for struct.
-package qmeta
+// Package gmeta provides embedded meta data feature for struct.
+package gmeta
 
 import (
 	"fmt"
@@ -18,7 +18,7 @@ type Var struct {
 
 const (
 	metaAttributeName = "Meta"       // 结构体中元数据的属性名
-	metaTypeName      = "qmeta.Meta" // 用于类型字符串比较
+	metaTypeName      = "gmeta.Meta" // 用于类型字符串比较
 )
 
 // Data 从 `object` 中检索并返回所有元数据

@@ -1,15 +1,14 @@
-package qmeta_test
+package gmeta_test
 
 import (
 	"encoding/json"
+	"maltose/util/gmeta"
 	"testing"
-
-	"maltose/util/qmeta"
 )
 
 func TestMeta_Basic(t *testing.T) {
 	type A struct {
-		qmeta.Meta `tag:"123" orm:"456"`
+		gmeta.Meta `tag:"123" orm:"456"`
 		Id         int
 		Name       string
 	}
@@ -20,16 +19,16 @@ func TestMeta_Basic(t *testing.T) {
 	}
 
 	// 测试基础功能
-	if len(qmeta.Data(a)) != 2 {
+	if len(gmeta.Data(a)) != 2 {
 		t.Error("Expected 2 meta items")
 	}
-	if qmeta.Get(a, "tag").String() != "123" {
+	if gmeta.Get(a, "tag").String() != "123" {
 		t.Error("Expected tag value '123'")
 	}
-	if qmeta.Get(a, "orm").String() != "456" {
+	if gmeta.Get(a, "orm").String() != "456" {
 		t.Error("Expected orm value '456'")
 	}
-	if qmeta.Get(a, "none") != nil {
+	if gmeta.Get(a, "none") != nil {
 		t.Error("Expected nil for non-existent key")
 	}
 
@@ -45,7 +44,7 @@ func TestMeta_Basic(t *testing.T) {
 
 func TestMeta_Convert_Map(t *testing.T) {
 	type A struct {
-		qmeta.Meta `tag:"123" orm:"456"`
+		gmeta.Meta `tag:"123" orm:"456"`
 		Id         int
 		Name       string
 	}
@@ -54,7 +53,7 @@ func TestMeta_Convert_Map(t *testing.T) {
 		Id:   100,
 		Name: "john",
 	}
-	m := qmeta.Data(a)
+	m := gmeta.Data(a)
 	if len(m) != 2 {
 		t.Error("Expected 2 meta items")
 	}
@@ -65,7 +64,7 @@ func TestMeta_Convert_Map(t *testing.T) {
 
 func TestMeta_Json(t *testing.T) {
 	type A struct {
-		qmeta.Meta `tag:"123" orm:"456"`
+		gmeta.Meta `tag:"123" orm:"456"`
 		Id         int
 	}
 
