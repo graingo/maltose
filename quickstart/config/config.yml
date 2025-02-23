@@ -1,0 +1,8 @@
+http:
+  port: 8080
+
+logger:
+  level: debug
+  path: ./logs/dev.log
+  format: json
+  time_format: "2006-01-02 15:04:05"

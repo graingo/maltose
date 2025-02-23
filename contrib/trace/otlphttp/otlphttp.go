@@ -1,4 +1,3 @@
-// Package otlphttp provides trace implementation using OpenTelemetry HTTP protocol.
 package otlphttp
 
 import (
@@ -6,7 +5,9 @@ import (
 	"time"
 
 	"github.com/mingzaily/maltose/frame/g"
+	"github.com/mingzaily/maltose/net/mipv4"
 	"go.opentelemetry.io/otel"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
 	"go.opentelemetry.io/otel/propagation"
@@ -27,6 +28,22 @@ const (
 //
 // 返回的 shutdown 函数用于等待导出的 trace spans 上传完成
 func Init(serviceName, endpoint, path string) (func(ctx context.Context), error) {
+	var (
+		intranetIPArray, err = mipv4.GetIntranetIpArray()
+		hostIP               = "NoHostIpFound"
+	)
+	if err != nil {
+		return nil, err
+	}
+	if len(intranetIPArray) == 0 {
+		if intranetIPArray, err = mipv4.GetIpArray(); err != nil {
+			return nil, err
+		}
+	}
+	if len(intranetIPArray) > 0 {
+		hostIP = intranetIPArray[0]
+	}
+
 	ctx := context.Background()
 
 	traceExp, err := otlptrace.New(ctx, otlptracehttp.NewClient(
@@ -46,6 +63,8 @@ func Init(serviceName, endpoint, path string) (func(ctx context.Context), error)
 		resource.WithHost(),
 		resource.WithAttributes(
 			semconv.ServiceNameKey.String(serviceName),
+			semconv.HostNameKey.String(hostIP),
+			attribute.String(tracerHostnameTagKey, hostIP),
 		),
 	)
 	if err != nil {
@@ -53,13 +72,24 @@ func Init(serviceName, endpoint, path string) (func(ctx context.Context), error)
 	}
 
 	tracerProvider := trace.NewTracerProvider(
-		// AlwaysSample is a sampler that samples every trace.
+		// 采样器配置：设置为始终采样
+		// AlwaysSample 会采样所有的追踪数据
 		// see: https://pkg.go.dev/go.opentelemetry.io/otel/sdk/trace#AlwaysSample
 		trace.WithSampler(trace.AlwaysSample()),
-		// WithResource returns a trace option that sets the resource to be associated with spans.
+		// 资源配置：设置与 spans 关联的资源信息
+		// 资源通常包含：
+		// - 服务名称
+		// - 主机名
+		// - IP地址
+		// - 环境标识
 		// see: https://pkg.go.dev/go.opentelemetry.io/otel/sdk/trace#WithResource
 		trace.WithResource(res),
-		// WithSpanProcessor returns a trace option that sets the span processor to be used by the trace provider.
+		// Span处理器配置：使用批处理方式处理 spans
+		// BatchSpanProcessor 会：
+		// - 将 spans 缓存在内存中
+		// - 批量发送到后端收集器
+		// - 提高性能，减少网络请求
+		// - 异步处理，不阻塞应用程序
 		// see: https://pkg.go.dev/go.opentelemetry.io/otel/sdk/trace#WithSpanProcessor
 		trace.WithSpanProcessor(trace.NewBatchSpanProcessor(traceExp)),
 	)
