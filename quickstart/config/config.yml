@@ -1,5 +1,5 @@
 server:
-  address: ":8080"
+  address: ":8081"
   logger:
     level: debug
     format: text

@@ -37,30 +37,15 @@ func New() *Server {
 		metadata: make(map[string]*HandlerMeta),
 	}
 	// 添加默认中间件
-	s.Use(internalMiddlewareServerTracing())
+	s.Use(internalMiddlewareServerTracing(), MiddlewareResponse())
 
 	return s
 }
 
-// Run 启动 HTTP 服务
-func (s *Server) Run() error {
-	s.doPrintRoute()
-
-	srv := &http.Server{
-		Addr:           s.config.Address,
-		Handler:        s.Engine,
-		ReadTimeout:    s.config.ReadTimeout,
-		WriteTimeout:   s.config.WriteTimeout,
-		IdleTimeout:    s.config.IdleTimeout,
-		MaxHeaderBytes: s.config.MaxHeaderBytes,
-	}
-	return srv.ListenAndServe()
-}
-
-func (s *Server) doPrintRoute() {
+func (s *Server) doPrintRoute(ctx context.Context) {
 	// 打印服务信息
 	fmt.Printf("\n")
-	s.Logger().Infof(context.Background(), "HTTP server %s is running on %s", s.config.ServerName, s.config.Address)
+	s.Logger().Infof(ctx, "HTTP server %s is running on %s", s.config.ServerName, s.config.Address)
 	// 打印路由信息
 	fmt.Printf("%s\n", strings.Repeat("-", 60))
 	fmt.Printf("%-10s | %-7s | %-15s \n", "ADDRESS", "METHOD", "ROUTE")
@@ -74,4 +59,23 @@ func (s *Server) doPrintRoute() {
 		)
 	}
 	fmt.Printf("%s\n\n", strings.Repeat("-", 60))
+}
+
+// Run 启动 HTTP 服务
+func (s *Server) Run() {
+	ctx := context.Background()
+	s.doPrintRoute(ctx)
+
+	srv := &http.Server{
+		Addr:           s.config.Address,
+		Handler:        s.Engine,
+		ReadTimeout:    s.config.ReadTimeout,
+		WriteTimeout:   s.config.WriteTimeout,
+		IdleTimeout:    s.config.IdleTimeout,
+		MaxHeaderBytes: s.config.MaxHeaderBytes,
+	}
+	err := srv.ListenAndServe()
+	if err != nil {
+		s.Logger().Errorf(ctx, "HTTP server %s start failed: %v", s.config.ServerName, err)
+	}
 }

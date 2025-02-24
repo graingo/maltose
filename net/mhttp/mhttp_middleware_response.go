@@ -1,7 +1,6 @@
 package mhttp
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/mingzaily/maltose/errors/mcode"
@@ -26,10 +25,15 @@ func MiddlewareResponse() MiddlewareFunc {
 			return
 		}
 
-		fmt.Printf("r.address: %p, r:%+v\n", r, r)
-		// 获取错误信息
 		var response DefaultResponse
-		if len(r.Errors) > 0 {
+
+		if r.Writer.Status() != http.StatusOK {
+			response = DefaultResponse{
+				Code:    r.Writer.Status(),
+				Message: http.StatusText(r.Writer.Status()),
+				Data:    nil,
+			}
+		} else if len(r.Errors) > 0 {
 			err := r.Errors.Last().Err
 			if merr, ok := err.(*merror.Error); ok {
 				response = DefaultResponse{
@@ -52,6 +56,6 @@ func MiddlewareResponse() MiddlewareFunc {
 			}
 		}
 
-		r.JSON(http.StatusOK, response)
+		r.JSON(r.Writer.Status(), response)
 	}
 }
