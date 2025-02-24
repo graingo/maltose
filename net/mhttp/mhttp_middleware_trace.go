@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/mingzaily/maltose/net/mtrace"
 	"github.com/spf13/cast"
 	"go.opentelemetry.io/otel"
@@ -25,14 +24,14 @@ const (
 	tracingMiddlewareHandled   = "TracingMiddlewareHandled"
 )
 
-// internalMiddlewareServerTracing 返回一个gin中间件用于OpenTelemetry跟踪
-func internalMiddlewareServerTracing() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		var ctx = c.Request.Context()
+// internalMiddlewareServerTracing 返回一个中间件用于OpenTelemetry跟踪
+func internalMiddlewareServerTracing() MiddlewareFunc {
+	return func(r *Request) {
+		var ctx = r.Request.Context()
 
 		// 避免重复处理
 		if ctx.Value(tracingMiddlewareHandled) != nil {
-			c.Next()
+			r.Next()
 			return
 		}
 
@@ -40,7 +39,7 @@ func internalMiddlewareServerTracing() gin.HandlerFunc {
 
 		// 如果使用默认provider则跳过复杂的tracing
 		if mtrace.IsUsingDefaultProvider() {
-			c.Next()
+			r.Next()
 			return
 		}
 
@@ -53,13 +52,13 @@ func internalMiddlewareServerTracing() gin.HandlerFunc {
 		// 提取上下文和baggage
 		ctx = otel.GetTextMapPropagator().Extract(
 			ctx,
-			propagation.HeaderCarrier(c.Request.Header),
+			propagation.HeaderCarrier(r.Request.Header),
 		)
 
 		// 规范化操作名称: HTTP {method} {route}
-		spanName := fmt.Sprintf("HTTP %s %s", c.Request.Method, c.FullPath())
-		if c.FullPath() == "" {
-			spanName = fmt.Sprintf("HTTP %s %s", c.Request.Method, c.Request.URL.Path)
+		spanName := fmt.Sprintf("HTTP %s %s", r.Request.Method, r.FullPath())
+		if r.FullPath() == "" {
+			spanName = fmt.Sprintf("HTTP %s %s", r.Request.Method, r.Request.URL.Path)
 		}
 
 		// 创建span
@@ -72,34 +71,34 @@ func internalMiddlewareServerTracing() gin.HandlerFunc {
 
 		// 添加请求事件
 		span.AddEvent(tracingEventHttpRequest, trace.WithAttributes(
-			attribute.String(tracingEventHttpRequestUrl, c.Request.URL.String()),
-			attribute.String(tracingEventHttpHeaders, cast.ToString(cast.ToStringMap(c.Request.Header))),
+			attribute.String(tracingEventHttpRequestUrl, r.Request.URL.String()),
+			attribute.String(tracingEventHttpHeaders, cast.ToString(cast.ToStringMap(r.Request.Header))),
 			attribute.String(tracingEventHttpBaggage, cast.ToString(mtrace.GetBaggageMap(ctx))),
 		))
 
 		// 注入追踪上下文
-		c.Request = c.Request.WithContext(ctx)
+		r.Request = r.Request.WithContext(ctx)
 
 		// 继续处理请求
-		c.Next()
+		r.Next()
 
 		// 错误处理
-		if len(c.Errors) > 0 {
+		if len(r.Errors) > 0 {
 			// 收集所有错误信息
 			var errMsgs []string
-			for _, err := range c.Errors {
+			for _, err := range r.Errors {
 				errMsgs = append(errMsgs, err.Error())
 			}
 			span.SetStatus(codes.Error, strings.Join(errMsgs, "; "))
 		} else {
-			span.SetStatus(httpStatusCodeToSpanStatus(c.Writer.Status()))
+			span.SetStatus(httpStatusCodeToSpanStatus(r.Writer.Status()))
 		}
 
 		// 添加响应事件
 		span.AddEvent(tracingEventHttpResponse, trace.WithAttributes(
-			attribute.Int("http.status_code", c.Writer.Status()),
-			attribute.Int("http.response_content_length", c.Writer.Size()),
-			attribute.String(tracingEventHttpHeaders, fmt.Sprint(c.Writer.Header())),
+			attribute.Int("http.status_code", r.Writer.Status()),
+			attribute.Int("http.response_content_length", r.Writer.Size()),
+			attribute.String(tracingEventHttpHeaders, fmt.Sprint(r.Writer.Header())),
 		))
 	}
 }

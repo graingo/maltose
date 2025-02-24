@@ -1,6 +1,10 @@
 package mhttp
 
-import "github.com/mingzaily/maltose/os/mlog"
+import (
+	"time"
+
+	"github.com/mingzaily/maltose/os/mlog"
+)
 
 // ServerConfig 服务器配置
 type ServerConfig struct {
@@ -8,13 +12,22 @@ type ServerConfig struct {
 	ServerName string
 	ServerRoot string
 	Logger     *mlog.Logger
+
+	ReadTimeout    time.Duration
+	WriteTimeout   time.Duration
+	IdleTimeout    time.Duration
+	MaxHeaderBytes int
 }
 
 func NewConfig() ServerConfig {
 	return ServerConfig{
-		Address:    defaultPort,
-		ServerName: DefaultServerName,
-		Logger:     mlog.New(),
+		Address:        defaultPort,
+		ServerName:     DefaultServerName,
+		Logger:         mlog.New(),
+		ReadTimeout:    time.Second * 60,
+		WriteTimeout:   time.Second * 60,
+		IdleTimeout:    time.Second * 60,
+		MaxHeaderBytes: 1 << 20, // 1MB
 	}
 }
 
@@ -51,4 +64,36 @@ func (s *Server) GetServerRoot() string {
 // Logger 获取日志实例
 func (s *Server) Logger() *mlog.Logger {
 	return s.config.Logger
+}
+
+// SetTimeouts 设置超时配置
+func (s *Server) SetTimeouts(read, write, idle time.Duration) {
+	s.config.ReadTimeout = read
+	s.config.WriteTimeout = write
+	s.config.IdleTimeout = idle
+}
+
+// GetReadTimeout 获取读取超时时间
+func (s *Server) GetReadTimeout() time.Duration {
+	return s.config.ReadTimeout
+}
+
+// GetWriteTimeout 获取写入超时时间
+func (s *Server) GetWriteTimeout() time.Duration {
+	return s.config.WriteTimeout
+}
+
+// GetIdleTimeout 获取空闲超时时间
+func (s *Server) GetIdleTimeout() time.Duration {
+	return s.config.IdleTimeout
+}
+
+// SetMaxHeaderBytes 设置最大请求头大小
+func (s *Server) SetMaxHeaderBytes(size int) {
+	s.config.MaxHeaderBytes = size
+}
+
+// GetMaxHeaderBytes 获取最大请求头大小
+func (s *Server) GetMaxHeaderBytes() int {
+	return s.config.MaxHeaderBytes
 }

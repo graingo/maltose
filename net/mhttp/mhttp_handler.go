@@ -32,7 +32,10 @@ type HandlerFunc func(*Request)
 // BindHandler 绑定简单处理函数
 func (s *Server) BindHandler(method, path string, handler HandlerFunc) {
 	s.Handle(method, path, func(c *gin.Context) {
-		handler(&Request{Context: c})
+		r := &Request{Context: c, Server: s}
+		// 将 Request 注入到上下文
+		c.Request = c.Request.WithContext(WithRequest(c.Request.Context(), r))
+		handler(r)
 	})
 }
 
@@ -77,7 +80,9 @@ func (s *Server) Bind(object interface{}) {
 
 		// 注册路由处理函数
 		s.Handle(httpMethod, path, func(c *gin.Context) {
-			r := &Request{Context: c}
+			r := &Request{Context: c, Server: s}
+			// 将 Request 注入到上下文
+			c.Request = c.Request.WithContext(WithRequest(c.Request.Context(), r))
 			req := reflect.New(reqElem).Interface()
 
 			if err := handleRequest(r, method, val, req); err != nil {
@@ -107,7 +112,9 @@ func handleRequest(r *Request, method reflect.Method, val reflect.Value, req int
 		return results[1].Interface().(error)
 	}
 
-	// 设置响应到 Request 中
-	r.SetHandlerResponse(results[0].Interface())
+	// 设置响应到 Request 中供中间件使用
+	response := results[0].Interface()
+	r.SetHandlerResponse(response)
+
 	return nil
 }

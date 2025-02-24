@@ -1,9 +1,11 @@
 package mhttp
 
 import (
+	"fmt"
 	"net/http"
 
-	"github.com/gin-gonic/gin"
+	"github.com/mingzaily/maltose/errors/mcode"
+	"github.com/mingzaily/maltose/errors/merror"
 )
 
 // DefaultResponse 标准响应结构
@@ -14,37 +16,42 @@ type DefaultResponse struct {
 }
 
 // MiddlewareResponse 标准响应中间件
-func MiddlewareResponse() gin.HandlerFunc {
-	return func(c *gin.Context) {
-		r := &Request{Context: c}
-
+func MiddlewareResponse() MiddlewareFunc {
+	return func(r *Request) {
 		// 执行后续中间件
-		c.Next()
+		r.Next()
 
 		// 如果已经写入了响应,则跳过
-		if c.Writer.Written() {
+		if r.Writer.Written() {
 			return
 		}
 
+		fmt.Printf("r.address: %p, r:%+v\n", r, r)
 		// 获取错误信息
 		var response DefaultResponse
-		if len(c.Errors) > 0 {
-			// 处理错误情况
-			err := c.Errors.Last()
-			response = DefaultResponse{
-				Code:    http.StatusInternalServerError,
-				Message: err.Error(),
-				Data:    nil,
+		if len(r.Errors) > 0 {
+			err := r.Errors.Last().Err
+			if merr, ok := err.(*merror.Error); ok {
+				response = DefaultResponse{
+					Code:    merr.Code().Code(),
+					Message: merr.Error(),
+					Data:    nil,
+				}
+			} else {
+				response = DefaultResponse{
+					Code:    mcode.InternalError.Code(),
+					Message: err.Error(),
+					Data:    nil,
+				}
 			}
 		} else {
-			// 正常响应
 			response = DefaultResponse{
-				Code:    http.StatusOK,
+				Code:    mcode.Success.Code(),
 				Message: "success",
 				Data:    r.GetHandlerResponse(),
 			}
 		}
 
-		c.JSON(c.Writer.Status(), response)
+		r.JSON(http.StatusOK, response)
 	}
 }
