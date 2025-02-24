@@ -1,6 +1,8 @@
 module quickstart
 
-go 1.20.0
+go 1.22.0
+
+toolchain go1.23.6
 
 require github.com/mingzaily/maltose v0.0.1
 
@@ -59,4 +61,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/mingzaily/maltose => ../maltose
+replace github.com/mingzaily/maltose => ../

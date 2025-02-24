@@ -68,7 +68,7 @@ func Server(name ...interface{}) *mhttp.Server {
 					loggerServerConfigMap = make(map[string]any)
 
 					// 1. 先检查当前配置中的logger节点
-					if cfg, ok := loggerServerConfigMap[configNodeNameLogger].(map[string]any); ok {
+					if cfg, ok := serverConfigMap[configNodeNameLogger].(map[string]any); ok {
 						loggerServerConfigMap = cfg
 					} else {
 						// 2. 尝试获取全局logger配置

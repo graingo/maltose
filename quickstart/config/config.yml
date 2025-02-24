@@ -1,5 +1,8 @@
-http:
-  port: 8080
+server:
+  address: ":8080"
+  logger:
+    level: debug
+    format: text
 
 logger:
   level: debug

@@ -44,10 +44,10 @@ func New() *Server {
 
 // Run 启动 HTTP 服务
 func (s *Server) Run() error {
+	fmt.Printf("\n")
 	s.Logger().Infof(context.Background(), "HTTP server %s is running on %s", s.config.ServerName, s.config.Address)
-
 	// 打印路由信息
-	fmt.Printf("\n%s\n", strings.Repeat("-", 120))
+	fmt.Printf("%s\n", strings.Repeat("-", 120))
 	fmt.Printf("%-10s | %-7s | %-15s \n", "ADDRESS", "METHOD", "ROUTE")
 
 	routes := s.Engine.Routes()
@@ -59,5 +59,10 @@ func (s *Server) Run() error {
 		)
 	}
 	fmt.Printf("%s\n\n", strings.Repeat("-", 120))
-	return s.Engine.Run(s.config.Address)
+
+	err := s.Engine.Run(s.config.Address)
+	if err != nil {
+		panic(err)
+	}
+	return nil
 }
