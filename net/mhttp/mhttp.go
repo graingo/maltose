@@ -2,25 +2,29 @@ package mhttp
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"net/http"
-	"strings"
+	"os"
+	"os/signal"
+	"syscall"
+	"time"
 
 	"github.com/gin-gonic/gin"
 )
 
 const (
-	DefaultServerName = "default"
-	defaultPort       = "8080"
+	DefaultServerName  = "default"
+	defaultPort        = "8080"
+	defaultOpenapiPath = "/api.json"
+	defaultSwaggerPath = "/swagger"
 )
 
 // Server HTTP 服务结构
 type Server struct {
 	*gin.Engine
 	config     ServerConfig
-	metadata   map[string]*HandlerMeta
 	middleware []gin.HandlerFunc
+	openapi    *OpenAPI
 }
 
 // New 创建新的 HTTP 服务实例
@@ -32,33 +36,13 @@ func New() *Server {
 	gin.SetMode(gin.ReleaseMode)
 
 	s := &Server{
-		Engine:   gin.New(),
-		config:   NewConfig(),
-		metadata: make(map[string]*HandlerMeta),
+		Engine: gin.New(),
+		config: NewConfig(),
 	}
 	// 添加默认中间件
-	s.Use(internalMiddlewareServerTracing(), MiddlewareResponse())
+	s.Use(internalMiddlewareServerTracing())
 
 	return s
-}
-
-func (s *Server) doPrintRoute(ctx context.Context) {
-	// 打印服务信息
-	fmt.Printf("\n")
-	s.Logger().Infof(ctx, "HTTP server %s is running on %s", s.config.ServerName, s.config.Address)
-	// 打印路由信息
-	fmt.Printf("%s\n", strings.Repeat("-", 60))
-	fmt.Printf("%-10s | %-7s | %-15s \n", "ADDRESS", "METHOD", "ROUTE")
-
-	routes := s.Engine.Routes()
-	for _, route := range routes {
-		fmt.Printf("%-10s | %-7s | %-15s \n",
-			s.config.Address,
-			route.Method,
-			route.Path,
-		)
-	}
-	fmt.Printf("%s\n\n", strings.Repeat("-", 60))
 }
 
 // Run 启动 HTTP 服务
@@ -74,8 +58,28 @@ func (s *Server) Run() {
 		IdleTimeout:    s.config.IdleTimeout,
 		MaxHeaderBytes: s.config.MaxHeaderBytes,
 	}
-	err := srv.ListenAndServe()
-	if err != nil {
+
+	// 创建错误通道
+	errChan := make(chan error, 1)
+	go func() {
+		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+			errChan <- err
+		}
+	}()
+
+	// 监听系统信号
+	quit := make(chan os.Signal, 1)
+	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+
+	select {
+	case err := <-errChan:
 		s.Logger().Errorf(ctx, "HTTP server %s start failed: %v", s.config.ServerName, err)
+	case <-quit:
+		s.Logger().Infof(ctx, "Shutting down server...")
+		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+		defer cancel()
+		if err := srv.Shutdown(ctx); err != nil {
+			s.Logger().Errorf(ctx, "Server forced to shutdown: %v", err)
+		}
 	}
 }

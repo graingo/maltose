@@ -15,19 +15,19 @@ import (
 )
 
 const (
-	instrumentName             = "github.com/mingzaily/maltose/net/mhttp.Server"
-	tracingEventHttpRequest    = "http.request"
-	tracingEventHttpRequestUrl = "http.request.url"
-	tracingEventHttpHeaders    = "http.headers"
-	tracingEventHttpBaggage    = "http.baggage"
-	tracingEventHttpResponse   = "http.response"
-	tracingMiddlewareHandled   = "TracingMiddlewareHandled"
+	instrumentName                        = "github.com/mingzaily/maltose/net/mhttp.Server"
+	tracingEventHttpRequest               = "http.request"
+	tracingEventHttpRequestUrl            = "http.request.url"
+	tracingEventHttpHeaders               = "http.headers"
+	tracingEventHttpBaggage               = "http.baggage"
+	tracingEventHttpResponse              = "http.response"
+	tracingMiddlewareHandled   contextKey = "TracingMiddlewareHandled"
 )
 
 // internalMiddlewareServerTracing 返回一个中间件用于OpenTelemetry跟踪
 func internalMiddlewareServerTracing() MiddlewareFunc {
 	return func(r *Request) {
-		var ctx = r.Request.Context()
+		ctx := r.Request.Context()
 
 		// 避免重复处理
 		if ctx.Value(tracingMiddlewareHandled) != nil {

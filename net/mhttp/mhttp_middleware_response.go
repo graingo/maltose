@@ -1,6 +1,7 @@
 package mhttp
 
 import (
+	"fmt"
 	"net/http"
 
 	"github.com/mingzaily/maltose/errors/mcode"
@@ -9,9 +10,9 @@ import (
 
 // DefaultResponse 标准响应结构
 type DefaultResponse struct {
-	Code    int         `json:"code"`    // 业务码
-	Message string      `json:"message"` // 提示信息
-	Data    interface{} `json:"data"`    // 业务数据
+	Code    int    `json:"code"`    // 业务码
+	Message string `json:"message"` // 提示信息
+	Data    any    `json:"data"`    // 业务数据
 }
 
 // MiddlewareResponse 标准响应中间件
@@ -22,8 +23,10 @@ func MiddlewareResponse() MiddlewareFunc {
 
 		// 如果已经写入了响应,则跳过
 		if r.Writer.Written() {
+			fmt.Println("response has been written")
 			return
 		}
+		fmt.Println("response not been written")
 
 		var response DefaultResponse
 

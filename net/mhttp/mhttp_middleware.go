@@ -12,11 +12,7 @@ func (s *Server) Use(middleware ...MiddlewareFunc) {
 	// 转换为 gin 的中间件格式
 	for _, m := range middleware {
 		handler := func(c *gin.Context) {
-			r := RequestFromCtx(c.Request.Context())
-			if r == nil {
-				r = &Request{Context: c, Server: s}
-				c.Request = c.Request.WithContext(WithRequest(c.Request.Context(), r))
-			}
+			r := newRequest(c, s)
 			m(r)
 		}
 		s.middleware = append(s.middleware, handler)

@@ -1,5 +1,10 @@
 server:
   address: ":8081"
+  server_name: maltose
+  server_root: ./public
+  read_timeout: 30s
+  openapi_path: /api.json
+  swagger_path: /swagger
   logger:
     level: debug
     format: text

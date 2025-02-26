@@ -57,12 +57,7 @@ func Server(name ...interface{}) *mhttp.Server {
 				// 应用服务器配置
 				if len(serverConfigMap) > 0 {
 					// 基础配置
-					if address, ok := serverConfigMap["address"].(string); ok {
-						server.SetAddress(address)
-					}
-					if root, ok := serverConfigMap["serverRoot"].(string); ok {
-						server.SetServerRoot(root)
-					}
+					server.SetConfig(serverConfigMap)
 
 					// 日志配置处理
 					loggerServerConfigMap = make(map[string]any)
@@ -90,6 +85,8 @@ func Server(name ...interface{}) *mhttp.Server {
 		if instanceName != mhttp.DefaultServerName {
 			server.SetServerName(instanceName)
 		}
+
+		server.Registered()
 
 		return server
 	}).(*mhttp.Server)

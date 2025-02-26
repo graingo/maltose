@@ -23,7 +23,6 @@ func ExampleHooks() {
 	// 使用日志
 	ctx := context.Background()
 	logger.Error(ctx, "database connection failed")
-	logger.Warn(ctx, "high memory usage: %d%%", 85)
 
 	// 清理钩子
 	logger.RemoveHooks(logrus.WarnLevel)

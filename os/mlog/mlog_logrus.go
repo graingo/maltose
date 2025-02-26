@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/sirupsen/logrus"
+	"github.com/spf13/cast"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -32,25 +33,25 @@ func New() *Logger {
 
 // SetConfigWithMap 通过 map 设置日志配置
 func (l *Logger) SetConfigWithMap(config map[string]any) error {
-	if level, ok := config["level"]; ok {
-		if lvl, err := logrus.ParseLevel(level.(string)); err == nil {
+	if v, ok := config["level"]; ok {
+		if lvl, err := logrus.ParseLevel(cast.ToString(v)); err == nil {
 			l.logger.SetLevel(lvl)
 		}
 	}
 
-	if path, ok := config["path"]; ok {
-		if f, err := os.OpenFile(path.(string), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644); err == nil {
+	if v, ok := config["path"]; ok {
+		if f, err := os.OpenFile(cast.ToString(v), os.O_WRONLY|os.O_CREATE|os.O_APPEND, 0644); err == nil {
 			l.logger.SetOutput(io.MultiWriter(os.Stdout, f))
 		}
 	}
 
 	timeFormat := time.DateTime
 	if v, ok := config["time_format"]; ok {
-		timeFormat = v.(string)
+		timeFormat = cast.ToString(v)
 	}
 
 	if format, ok := config["format"]; ok {
-		switch format.(string) {
+		switch cast.ToString(format) {
 		case "json":
 			l.logger.SetFormatter(&logrus.JSONFormatter{
 				TimestampFormat: timeFormat,
