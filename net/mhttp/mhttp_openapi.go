@@ -2,71 +2,139 @@ package mhttp
 
 import (
 	"context"
+	"reflect"
+	"strings"
 
-	"github.com/getkin/kin-openapi/openapi3"
-	"github.com/gin-gonic/gin"
+	"github.com/mingzaily/maltose/util/mmeta"
 )
 
-// OpenAPI OpenAPI 规范对象
+// OpenAPI 规范对象
 type OpenAPI struct {
-	*openapi3.T
+	Openapi string              `json:"openapi"`
+	Info    Info                `json:"info"`
+	Paths   map[string]PathItem `json:"paths"`
 }
 
-// initOpenAPI 初始化 OpenAPI 规范
-func (s *Server) initOpenAPI() {
+type Info struct {
+	Title   string `json:"title"`
+	Version string `json:"version"`
+}
+
+type PathItem struct {
+	Get    *Operation `json:"get,omitempty"`
+	Post   *Operation `json:"post,omitempty"`
+	Put    *Operation `json:"put,omitempty"`
+	Delete *Operation `json:"delete,omitempty"`
+}
+
+type Operation struct {
+	Tags        []string            `json:"tags,omitempty"`
+	Summary     string              `json:"summary,omitempty"`
+	Parameters  []Parameter         `json:"parameters,omitempty"`
+	RequestBody *RequestBody        `json:"requestBody,omitempty"`
+	Responses   map[string]Response `json:"responses"`
+}
+
+type Parameter struct {
+	Name        string `json:"name"`
+	In          string `json:"in"`
+	Required    bool   `json:"required"`
+	Schema      Schema `json:"schema"`
+	Description string `json:"description,omitempty"`
+}
+
+type RequestBody struct {
+	Required bool                 `json:"required"`
+	Content  map[string]MediaType `json:"content"`
+}
+
+type Response struct {
+	Description string               `json:"description"`
+	Content     map[string]MediaType `json:"content"`
+}
+
+type MediaType struct {
+	Schema Schema `json:"schema"`
+}
+
+type Schema struct {
+	Type                 string            `json:"type,omitempty"`
+	Format               string            `json:"format,omitempty"`
+	Properties           map[string]Schema `json:"properties,omitempty"`
+	Items                *Schema           `json:"items,omitempty"`
+	AdditionalProperties *Schema           `json:"additionalProperties,omitempty"`
+}
+
+func (s *Server) openapiHandler(r *Request) {
+	if s.openapi == nil {
+		r.String(500, "OpenAPI specification is not properly initialized")
+		return
+	}
+	r.JSON(200, s.openapi)
+}
+
+func (s *Server) initOpenAPI(_ context.Context) {
 	if s.config.OpenapiPath == "" {
 		return
 	}
 
-	ctx := context.Background()
-	swagger := &openapi3.T{
-		OpenAPI: "3.0.0",
-		Info: &openapi3.Info{
+	spec := &OpenAPI{
+		Openapi: "3.0.0",
+		Info: Info{
 			Title:   s.config.ServerName,
 			Version: "1.0.0",
 		},
-		Paths: &openapi3.Paths{}, // 使用 make 初始化 map
+		Paths: make(map[string]PathItem),
 	}
 
-	// 遍历所有路由，生成 OpenAPI 文档
 	for _, route := range s.Routes() {
-		path := route.Path
-		method := route.Method
-
-		// 跳过中间件和内部路由
-		if path == s.config.OpenapiPath || path == s.config.SwaggerPath {
+		// 只处理控制器路由
+		if route.Type != routeTypeController {
 			continue
 		}
 
-		// 创建响应对象
-		// successResponse := openapi3.NewResponse().
-		// 	WithDescription("Success").
-		// 	WithContent(openapi3.NewContentWithJSONSchema(
-		// 		openapi3.NewSchema().
-		// 			WithProperty("code", openapi3.NewIntegerSchema()).
-		// 			WithProperty("message", openapi3.NewStringSchema()).
-		// 			WithProperty("data", openapi3.NewObjectSchema()),
-		// 	))
-		// 返回对象数组
-		responses := openapi3.NewResponses()
-		responses.Default().Value.WithContent(openapi3.NewContentWithJSONSchema(
-			openapi3.NewSchema().
-				WithProperty("code", openapi3.NewIntegerSchema()).
-				WithProperty("message", openapi3.NewStringSchema()).
-				WithProperty("data", openapi3.NewObjectSchema())))
-		// responses.Set("200", successResponse)
+		// 直接使用保存的类型信息
+		reqType := route.ReqType
+		respType := route.RespType
 
-		operation := &openapi3.Operation{
-			Summary:   route.Path,
-			Tags:      []string{s.config.ServerName},
-			Responses: responses,
+		metaData := mmeta.Data(reqType)
+		if len(metaData) == 0 {
+			continue
 		}
 
-		// 确保路径存在
+		summary := mmeta.Get(reqType, "summary").String()
+		tags := mmeta.Get(reqType, "tag").String()
 
-		// 根据 HTTP 方法设置操作
-		pathItem := &openapi3.PathItem{}
-		switch method {
+		operation := &Operation{
+			Tags:    []string{tags},
+			Summary: summary,
+			Responses: map[string]Response{
+				"200": {
+					Description: "Success",
+					Content: map[string]MediaType{
+						"application/json": {
+							Schema: createResponseSchema(respType),
+						},
+					},
+				},
+			},
+		}
+
+		if route.Method == "GET" || route.Method == "DELETE" {
+			operation.Parameters = createParameters(reqType)
+		} else {
+			operation.RequestBody = &RequestBody{
+				Required: true,
+				Content: map[string]MediaType{
+					"application/json": {
+						Schema: createRequestSchema(reqType),
+					},
+				},
+			}
+		}
+
+		pathItem := spec.Paths[route.Path]
+		switch strings.ToUpper(route.Method) {
 		case "GET":
 			pathItem.Get = operation
 		case "POST":
@@ -76,42 +144,109 @@ func (s *Server) initOpenAPI() {
 		case "DELETE":
 			pathItem.Delete = operation
 		}
-
-		swagger.Paths.Set(path, pathItem)
+		spec.Paths[route.Path] = pathItem
 	}
 
-	// 验证 OpenAPI 文档
-	if err := swagger.Validate(ctx); err != nil {
-		s.Logger().Errorf(ctx, "OpenAPI validation failed: %v", err)
-		return
-	}
-
-	s.openapi = &OpenAPI{swagger}
+	s.openapi = spec
 }
 
-// openapiHandler OpenAPI 文档处理器
-func (s *Server) openapiHandler(r *Request) {
-	if s.openapi == nil {
-		r.String(400, "OpenAPI specification is not available")
-		return
+func createParameters(t reflect.Type) []Parameter {
+	// 如果是指针类型，获取其基础类型
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
 	}
-	r.JSON(200, s.openapi.T)
+
+	var params []Parameter
+	for i := 0; i < t.NumField(); i++ {
+		field := t.Field(i)
+		if field.Anonymous || field.Name == "Meta" {
+			continue
+		}
+
+		param := field.Tag.Get("json")
+		if param == "" {
+			param = field.Tag.Get("form")
+		}
+		if param == "" || param == "-" {
+			continue
+		}
+
+		params = append(params, Parameter{
+			Name:        param,
+			In:          "query",
+			Required:    false,
+			Schema:      createSchema(field.Type),
+			Description: field.Tag.Get("dc"),
+		})
+	}
+	return params
 }
 
-func (s *Server) Registered() {
-	// 初始化 OpenAPI
-	s.initOpenAPI()
-
-	// 注册 OpenAPI 和 Swagger UI 路由
-	if s.config.OpenapiPath != "" {
-		s.GET(s.config.OpenapiPath, func(c *gin.Context) {
-			s.openapiHandler(newRequest(c, s))
-		})
+func createSchema(t reflect.Type) Schema {
+	if t.Kind() == reflect.Ptr {
+		t = t.Elem()
 	}
 
-	if s.config.SwaggerPath != "" {
-		s.GET(s.config.SwaggerPath, func(c *gin.Context) {
-			s.swaggerHandler(newRequest(c, s))
-		})
+	schema := Schema{}
+
+	switch t.Kind() {
+	case reflect.String:
+		schema.Type = "string"
+	case reflect.Int, reflect.Int64:
+		schema.Type = "integer"
+		schema.Format = "int64"
+	case reflect.Float64:
+		schema.Type = "number"
+		schema.Format = "double"
+	case reflect.Bool:
+		schema.Type = "boolean"
+	case reflect.Struct:
+		schema.Type = "object"
+		schema.Properties = make(map[string]Schema)
+		for i := 0; i < t.NumField(); i++ {
+			field := t.Field(i)
+			if field.Anonymous || field.Name == "Meta" {
+				continue
+			}
+
+			jsonTag := field.Tag.Get("json")
+			if jsonTag == "" || jsonTag == "-" {
+				continue
+			}
+			jsonName := strings.Split(jsonTag, ",")[0]
+
+			schema.Properties[jsonName] = createSchema(field.Type)
+		}
+	case reflect.Slice:
+		schema.Type = "array"
+		items := createSchema(t.Elem())
+		schema.Items = &items
+	case reflect.Map:
+		schema.Type = "object"
+		valueSchema := createSchema(t.Elem())
+		schema.AdditionalProperties = &valueSchema
+	case reflect.Interface:
+		schema.Type = "object"
+	}
+
+	return schema
+}
+
+func createRequestSchema(t reflect.Type) Schema {
+	return createSchema(t)
+}
+
+func createResponseSchema(t reflect.Type) Schema {
+	return Schema{
+		Type: "object",
+		Properties: map[string]Schema{
+			"code": {
+				Type: "integer",
+			},
+			"message": {
+				Type: "string",
+			},
+			"data": createSchema(t),
+		},
 	}
 }

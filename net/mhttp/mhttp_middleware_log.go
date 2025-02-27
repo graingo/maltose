@@ -28,7 +28,7 @@ func MiddlewareLog() MiddlewareFunc {
 
 		// 记录日志
 		r.Logger().Infof(r.Request.Context(),
-			"[HTTP] %3d | %7v | %15s | %-7s | %s",
+			"[HTTP] %3d | %7v | %7s | %-7s | %s",
 			status,
 			latency,
 			r.ClientIP(),

@@ -85,9 +85,6 @@ func Server(name ...interface{}) *mhttp.Server {
 		if instanceName != mhttp.DefaultServerName {
 			server.SetServerName(instanceName)
 		}
-
-		server.Registered()
-
 		return server
 	}).(*mhttp.Server)
 }

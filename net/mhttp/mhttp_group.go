@@ -4,14 +4,11 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// GroupHandler 定义路由组处理函数类型
-type GroupHandler func(group *RouterGroup)
-
 // RouterGroup 路由组
 type RouterGroup struct {
 	*gin.RouterGroup
-	server     *Server
-	middleware []MiddlewareFunc
+	server      *Server
+	middlewares []MiddlewareFunc
 }
 
 // Group 创建路由组
@@ -25,12 +22,9 @@ func (s *Server) Group(prefix string, handlers ...any) *RouterGroup {
 	for _, handler := range handlers {
 		switch h := handler.(type) {
 		case MiddlewareFunc:
-			group.RouterGroup.Use(func(c *gin.Context) {
-				r := newRequest(c, s)
-				h(r)
-			})
-		case GroupHandler:
-			h(group)
+			group.Use(h)
+		default:
+			s.bindObject(group, h)
 		}
 	}
 
@@ -38,11 +32,26 @@ func (s *Server) Group(prefix string, handlers ...any) *RouterGroup {
 }
 
 // BindHandler 绑定处理函数到路由组
-func (g *RouterGroup) BindHandler(method, path string, handler HandlerFunc) *RouterGroup {
-	g.Handle(method, path, func(c *gin.Context) {
-		handler(RequestFromCtx(c))
+func (g *RouterGroup) BindHandler(method, path string, handler HandlerFunc) {
+	// 完整路径
+	fullPath := g.BasePath() + path
+
+	// 保存到路由列表
+	g.server.routes = append(g.server.routes, Route{
+		Method:      method,
+		Path:        fullPath,
+		HandlerFunc: handler,
+		Type:        routeTypeHandler,
 	})
-	return g
+
+	// 添加到预绑定列表
+	g.server.preBindItems = append(g.server.preBindItems, preBindItem{
+		Group:       g,
+		Method:      method,
+		Path:        path,
+		HandlerFunc: handler,
+		Type:        routeTypeHandler,
+	})
 }
 
 // Bind 绑定控制器到路由组
@@ -54,7 +63,7 @@ func (g *RouterGroup) Bind(objects ...any) *RouterGroup {
 			g.Use(h)
 		default:
 			// 处理控制器对象
-			g.server.bindObject(g.RouterGroup, object)
+			g.server.bindObject(g, object)
 		}
 	}
 	return g
@@ -67,7 +76,7 @@ func (g *RouterGroup) Use(handlers ...MiddlewareFunc) *RouterGroup {
 			r := newRequest(c, g.server)
 			h(r)
 		}
-		g.middleware = append(g.middleware, h)
+		g.middlewares = append(g.middlewares, h)
 		g.RouterGroup.Use(handler)
 	}
 	return g

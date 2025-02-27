@@ -22,12 +22,13 @@ const (
 // Server HTTP 服务结构
 type Server struct {
 	*gin.Engine
-	config     ServerConfig
-	middleware []gin.HandlerFunc
-	openapi    *OpenAPI
+	config       ServerConfig
+	middlewares  []MiddlewareFunc
+	routes       []Route
+	openapi      *OpenAPI
+	preBindItems []preBindItem
 }
 
-// New 创建新的 HTTP 服务实例
 func New() *Server {
 	// 禁用 gin 的默认日志输出
 	gin.DefaultWriter = io.Discard
@@ -36,11 +37,12 @@ func New() *Server {
 	gin.SetMode(gin.ReleaseMode)
 
 	s := &Server{
-		Engine: gin.New(),
-		config: NewConfig(),
+		Engine:       gin.New(),
+		config:       NewConfig(),
+		preBindItems: make([]preBindItem, 0),
 	}
 	// 添加默认中间件
-	s.Use(internalMiddlewareServerTracing())
+	s.Use(internalMiddlewareServerTracing(), internalMiddlewareDefaultResponse(), internalMiddlewareRecovery())
 
 	return s
 }
@@ -48,6 +50,14 @@ func New() *Server {
 // Run 启动 HTTP 服务
 func (s *Server) Run() {
 	ctx := context.Background()
+
+	// 注册 OpenAPI 和 Swagger
+	s.registerDoc(ctx)
+
+	// 在启动前注册所有路由
+	s.bindRoutes(ctx)
+
+	// 打印路由信息
 	s.doPrintRoute(ctx)
 
 	srv := &http.Server{
@@ -81,5 +91,19 @@ func (s *Server) Run() {
 		if err := srv.Shutdown(ctx); err != nil {
 			s.Logger().Errorf(ctx, "Server forced to shutdown: %v", err)
 		}
+	}
+}
+
+func (s *Server) registerDoc(ctx context.Context) {
+	s.initOpenAPI(ctx)
+
+	if s.config.OpenapiPath != "" {
+		s.BindHandler("GET", s.config.OpenapiPath, s.openapiHandler)
+		s.Logger().Infof(ctx, "OpenAPI specification registered at %s", s.config.OpenapiPath)
+	}
+
+	if s.config.SwaggerPath != "" {
+		s.BindHandler("GET", s.config.SwaggerPath, s.swaggerHandler)
+		s.Logger().Infof(ctx, "Swagger UI registered at %s", s.config.SwaggerPath)
 	}
 }

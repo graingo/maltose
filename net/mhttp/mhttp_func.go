@@ -6,7 +6,6 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/mingzaily/maltose/util/mmeta"
 )
 
@@ -18,6 +17,9 @@ func (s *Server) doPrintRoute(ctx context.Context) {
 	fmt.Printf("%-10s | %-7s | %-15s \n", "ADDRESS", "METHOD", "ROUTE")
 	routes := s.Engine.Routes()
 	for _, route := range routes {
+		if route.Path == s.config.OpenapiPath || route.Path == s.config.SwaggerPath {
+			continue
+		}
 		fmt.Printf("%-10s | %-7s | %-15s \n",
 			s.config.Address,
 			route.Method,
@@ -28,7 +30,7 @@ func (s *Server) doPrintRoute(ctx context.Context) {
 }
 
 // bindObject 处理对象的路由绑定
-func (s *Server) bindObject(group *gin.RouterGroup, object any) {
+func (s *Server) bindObject(group *RouterGroup, object any) {
 	typ := reflect.TypeOf(object)
 	val := reflect.ValueOf(object)
 
@@ -57,20 +59,40 @@ func (s *Server) bindObject(group *gin.RouterGroup, object any) {
 		}
 
 		// 创建处理函数
-		handler := func(c *gin.Context) {
+		handlerFunc := func(r *Request) {
 			req := reflect.New(reqElem).Interface()
-			if err := handleRequest(RequestFromCtx(c), method, val, req); err != nil {
-				c.Error(err)
-				return
+			if err := handleRequest(r, method, val, req); err != nil {
+				panic(err)
 			}
 		}
 
-		// 注册路由
+		// 构建完整路径
+		fullPath := path
 		if group != nil {
-			group.Handle(httpMethod, path, handler)
-		} else {
-			s.Handle(httpMethod, path, handler)
+			fullPath = group.BasePath() + path
 		}
+
+		// 保存到路由列表
+		s.routes = append(s.routes, Route{
+			Method:           httpMethod,
+			Path:             fullPath,
+			HandlerFunc:      handlerFunc,
+			Type:             routeTypeController,
+			Controller:       object,
+			ControllerMethod: method,
+			ReqType:          reqType,
+			RespType:         method.Type.Out(0),
+		})
+
+		// 添加到预绑定列表
+		s.preBindItems = append(s.preBindItems, preBindItem{
+			Group:       group,
+			Method:      httpMethod,
+			Path:        path,
+			HandlerFunc: handlerFunc,
+			Type:        routeTypeController,
+			Controller:  object,
+		})
 	}
 }
 
@@ -95,7 +117,7 @@ func handleRequest(r *Request, method reflect.Method, val reflect.Value, req int
 
 	// 设置响应到 Request 中供中间件使用
 	response := results[0].Interface()
-	r.Set(string(ResponseKey), response)
+	r.SetHandlerResponse(response)
 
 	return nil
 }
@@ -135,18 +157,5 @@ func checkMethodSignature(typ reflect.Type) error {
 		return fmt.Errorf("second return value should be error")
 	}
 
-	return nil
-}
-
-// RequestFromCtx 从上下文中获取 Request 对象
-func RequestFromCtx(ctx context.Context) *Request {
-	if ctx == nil {
-		return nil
-	}
-	if v := ctx.Value(requestKey); v != nil {
-		if r, ok := v.(*Request); ok {
-			return r
-		}
-	}
 	return nil
 }

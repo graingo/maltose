@@ -1,7 +1,6 @@
 package mhttp
 
 import (
-	"fmt"
 	"net/http"
 
 	"github.com/mingzaily/maltose/errors/mcode"
@@ -18,47 +17,55 @@ type DefaultResponse struct {
 // MiddlewareResponse 标准响应中间件
 func MiddlewareResponse() MiddlewareFunc {
 	return func(r *Request) {
-		// 执行后续中间件
 		r.Next()
 
 		// 如果已经写入了响应,则跳过
 		if r.Writer.Written() {
-			fmt.Println("response has been written")
 			return
 		}
-		fmt.Println("response not been written")
 
-		var response DefaultResponse
+		var (
+			msg  string
+			code = mcode.Success
+			data = r.GetHandlerResponse()
+		)
 
-		if r.Writer.Status() != http.StatusOK {
-			response = DefaultResponse{
-				Code:    r.Writer.Status(),
-				Message: http.StatusText(r.Writer.Status()),
-				Data:    nil,
-			}
-		} else if len(r.Errors) > 0 {
+		// 处理错误情况
+		if len(r.Errors) > 0 {
 			err := r.Errors.Last().Err
 			if merr, ok := err.(*merror.Error); ok {
-				response = DefaultResponse{
-					Code:    merr.Code().Code(),
-					Message: merr.Error(),
-					Data:    nil,
-				}
+				code = merr.Code()
+				msg = merr.Error()
 			} else {
-				response = DefaultResponse{
-					Code:    mcode.InternalError.Code(),
-					Message: err.Error(),
-					Data:    nil,
-				}
+				code = mcode.InternalError
+				msg = err.Error()
 			}
+			data = nil
+		} else if status := r.Writer.Status(); status != http.StatusOK {
+			// 处理 HTTP 状态码错误
+			msg = http.StatusText(status)
+			switch status {
+			case http.StatusNotFound:
+				code = mcode.NotFound
+			case http.StatusForbidden:
+				code = mcode.Forbidden
+			case http.StatusUnauthorized:
+				code = mcode.Unauthorized
+			default:
+				code = mcode.InternalError
+			}
+			data = nil
+			// 创建错误对象供其他中间件使用
+			r.Error(merror.NewCode(code, msg))
 		} else {
-			response = DefaultResponse{
-				Code:    mcode.Success.Code(),
-				Message: "success",
-				Data:    r.GetHandlerResponse(),
-			}
+			msg = "success"
 		}
 
-		r.JSON(r.Writer.Status(), response)
+		// 返回标准响应
+		r.JSON(r.Writer.Status(), DefaultResponse{
+			Code:    code.Code(),
+			Message: msg,
+			Data:    data,
+		})
 	}
 }

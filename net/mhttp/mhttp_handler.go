@@ -1,16 +1,24 @@
 package mhttp
 
-import (
-	"github.com/gin-gonic/gin"
-)
-
 // HandlerFunc 定义基础处理函数类型
 type HandlerFunc func(*Request)
 
 // BindHandler 绑定简单处理函数
 func (s *Server) BindHandler(method, path string, handler HandlerFunc) {
-	s.Handle(method, path, func(c *gin.Context) {
-		handler(RequestFromCtx(c))
+	// 保存路由信息
+	s.routes = append(s.routes, Route{
+		Method:      method,
+		Path:        path,
+		HandlerFunc: handler,
+		Type:        routeTypeHandler,
+	})
+
+	// 添加到预绑定列表
+	s.preBindItems = append(s.preBindItems, preBindItem{
+		Method:      method,
+		Path:        path,
+		HandlerFunc: handler,
+		Type:        routeTypeHandler,
 	})
 }
 

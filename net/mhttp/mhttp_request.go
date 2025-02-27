@@ -22,6 +22,19 @@ type Request struct {
 	Server *Server // 服务器实例
 }
 
+// RequestFromCtx 从上下文中获取 Request 对象
+func RequestFromCtx(ctx context.Context) *Request {
+	if ctx == nil {
+		return nil
+	}
+	if v := ctx.Value(requestKey); v != nil {
+		if r, ok := v.(*Request); ok {
+			return r
+		}
+	}
+	return nil
+}
+
 func newRequest(c *gin.Context, s *Server) *Request {
 	// 先尝试从上下文获取
 	if r := RequestFromCtx(c.Request.Context()); r != nil {
