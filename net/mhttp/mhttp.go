@@ -44,11 +44,22 @@ func New() *Server {
 		preBindItems: make([]preBindItem, 0),
 	}
 	// 添加默认中间件
-	s.Use(internalMiddlewareRecovery(), internalMiddlewareServerTracing(), internalMiddlewareDefaultResponse())
+	s.Use(
+		internalMiddlewareRecovery(),
+		internalMiddlewareServerTrace(),
+		internalMiddlewareMetric(),
+		internalMiddlewareDefaultResponse(),
+	)
 	// 注册翻译器
 	s.registerValidateTranslator(s.config.ServerLocale)
 
 	return s
+}
+
+// 静态文件服务增强
+func (s *Server) SetStaticPath(prefix string, directory string) {
+	// 实现静态文件服务
+	s.StaticFS(prefix, http.Dir(directory))
 }
 
 // Run 启动 HTTP 服务

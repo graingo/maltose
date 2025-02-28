@@ -24,8 +24,8 @@ const (
 	tracingMiddlewareHandled   contextKey = "TracingMiddlewareHandled"
 )
 
-// internalMiddlewareServerTracing 返回一个中间件用于OpenTelemetry跟踪
-func internalMiddlewareServerTracing() MiddlewareFunc {
+// internalMiddlewareServerTrace 返回一个中间件用于OpenTelemetry跟踪
+func internalMiddlewareServerTrace() MiddlewareFunc {
 	return func(r *Request) {
 		ctx := r.Request.Context()
 

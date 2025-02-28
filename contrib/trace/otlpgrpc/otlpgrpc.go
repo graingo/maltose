@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/mingzaily/maltose/frame/g"
+	"github.com/mingzaily/maltose/frame/m"
 	"github.com/mingzaily/maltose/net/mipv4"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -103,9 +103,9 @@ func Init(serviceName, endpoint string) (func(ctx context.Context), error) {
 		ctx, cancel := context.WithTimeout(ctx, time.Second)
 		defer cancel()
 		if err = tracerProvider.Shutdown(ctx); err != nil {
-			g.Log().Errorf(ctx, "Shutdown tracerProvider failed: %+v", err)
+			m.Log().Errorf(ctx, "Shutdown tracerProvider failed: %+v", err)
 		} else {
-			g.Log().Debug(ctx, "Shutdown tracerProvider success")
+			m.Log().Debug(ctx, "Shutdown tracerProvider success")
 		}
 	}, nil
 }
