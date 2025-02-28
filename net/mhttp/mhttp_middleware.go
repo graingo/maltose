@@ -1,8 +1,9 @@
 package mhttp
 
 import (
+	"fmt"
+
 	"github.com/gin-gonic/gin"
-	"github.com/spf13/cast"
 )
 
 // MiddlewareFunc 定义中间件函数类型
@@ -31,11 +32,27 @@ func internalMiddlewareDefaultResponse() MiddlewareFunc {
 			return
 		}
 
-		// 获取处理器响应
-		if res := r.GetHandlerResponse(); res != nil {
-			r.String(200, cast.ToString(res))
+		// 处理错误情况
+		if len(r.Errors) > 0 {
+			err := r.Errors.Last().Err
+			r.String(500, fmt.Sprintf("Error: %s", err.Error()))
 			return
 		}
+
+		// 获取处理器响应
+		if res := r.GetHandlerResponse(); res != nil {
+			switch v := res.(type) {
+			case string:
+				r.String(200, v)
+			case []byte:
+				r.String(200, string(v))
+			default:
+				r.String(200, fmt.Sprintf("%v", v))
+			}
+			return
+		}
+
+		// 没有响应则返回空字符串
 		r.String(200, "")
 	}
 }

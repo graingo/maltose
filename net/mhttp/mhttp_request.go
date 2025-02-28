@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/gin-gonic/gin"
+	ut "github.com/go-playground/universal-translator"
 	"github.com/mingzaily/maltose/os/mlog"
 )
 
@@ -66,4 +67,18 @@ func (r *Request) GetHandlerResponse() any {
 // SetHandlerResponse 设置处理器响应
 func (r *Request) SetHandlerResponse(res any) {
 	r.Set(string(ResponseKey), res)
+}
+
+// Error 添加错误信息
+func (r *Request) Error(err error) *Request {
+	r.Errors = append(r.Errors, &gin.Error{
+		Err:  err,
+		Type: gin.ErrorTypePrivate,
+	})
+	return r
+}
+
+// GetTranslator 获取翻译器
+func (r *Request) GetTranslator() ut.Translator {
+	return r.Server.translator
 }

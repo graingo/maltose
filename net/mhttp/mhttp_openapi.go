@@ -30,6 +30,7 @@ type PathItem struct {
 type Operation struct {
 	Tags        []string            `json:"tags,omitempty"`
 	Summary     string              `json:"summary,omitempty"`
+	Description string              `json:"description,omitempty"`
 	Parameters  []Parameter         `json:"parameters,omitempty"`
 	RequestBody *RequestBody        `json:"requestBody,omitempty"`
 	Responses   map[string]Response `json:"responses"`
@@ -63,6 +64,8 @@ type Schema struct {
 	Properties           map[string]Schema `json:"properties,omitempty"`
 	Items                *Schema           `json:"items,omitempty"`
 	AdditionalProperties *Schema           `json:"additionalProperties,omitempty"`
+	Description          string            `json:"description,omitempty"`
+	Required             []string          `json:"required,omitempty"`
 }
 
 func (s *Server) openapiHandler(r *Request) {
@@ -104,10 +107,12 @@ func (s *Server) initOpenAPI(_ context.Context) {
 
 		summary := mmeta.Get(reqType, "summary").String()
 		tags := mmeta.Get(reqType, "tag").String()
+		description := mmeta.Get(reqType, "dc").String()
 
 		operation := &Operation{
-			Tags:    []string{tags},
-			Summary: summary,
+			Tags:        []string{tags},
+			Summary:     summary,
+			Description: description,
 			Responses: map[string]Response{
 				"200": {
 					Description: "Success",
@@ -174,7 +179,7 @@ func createParameters(t reflect.Type) []Parameter {
 		params = append(params, Parameter{
 			Name:        param,
 			In:          "query",
-			Required:    false,
+			Required:    strings.Contains(field.Tag.Get("binding"), "required"),
 			Schema:      createSchema(field.Type),
 			Description: field.Tag.Get("dc"),
 		})
@@ -215,7 +220,13 @@ func createSchema(t reflect.Type) Schema {
 			}
 			jsonName := strings.Split(jsonTag, ",")[0]
 
-			schema.Properties[jsonName] = createSchema(field.Type)
+			fieldSchema := createSchema(field.Type)
+			fieldSchema.Description = field.Tag.Get("dc")
+
+			if strings.Contains(field.Tag.Get("binding"), "required") {
+				schema.Required = append(schema.Required, jsonName)
+			}
+			schema.Properties[jsonName] = fieldSchema
 		}
 	case reflect.Slice:
 		schema.Type = "array"
@@ -237,16 +248,5 @@ func createRequestSchema(t reflect.Type) Schema {
 }
 
 func createResponseSchema(t reflect.Type) Schema {
-	return Schema{
-		Type: "object",
-		Properties: map[string]Schema{
-			"code": {
-				Type: "integer",
-			},
-			"message": {
-				Type: "string",
-			},
-			"data": createSchema(t),
-		},
-	}
+	return createSchema(t)
 }

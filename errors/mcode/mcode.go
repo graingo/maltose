@@ -21,6 +21,7 @@ var (
 	CodeValidationFailed = localCode{103, "数据验证失败", nil}
 	CodeNotFound         = localCode{104, "资源不存在", nil}
 	CodeNotAuthorized    = localCode{105, "未授权", nil}
+	CodeForbidden        = localCode{106, "禁止访问", nil}
 
 	// 服务端错误 (200-299)
 	CodeInternalError    = localCode{200, "内部错误", nil}

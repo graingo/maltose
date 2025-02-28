@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	ut "github.com/go-playground/universal-translator"
 )
 
 const (
@@ -27,6 +28,7 @@ type Server struct {
 	routes       []Route
 	openapi      *OpenAPI
 	preBindItems []preBindItem
+	translator   ut.Translator
 }
 
 func New() *Server {
@@ -42,7 +44,9 @@ func New() *Server {
 		preBindItems: make([]preBindItem, 0),
 	}
 	// 添加默认中间件
-	s.Use(internalMiddlewareServerTracing(), internalMiddlewareDefaultResponse(), internalMiddlewareRecovery())
+	s.Use(internalMiddlewareRecovery(), internalMiddlewareServerTracing(), internalMiddlewareDefaultResponse())
+	// 注册翻译器
+	s.registerValidateTranslator(s.config.ServerLocale)
 
 	return s
 }
@@ -91,19 +95,5 @@ func (s *Server) Run() {
 		if err := srv.Shutdown(ctx); err != nil {
 			s.Logger().Errorf(ctx, "Server forced to shutdown: %v", err)
 		}
-	}
-}
-
-func (s *Server) registerDoc(ctx context.Context) {
-	s.initOpenAPI(ctx)
-
-	if s.config.OpenapiPath != "" {
-		s.BindHandler("GET", s.config.OpenapiPath, s.openapiHandler)
-		s.Logger().Infof(ctx, "OpenAPI specification registered at %s", s.config.OpenapiPath)
-	}
-
-	if s.config.SwaggerPath != "" {
-		s.BindHandler("GET", s.config.SwaggerPath, s.swaggerHandler)
-		s.Logger().Infof(ctx, "Swagger UI registered at %s", s.config.SwaggerPath)
 	}
 }

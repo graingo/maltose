@@ -26,39 +26,38 @@ func MiddlewareResponse() MiddlewareFunc {
 
 		var (
 			msg  string
-			code = mcode.Success
-			data = r.GetHandlerResponse()
+			code mcode.Code = mcode.CodeOK
+			data            = r.GetHandlerResponse()
 		)
 
 		// 处理错误情况
 		if len(r.Errors) > 0 {
 			err := r.Errors.Last().Err
-			if merr, ok := err.(*merror.Error); ok {
-				code = merr.Code()
-				msg = merr.Error()
-			} else {
-				code = mcode.InternalError
-				msg = err.Error()
+			// 获取错误码
+			code = merror.Code(err)
+			if code == mcode.CodeNil {
+				code = mcode.CodeInternalError
 			}
+			msg = err.Error()
 			data = nil
 		} else if status := r.Writer.Status(); status != http.StatusOK {
 			// 处理 HTTP 状态码错误
 			msg = http.StatusText(status)
 			switch status {
 			case http.StatusNotFound:
-				code = mcode.NotFound
+				code = mcode.CodeNotFound
 			case http.StatusForbidden:
-				code = mcode.Forbidden
+				code = mcode.CodeForbidden
 			case http.StatusUnauthorized:
-				code = mcode.Unauthorized
+				code = mcode.CodeNotAuthorized
 			default:
-				code = mcode.InternalError
+				code = mcode.CodeInternalError
 			}
 			data = nil
 			// 创建错误对象供其他中间件使用
 			r.Error(merror.NewCode(code, msg))
 		} else {
-			msg = "success"
+			msg = code.Message()
 		}
 
 		// 返回标准响应

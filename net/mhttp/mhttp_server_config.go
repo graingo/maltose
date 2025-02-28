@@ -12,6 +12,7 @@ type ServerConfig struct {
 	Address        string
 	ServerName     string
 	ServerRoot     string
+	ServerLocale   string
 	ReadTimeout    time.Duration
 	WriteTimeout   time.Duration
 	IdleTimeout    time.Duration
@@ -27,6 +28,7 @@ func NewConfig() ServerConfig {
 	return ServerConfig{
 		Address:        defaultPort,
 		ServerName:     DefaultServerName,
+		ServerLocale:   "zh",
 		Logger:         mlog.New(),
 		ReadTimeout:    time.Second * 60,
 		WriteTimeout:   time.Second * 60,
@@ -45,6 +47,9 @@ func (s *Server) SetConfig(configMap map[string]any) {
 	}
 	if v, ok := configMap["server_root"]; ok {
 		s.config.ServerRoot = cast.ToString(v)
+	}
+	if v, ok := configMap["server_locale"]; ok {
+		s.config.ServerLocale = cast.ToString(v)
 	}
 	if v, ok := configMap["read_timeout"]; ok {
 		s.config.ReadTimeout = cast.ToDuration(v)
