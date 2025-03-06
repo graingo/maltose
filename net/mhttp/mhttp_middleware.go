@@ -57,6 +57,7 @@ func internalMiddlewareDefaultResponse() MiddlewareFunc {
 	}
 }
 
+// internalMiddlewareRecovery 内部错误恢复中间件
 func internalMiddlewareRecovery() MiddlewareFunc {
 	return func(r *Request) {
 		defer func() {
@@ -70,3 +71,30 @@ func internalMiddlewareRecovery() MiddlewareFunc {
 		r.Next()
 	}
 }
+
+// func (s *Server) EnableRateLimit(store ratelimit.Store, rate float64) {
+// 	s.Use(func(r *Request) {
+// 		ratelimit.NewMiddleware(ratelimit.Config{
+// 			Store: store,
+// 			Rate:  rate,
+// 		})(r.Context)
+// 	})
+// }
+
+// func (s *Server) EnableCORS(config cors.Config) {
+// 	s.Use(func(r *Request) {
+// 		cors.New(config)(r.Context)
+// 	})
+// }
+
+// func (s *Server) EnableGzip(config gzip.Config) {
+// 	s.Use(func(r *Request) {
+// 		gzip.New(config)(r.Context)
+// 	})
+// }
+
+// func (s *Server) EnableRequestID() {
+// 	s.Use(func(r *Request) {
+// 		requestid.New()(r.Context)
+// 	})
+// }

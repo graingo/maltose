@@ -1,6 +1,6 @@
 package merror
 
-import "github.com/mingzaily/maltose/errors/mcode"
+import "github.com/savorelle/maltose/errors/mcode"
 
 // IEqual 定义了用于比较两个错误是否相等接口
 type IEqual interface {

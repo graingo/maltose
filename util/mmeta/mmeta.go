@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strconv"
 
-	"github.com/mingzaily/maltose/container/mvar"
+	"github.com/savorelle/maltose/container/mvar"
 )
 
 // Meta 用作结构体的嵌入属性以启用元数据特性

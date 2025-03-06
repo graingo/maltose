@@ -87,7 +87,18 @@ func (s *Server) Run() {
 	// 创建错误通道
 	errChan := make(chan error, 1)
 	go func() {
-		if err := srv.ListenAndServe(); err != nil && err != http.ErrServerClosed {
+		var err error
+		if s.config.TLSEnable {
+			if s.config.TLSAutoEnable {
+				// 实现自动 HTTPS
+				// err = srv.ListenAndServeTLS("", "")
+			} else {
+				err = srv.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
+			}
+		} else {
+			err = srv.ListenAndServe()
+		}
+		if err != nil && err != http.ErrServerClosed {
 			errChan <- err
 		}
 	}()
@@ -101,8 +112,20 @@ func (s *Server) Run() {
 		s.Logger().Errorf(ctx, "HTTP server %s start failed: %v", s.config.ServerName, err)
 	case <-quit:
 		s.Logger().Infof(ctx, "Shutting down server...")
-		ctx, cancel := context.WithTimeout(ctx, 5*time.Second)
+
+		timeout := 5 * time.Second
+		if s.config.GracefulEnable {
+			timeout = s.config.GracefulTimeout
+		}
+
+		ctx, cancel := context.WithTimeout(ctx, timeout)
 		defer cancel()
+
+		if s.config.GracefulEnable {
+			// 等待活跃连接完成
+			time.Sleep(s.config.GracefulWaitTime)
+		}
+
 		if err := srv.Shutdown(ctx); err != nil {
 			s.Logger().Errorf(ctx, "Server forced to shutdown: %v", err)
 		}

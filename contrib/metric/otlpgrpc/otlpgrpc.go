@@ -4,8 +4,8 @@ import (
 	"context"
 	"time"
 
-	"github.com/mingzaily/maltose/net/mipv4"
-	"github.com/mingzaily/maltose/os/mmetric"
+	"github.com/savorelle/maltose/net/mipv4"
+	"github.com/savorelle/maltose/os/mmetric"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"

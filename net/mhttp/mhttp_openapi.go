@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"strings"
 
-	"github.com/mingzaily/maltose/util/mmeta"
+	"github.com/savorelle/maltose/util/mmeta"
 )
 
 // OpenAPI 规范对象

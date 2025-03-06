@@ -1,7 +1,7 @@
 package merror
 
 import (
-	"github.com/mingzaily/maltose/errors/mcode"
+	"github.com/savorelle/maltose/errors/mcode"
 )
 
 // Code 返回错误码

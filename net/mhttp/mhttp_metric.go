@@ -6,8 +6,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/mingzaily/maltose/errors/merror"
-	"github.com/mingzaily/maltose/os/mmetric"
+	"github.com/savorelle/maltose/errors/merror"
+	"github.com/savorelle/maltose/os/mmetric"
 )
 
 const (

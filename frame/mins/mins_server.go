@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mingzaily/maltose/net/mhttp"
+	"github.com/savorelle/maltose/net/mhttp"
 	"github.com/spf13/cast"
 )
 

@@ -5,10 +5,6 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-const (
-	instrumentationName = "github.com/mingzaily/maltose"
-)
-
 type Tracer struct {
 	trace.Tracer
 }

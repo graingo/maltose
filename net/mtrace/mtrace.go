@@ -6,12 +6,11 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/savorelle/maltose/container/mvar"
+	"github.com/savorelle/maltose/net/mtrace/internal/provider"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"
-
-	"github.com/mingzaily/maltose/container/mvar"               // TODO: 需要实现
-	"github.com/mingzaily/maltose/net/mtrace/internal/provider" // TODO: 需要实现
 )
 
 var (

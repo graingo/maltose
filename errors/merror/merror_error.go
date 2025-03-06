@@ -4,7 +4,7 @@ import (
 	"errors"
 	"fmt"
 
-	"github.com/mingzaily/maltose/errors/mcode"
+	"github.com/savorelle/maltose/errors/mcode"
 )
 
 // Error 错误结构体

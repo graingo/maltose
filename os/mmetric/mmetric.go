@@ -3,8 +3,6 @@ package mmetric
 import (
 	"context"
 	"sync"
-
-	"github.com/mingzaily/maltose/os/mmetric/internal/provider"
 )
 
 // Provider 指标提供者接口
@@ -88,11 +86,12 @@ func (m AttributeMap) Pick(keys ...string) AttributeMap {
 	return result
 }
 
+// 移除原来的 provider 包导入和默认提供者初始化
 var (
 	globalProviderMu sync.RWMutex
 	globalProvider   Provider
 	enabled          = true
-	defaultProvider  = provider.New()
+	defaultProvider  = newNoopProvider()
 )
 
 // SetGlobalProvider 设置全局提供者

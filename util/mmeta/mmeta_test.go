@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/mingzaily/maltose/util/mmeta"
+	"github.com/savorelle/maltose/util/mmeta"
 )
 
 func TestMeta_Basic(t *testing.T) {

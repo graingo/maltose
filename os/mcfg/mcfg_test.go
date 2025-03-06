@@ -4,7 +4,7 @@ import (
 	"context"
 	"testing"
 
-	"github.com/mingzaily/maltose/os/mcfg"
+	"github.com/savorelle/maltose/os/mcfg"
 )
 
 var (

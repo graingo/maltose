@@ -1,8 +1,8 @@
 package m
 
 import (
-	"github.com/mingzaily/maltose/container/mvar"
-	"github.com/mingzaily/maltose/util/mmeta"
+	"github.com/savorelle/maltose/container/mvar"
+	"github.com/savorelle/maltose/util/mmeta"
 )
 
 type (

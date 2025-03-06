@@ -4,8 +4,8 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/mingzaily/maltose/container/minstance"
-	"github.com/mingzaily/maltose/container/mvar"
+	"github.com/savorelle/maltose/container/minstance"
+	"github.com/savorelle/maltose/container/mvar"
 )
 
 var (

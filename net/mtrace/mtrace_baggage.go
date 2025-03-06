@@ -3,7 +3,7 @@ package mtrace
 import (
 	"context"
 
-	"github.com/mingzaily/maltose/container/mvar"
+	"github.com/savorelle/maltose/container/mvar"
 	"github.com/spf13/cast"
 	"go.opentelemetry.io/otel/baggage"
 )

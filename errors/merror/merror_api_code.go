@@ -4,7 +4,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/mingzaily/maltose/errors/mcode"
+	"github.com/savorelle/maltose/errors/mcode"
 )
 
 // NewCode 创建一个带指定错误码的新错误
