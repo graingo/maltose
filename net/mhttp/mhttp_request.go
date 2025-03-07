@@ -5,7 +5,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	ut "github.com/go-playground/universal-translator"
-	"github.com/savorelle/maltose/os/mlog"
+	"github.com/graingo/maltose/os/mlog"
 )
 
 // contextKey 定义上下文键类型

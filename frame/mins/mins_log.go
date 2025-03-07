@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/savorelle/maltose/os/mlog"
+	"github.com/graingo/maltose/os/mlog"
 )
 
 const (

@@ -6,8 +6,8 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/savorelle/maltose/container/mvar"
-	"github.com/savorelle/maltose/net/mtrace/internal/provider"
+	"github.com/graingo/maltose/container/mvar"
+	"github.com/graingo/maltose/net/mtrace/internal/provider"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/trace"

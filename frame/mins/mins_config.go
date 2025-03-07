@@ -1,7 +1,7 @@
 package mins
 
 import (
-	"github.com/savorelle/maltose/os/mcfg"
+	"github.com/graingo/maltose/os/mcfg"
 )
 
 // Config 返回一个 gcfg.Config 实例

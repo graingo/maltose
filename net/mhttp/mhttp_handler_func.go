@@ -7,9 +7,9 @@ import (
 	"strings"
 
 	"github.com/go-playground/validator/v10"
-	"github.com/savorelle/maltose/errors/mcode"
-	"github.com/savorelle/maltose/errors/merror"
-	"github.com/savorelle/maltose/util/mmeta"
+	"github.com/graingo/maltose/errors/mcode"
+	"github.com/graingo/maltose/errors/merror"
+	"github.com/graingo/maltose/util/mmeta"
 )
 
 // bindObject 处理对象的路由绑定

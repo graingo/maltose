@@ -1,11 +1,11 @@
-module github.com/savorelle/maltose/contrib/metric/otlpgrpc
+module github.com/graingo/maltose/contrib/metric/otlpgrpc
 
 go 1.22.5
 
 toolchain go1.23.6
 
 require (
-	github.com/savorelle/maltose v0.0.0
+	github.com/graingo/maltose v0.0.0
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc v1.34.0
 	go.opentelemetry.io/otel/metric v1.34.0
@@ -31,4 +31,4 @@ require (
 	google.golang.org/protobuf v1.36.3 // indirect
 )
 
-replace github.com/savorelle/maltose => ../../..
+replace github.com/graingo/maltose => ../../..

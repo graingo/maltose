@@ -1,6 +1,6 @@
 package mins
 
-import "github.com/savorelle/maltose/container/minstance"
+import "github.com/graingo/maltose/container/minstance"
 
 const (
 	frameCoreNameLogger = "maltose.logger"

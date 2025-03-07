@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/savorelle/maltose/os/mmetric"
+	"github.com/graingo/maltose/os/mmetric"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )

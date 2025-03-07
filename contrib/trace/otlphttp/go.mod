@@ -1,11 +1,11 @@
-module github.com/savorelle/maltose/contrib/trace/otlphttp
+module github.com/graingo/maltose/contrib/trace/otlphttp
 
 go 1.22.5
 
 toolchain go1.23.6
 
 require (
-	github.com/savorelle/maltose v0.0.0
+	github.com/graingo/maltose v0.0.0
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.34.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp v1.34.0
@@ -71,4 +71,4 @@ require (
 	gopkg.in/yaml.v3 v3.0.1 // indirect
 )
 
-replace github.com/savorelle/maltose => ../../..
+replace github.com/graingo/maltose => ../../..

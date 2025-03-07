@@ -3,7 +3,7 @@ package merror
 import (
 	"fmt"
 
-	"github.com/savorelle/maltose/errors/mcode"
+	"github.com/graingo/maltose/errors/mcode"
 )
 
 // New 创建一个新的错误

@@ -3,9 +3,9 @@
 
 基于 Gin 打造的轻量级企业级开发框架
 
-[![Go Reference](https://pkg.go.dev/badge/github.com/mingzaily/maltose.svg)](https://pkg.go.dev/github.com/mingzaily/maltose)
-[![License](https://img.shields.io/github/license/mingzaily/maltose.svg)](LICENSE)
-[![Go Report Card](https://goreportcard.com/badge/github.com/mingzaily/maltose)](https://goreportcard.com/report/github.com/mingzaily/maltose)
+[![Go Reference](https://pkg.go.dev/badge/github.com/graingo/maltose.svg)](https://pkg.go.dev/github.com/graingo/maltose)
+[![License](https://img.shields.io/github/license/graingo/maltose.svg)](LICENSE)
+[![Go Report Card](https://goreportcard.com/badge/github.com/graingo/maltose)](https://goreportcard.com/report/github.com/graingo/maltose)
 
 </div>
 
@@ -24,7 +24,7 @@
 ## 安装
 
 ```bash
-go get -u github.com/mingzaily/maltose
+go get -u github.com/graingo/maltose
 ```
 
 ## Hello World
@@ -33,7 +33,7 @@ go get -u github.com/mingzaily/maltose
 package main
 
 import (
-    "github.com/mingzaily/maltose/frame/m"
+    "github.com/graingo/maltose/frame/m"
 )
 
 type HelloReq struct {

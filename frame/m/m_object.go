@@ -1,10 +1,10 @@
 package m
 
 import (
-	"github.com/savorelle/maltose/frame/mins"
-	"github.com/savorelle/maltose/net/mhttp"
-	"github.com/savorelle/maltose/os/mcfg"
-	"github.com/savorelle/maltose/os/mlog"
+	"github.com/graingo/maltose/frame/mins"
+	"github.com/graingo/maltose/net/mhttp"
+	"github.com/graingo/maltose/os/mcfg"
+	"github.com/graingo/maltose/os/mlog"
 )
 
 // Server 返回指定名称的 HTTP 服务器实例

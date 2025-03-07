@@ -5,7 +5,7 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/savorelle/maltose/net/mtrace"
+	"github.com/graingo/maltose/net/mtrace"
 	"github.com/spf13/cast"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -15,7 +15,7 @@ import (
 )
 
 const (
-	instrumentName                        = "github.com/mingzaily/maltose/net/mhttp.Server"
+	instrumentName                        = "github.com/graingo/maltose/net/mhttp.Server"
 	tracingEventHttpRequest               = "http.request"
 	tracingEventHttpRequestUrl            = "http.request.url"
 	tracingEventHttpHeaders               = "http.headers"

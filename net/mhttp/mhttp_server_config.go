@@ -3,7 +3,7 @@ package mhttp
 import (
 	"time"
 
-	"github.com/savorelle/maltose/os/mlog"
+	"github.com/graingo/maltose/os/mlog"
 	"github.com/spf13/cast"
 )
 

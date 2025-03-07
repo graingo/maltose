@@ -3,8 +3,8 @@ package mhttp
 import (
 	"net/http"
 
-	"github.com/savorelle/maltose/errors/mcode"
-	"github.com/savorelle/maltose/errors/merror"
+	"github.com/graingo/maltose/errors/mcode"
+	"github.com/graingo/maltose/errors/merror"
 )
 
 // DefaultResponse 标准响应结构

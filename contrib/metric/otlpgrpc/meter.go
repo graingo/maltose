@@ -1,7 +1,7 @@
 package otlpgrpc
 
 import (
-	"github.com/savorelle/maltose/os/mmetric"
+	"github.com/graingo/maltose/os/mmetric"
 	"go.opentelemetry.io/otel/metric"
 )
 
