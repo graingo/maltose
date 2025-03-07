@@ -82,13 +82,13 @@ func internalMiddlewareMetric() MiddlewareFunc {
 		startTime := time.Now()
 
 		// 请求前指标收集
-		r.Server.handleMetricsBeforeRequest(r)
+		r.server.handleMetricsBeforeRequest(r)
 
 		// 执行后续中间件
 		r.Next()
 
 		// 请求后指标收集
-		r.Server.handleMetricsAfterRequestDone(r, startTime)
+		r.server.handleMetricsAfterRequestDone(r, startTime)
 	}
 }
 

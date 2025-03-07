@@ -1,6 +1,8 @@
 package mhttp
 
 import (
+	"context"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -16,7 +18,7 @@ type preBindItem struct {
 }
 
 // bindRoutes 绑定所有预绑定的路由
-func (s *Server) bindRoutes() {
+func (s *Server) bindRoutes(_ context.Context) {
 	processedGroups := make(map[*RouterGroup]bool)
 
 	for _, item := range s.preBindItems {
