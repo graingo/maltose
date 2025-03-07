@@ -87,17 +87,3 @@ const (
 </html>
 `
 )
-
-// swaggerHandler Swagger UI 处理器
-func (s *Server) swaggerHandler(r *Request) {
-	template := defaultSwaggerTemplate
-	if s.config.SwaggerTemplate != "" {
-		template = s.config.SwaggerTemplate
-	}
-	r.Header("Content-Type", "text/html")
-	if s.config.OpenapiPath == "" {
-		r.String(200, "swagger path is empty")
-		r.Abort()
-	}
-	r.String(200, template, s.config.OpenapiPath)
-}

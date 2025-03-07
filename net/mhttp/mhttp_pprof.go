@@ -23,11 +23,11 @@ func (s *Server) EnablePProf(pattern ...string) {
 	uri := strings.TrimRight(p, "/")
 
 	s.Group(uri, func(group *RouterGroup) {
-		group.BindHandler("GET", "/:action", up.Index)
-		group.BindHandler("GET", "/cmdline", up.Cmdline)
-		group.BindHandler("GET", "/profile", up.Profile)
-		group.BindHandler("GET", "/symbol", up.Symbol)
-		group.BindHandler("GET", "/trace", up.Trace)
+		group.GET("/:action", up.Index)
+		group.GET("/cmdline", up.Cmdline)
+		group.GET("/profile", up.Profile)
+		group.GET("/symbol", up.Symbol)
+		group.GET("/trace", up.Trace)
 	})
 }
 

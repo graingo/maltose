@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"github.com/graingo/maltose/net/mtrace"
 	"github.com/spf13/cast"
@@ -23,6 +24,73 @@ const (
 	tracingEventHttpResponse              = "http.response"
 	tracingMiddlewareHandled   contextKey = "TracingMiddlewareHandled"
 )
+
+// internalMiddlewareDefaultResponse 内部默认响应处理中间件
+func internalMiddlewareDefaultResponse() MiddlewareFunc {
+	return func(r *Request) {
+		r.Next()
+
+		// 如果已经写入了响应,则跳过
+		if r.Writer.Written() {
+			return
+		}
+
+		// 处理错误情况
+		if len(r.Errors) > 0 {
+			err := r.Errors.Last().Err
+			r.String(500, fmt.Sprintf("Error: %s", err.Error()))
+			return
+		}
+
+		// 获取处理器响应
+		if res := r.GetHandlerResponse(); res != nil {
+			switch v := res.(type) {
+			case string:
+				r.String(200, v)
+			case []byte:
+				r.String(200, string(v))
+			default:
+				r.String(200, fmt.Sprintf("%v", v))
+			}
+			return
+		}
+
+		// 没有响应则返回空字符串
+		r.String(200, "")
+	}
+}
+
+// internalMiddlewareRecovery 内部错误恢复中间件
+func internalMiddlewareRecovery() MiddlewareFunc {
+	return func(r *Request) {
+		defer func() {
+			if err := recover(); err != nil {
+				// 记录错误日志
+				r.Logger().Errorf(r.Request.Context(), "Panic recovered: %v", err)
+				// 返回 500 错误
+				r.String(500, "Internal Server Error")
+			}
+		}()
+		r.Next()
+	}
+}
+
+// internalMiddlewareMetric 内部指标收集中间件
+func internalMiddlewareMetric() MiddlewareFunc {
+	return func(r *Request) {
+		// 记录开始时间
+		startTime := time.Now()
+
+		// 请求前指标收集
+		r.Server.handleMetricsBeforeRequest(r)
+
+		// 执行后续中间件
+		r.Next()
+
+		// 请求后指标收集
+		r.Server.handleMetricsAfterRequestDone(r, startTime)
+	}
+}
 
 // internalMiddlewareServerTrace 返回一个中间件用于OpenTelemetry跟踪
 func internalMiddlewareServerTrace() MiddlewareFunc {

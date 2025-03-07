@@ -23,7 +23,6 @@ type ServerConfig struct {
 	TLSEnable     bool
 	TLSCertFile   string
 	TLSKeyFile    string
-	TLSAutoEnable bool
 	TLSServerName string
 
 	// 优雅关闭配置
@@ -52,8 +51,7 @@ func NewConfig() ServerConfig {
 		MaxHeaderBytes: 1 << 20, // 1MB
 
 		// TLS 默认配置
-		TLSEnable:     false,
-		TLSAutoEnable: false,
+		TLSEnable: false,
 
 		// 优雅关闭默认配置
 		GracefulEnable:   true,
@@ -101,9 +99,6 @@ func (s *Server) SetConfig(configMap map[string]any) {
 	}
 	if v, ok := configMap["tls_key_file"]; ok {
 		s.config.TLSKeyFile = cast.ToString(v)
-	}
-	if v, ok := configMap["tls_auto_enable"]; ok {
-		s.config.TLSAutoEnable = cast.ToBool(v)
 	}
 	if v, ok := configMap["tls_server_name"]; ok {
 		s.config.TLSServerName = cast.ToString(v)
