@@ -49,7 +49,7 @@ func (rg *RouterGroup) Use(middlewares []MiddlewareFunc, handlers ...RouterGroup
 
 // GET 注册 GET 请求路由
 func (rg *RouterGroup) GET(path string, handler HandlerFunc, middlewares ...MiddlewareFunc) *RouterGroup {
-	rg.addRouteWithMiddlewares("GET", path, handler)
+	rg.addRouteWithMiddlewares("GET", path, handler, middlewares...)
 	return rg
 }
 

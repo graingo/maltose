@@ -19,7 +19,6 @@ type Server struct {
 	RouterGroup
 	engine       *gin.Engine
 	config       ServerConfig
-	middlewares  []MiddlewareFunc
 	routes       []Route
 	openapi      *OpenAPI
 	preBindItems []preBindItem
@@ -55,8 +54,10 @@ func New() *Server {
 		internalMiddlewareMetric(),
 		internalMiddlewareDefaultResponse(),
 	)
-	// 注册翻译器
-	s.registerValidateTranslator(s.config.ServerLocale)
+	if s.config.ServerLocale != "" {
+		// 注册翻译器
+		s.registerValidateTranslator(s.config.ServerLocale)
+	}
 
 	return s
 }
