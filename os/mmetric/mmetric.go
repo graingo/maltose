@@ -126,6 +126,7 @@ func SetEnabled(e bool) {
 // SetProvider 设置活跃的提供者
 func SetProvider(provider Provider) {
 	activeProvider = provider
+	enabled = true
 }
 
 // GetProvider 获取当前活跃的提供者
