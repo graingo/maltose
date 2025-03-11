@@ -1,8 +1,11 @@
+// Package mmetric 提供指标收集和监控的辅助函数
 package mmetric
 
 import (
 	"context"
 )
+
+// ===== MeterOption 辅助函数 =====
 
 // NewMeterOption 创建新的计量器选项
 func NewMeterOption() MeterOption {
@@ -26,6 +29,8 @@ func (o MeterOption) WithMeterAttributes(attrs Attributes) MeterOption {
 	o.Attributes = attrs
 	return o
 }
+
+// ===== MetricOption 辅助函数 =====
 
 // NewMetricOption 创建新的指标选项
 func NewMetricOption() MetricOption {
@@ -56,6 +61,8 @@ func (o MetricOption) WithBuckets(buckets []float64) MetricOption {
 	return o
 }
 
+// ===== Option 辅助函数 =====
+
 // NewOption 创建新的操作选项
 func NewOption() Option {
 	return Option{
@@ -69,55 +76,50 @@ func (o Option) WithOptionAttributes(attrs AttributeMap) Option {
 	return o
 }
 
-// GetMeter 获取计量器
+// ===== 便捷函数 =====
+
+// GetMeter 获取指定名称的计量器
 func GetMeter(name string) Meter {
-	// 直接使用 GetGlobalProvider 而不是再次调用 GetMeter
-	return GetGlobalProvider().Meter(NewMeterOption().WithInstrument(name))
+	return GetProvider().Meter(NewMeterOption().WithInstrument(name))
 }
 
 // NewCounter 创建计数器
 func NewCounter(name string, option MetricOption) (Counter, error) {
-	// 直接使用 GetGlobalProvider 而不是调用 GetMeter
-	meter := GetGlobalProvider().Meter(NewMeterOption().WithInstrument(name))
+	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
 	return meter.Counter(name, option)
 }
 
 // NewMustCounter 创建计数器，如果出错则 panic
 func NewMustCounter(name string, option MetricOption) Counter {
-	// 直接使用 GetGlobalProvider 而不是调用 GetMeter
-	meter := GetGlobalProvider().Meter(NewMeterOption().WithInstrument(name))
+	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
 	return meter.MustCounter(name, option)
 }
 
 // NewUpDownCounter 创建上下计数器
 func NewUpDownCounter(name string, option MetricOption) (UpDownCounter, error) {
-	// 直接使用 GetGlobalProvider 而不是调用 GetMeter
-	meter := GetGlobalProvider().Meter(NewMeterOption().WithInstrument(name))
+	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
 	return meter.UpDownCounter(name, option)
 }
 
 // NewMustUpDownCounter 创建上下计数器，如果出错则 panic
 func NewMustUpDownCounter(name string, option MetricOption) UpDownCounter {
-	// 直接使用 GetGlobalProvider 而不是调用 GetMeter
-	meter := GetGlobalProvider().Meter(NewMeterOption().WithInstrument(name))
+	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
 	return meter.MustUpDownCounter(name, option)
 }
 
 // NewHistogram 创建直方图
 func NewHistogram(name string, option MetricOption) (Histogram, error) {
-	// 直接使用 GetGlobalProvider 而不是调用 GetMeter
-	meter := GetGlobalProvider().Meter(NewMeterOption().WithInstrument(name))
+	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
 	return meter.Histogram(name, option)
 }
 
 // NewMustHistogram 创建直方图，如果出错则 panic
 func NewMustHistogram(name string, option MetricOption) Histogram {
-	// 直接使用 GetGlobalProvider 而不是调用 GetMeter
-	meter := GetGlobalProvider().Meter(NewMeterOption().WithInstrument(name))
+	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
 	return meter.MustHistogram(name, option)
 }
 
 // Shutdown 关闭提供者
 func Shutdown(ctx context.Context) error {
-	return GetGlobalProvider().Shutdown(ctx)
+	return GetProvider().Shutdown(ctx)
 }

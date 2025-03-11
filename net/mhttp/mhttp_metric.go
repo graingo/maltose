@@ -36,7 +36,7 @@ var metricManager = newMetricManager()
 
 // 创建新的指标管理器
 func newMetricManager() *localMetricManager {
-	meter := mmetric.GetGlobalProvider().Meter(mmetric.MeterOption{
+	meter := mmetric.GetProvider().Meter(mmetric.MeterOption{
 		Instrument:        instrumentName,
 		InstrumentVersion: "v1.0.0",
 	})
