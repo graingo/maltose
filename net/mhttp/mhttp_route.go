@@ -14,15 +14,16 @@ const (
 	routeTypeController
 )
 
+// Route is the route information.
 type Route struct {
 	Method           string
 	Path             string
 	HandlerFunc      HandlerFunc
 	Type             routeType
-	Controller       any            // 控制器对象
-	ControllerMethod reflect.Method // 控制器方法
-	ReqType          reflect.Type   // 请求参数类型
-	RespType         reflect.Type   // 响应类型
+	Controller       any            // controller object
+	ControllerMethod reflect.Method // controller method
+	ReqType          reflect.Type   // request parameter type
+	RespType         reflect.Type   // response type
 }
 
 func (s *Server) Routes() []Route {
@@ -30,29 +31,29 @@ func (s *Server) Routes() []Route {
 }
 
 func (s *Server) printRoute(ctx context.Context) {
-	// 打印服务信息
+	// print server info
 	s.Logger().Infof(ctx, "HTTP server %s is running on %s", s.config.ServerName, s.config.Address)
 
-	// 打印路由信息
+	// print route info
 	fmt.Printf("\n%s\n", strings.Repeat("-", 100))
 	fmt.Printf("%-40s | %-7s | %-20s | %-30s\n",
 		"PATH", "METHOD", "HANDLER TYPE", "REQUEST/RESPONSE")
 	fmt.Printf("%s\n", strings.Repeat("-", 100))
 
 	for _, route := range s.routes {
-		// 跳过文档路由
+		// skip doc route
 		if route.Path == s.config.OpenapiPath || route.Path == s.config.SwaggerPath {
 			continue
 		}
 
-		// 确定路由类型描述
+		// determine route type description
 		handlerType := "Handler"
 		if route.Type == routeTypeController {
 			controllerName := reflect.TypeOf(route.Controller).Elem().Name()
 			handlerType = fmt.Sprintf("%s.%s", controllerName, route.ControllerMethod.Name)
 		}
 
-		// 获取请求和响应类型名称
+		// get request and response type names
 		reqTypeName := "nil"
 		respTypeName := "nil"
 
@@ -72,7 +73,7 @@ func (s *Server) printRoute(ctx context.Context) {
 			}
 		}
 
-		// 打印路由信息
+		// print route info
 		fmt.Printf("%-40s | %-7s | %-20s | %s → %s\n",
 			route.Path,
 			route.Method,

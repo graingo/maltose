@@ -14,7 +14,7 @@ const (
 	defaultSwaggerPath = "/swagger"
 )
 
-// Server HTTP 服务结构
+// Server HTTP server structure.
 type Server struct {
 	RouterGroup
 	engine       *gin.Engine
@@ -25,11 +25,12 @@ type Server struct {
 	translator   ut.Translator
 }
 
+// New creates a new HTTP server.
 func New() *Server {
-	// 禁用 gin 的默认日志输出
+	// disable gin's default log output
 	gin.DefaultWriter = io.Discard
 	gin.DefaultErrorWriter = io.Discard
-	// 设置为生产模式
+	// set to production mode
 	gin.SetMode(gin.ReleaseMode)
 
 	engine := gin.New()
@@ -40,14 +41,14 @@ func New() *Server {
 		preBindItems: make([]preBindItem, 0),
 	}
 
-	// 初始化根 RouterGroup
+	// initialize root RouterGroup
 	s.RouterGroup = RouterGroup{
 		server:   s,
 		path:     "/",
 		ginGroup: engine.Group("/"),
 	}
 
-	// 添加默认中间件
+	// add default middlewares
 	s.Use(
 		internalMiddlewareRecovery(),
 		internalMiddlewareServerTrace(),
@@ -55,7 +56,7 @@ func New() *Server {
 		internalMiddlewareDefaultResponse(),
 	)
 	if s.config.ServerLocale != "" {
-		// 注册翻译器
+		// register translator
 		s.registerValidateTranslator(s.config.ServerLocale)
 	}
 

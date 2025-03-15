@@ -1,6 +1,7 @@
 # OpenTelemetry HTTP Trace Exporter
 
 本包提供了通过 HTTP 协议导出 OpenTelemetry 链路追踪数据的功能。
+The
 
 ## 功能特性
 

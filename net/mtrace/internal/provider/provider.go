@@ -4,17 +4,17 @@ import (
 	sdkTrace "go.opentelemetry.io/otel/sdk/trace"
 )
 
-// TracerProvider 是 sdkTrace.TracerProvider 的包装器
+// TracerProvider is a wrapper for sdkTrace.TracerProvider.
 type TracerProvider struct {
 	*sdkTrace.TracerProvider
 }
 
-// New 返回一个新的配置好的 TracerProvider，默认没有 SpanProcessor
-// 默认配置包括：
-// - ParentBased(AlwaysSample) 采样器
-// - 基于 unix nano 时间戳和随机数的 IDGenerator
+// New returns a new configured TracerProvider.
+// The default configuration includes:
+// - ParentBased(AlwaysSample) sampler
+// - IDGenerator based on unix nano timestamp and random number
 // - resource.Default() Resource
-// - 默认的 SpanLimits
+// - default SpanLimits
 func New() *TracerProvider {
 	return &TracerProvider{
 		TracerProvider: sdkTrace.NewTracerProvider(

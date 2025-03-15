@@ -2,60 +2,42 @@ package mlog
 
 import (
 	"context"
-	"sync"
 )
 
-const (
-	DefaultName = "default"
-)
-
-// ILogger 日志接口
+// ILogger is the interface for the logger.
 type ILogger interface {
-	Print(ctx context.Context, v ...any)
-	Printf(ctx context.Context, format string, v ...any)
-	Debug(ctx context.Context, v ...any)
-	Debugf(ctx context.Context, format string, v ...any)
-	Info(ctx context.Context, v ...any)
-	Infof(ctx context.Context, format string, v ...any)
-	Warn(ctx context.Context, v ...any)
-	Warnf(ctx context.Context, format string, v ...any)
-	Error(ctx context.Context, v ...any)
-	Errorf(ctx context.Context, format string, v ...any)
-	Fatal(ctx context.Context, v ...any)
-	Fatalf(ctx context.Context, format string, v ...any)
-	Panic(ctx context.Context, v ...any)
-	Panicf(ctx context.Context, format string, v ...any)
+	Print(ctx context.Context, v ...any)                 // Print logs a message at level Info.
+	Printf(ctx context.Context, format string, v ...any) // Printf logs a message at level Info.
+	Debug(ctx context.Context, v ...any)                 // Debug logs a message at level Debug.
+	Debugf(ctx context.Context, format string, v ...any) // Debugf logs a message at level Debug.
+	Info(ctx context.Context, v ...any)                  // Info logs a message at level Info.
+	Infof(ctx context.Context, format string, v ...any)  // Infof logs a message at level Info.
+	Warn(ctx context.Context, v ...any)                  // Warn logs a message at level Warn.
+	Warnf(ctx context.Context, format string, v ...any)  // Warnf logs a message at level Warn.
+	Error(ctx context.Context, v ...any)                 // Error logs a message at level Error.
+	Errorf(ctx context.Context, format string, v ...any) // Errorf logs a message at level Error.
+	Fatal(ctx context.Context, v ...any)                 // Fatal logs a message at level Fatal.
+	Fatalf(ctx context.Context, format string, v ...any) // Fatalf logs a message at level Fatal.
+	Panic(ctx context.Context, v ...any)                 // Panic logs a message at level Panic.
+	Panicf(ctx context.Context, format string, v ...any) // Panicf logs a message at level Panic.
 }
 
 var (
-	// 确保 logger 实现了 ILogger 接口
+	// Ensure Logger implements ILogger interface
 	_ ILogger = &Logger{}
 
-	// 默认日志实例
+	// defaultLogger is the default logger.
 	defaultLogger = New()
-
-	// localInstances 使用 sync.Map 存储配置实例
-	localInstances sync.Map
 )
 
-// DefaultLogger 返回默认日志实例
+// DefaultLogger returns the default logger.
 func DefaultLogger() *Logger {
 	return defaultLogger
 }
 
-// SetDefaultLogger 设置默认日志实例
-func SetDefaultLogger(logger *Logger) {
-	defaultLogger = logger
-}
-
-func Instance(name ...string) *Logger {
-	key := DefaultName
-	if len(name) > 0 && name[0] != "" {
-		key = name[0]
-	}
-
-	v, _ := localInstances.LoadOrStore(key, func() any {
-		return New()
-	}())
-	return v.(*Logger)
+// SetDefaultLogger sets the default logger for package glog.
+// Note that there might be concurrent safety issue if calls this function
+// in different goroutines.
+func SetDefaultLogger(l *Logger) {
+	defaultLogger = l
 }

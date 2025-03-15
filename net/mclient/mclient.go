@@ -1,6 +1,7 @@
 package mclient
 
 import (
+	"crypto/rand"
 	"crypto/tls"
 	"fmt"
 	"net/http"
@@ -8,17 +9,18 @@ import (
 	"time"
 
 	"github.com/graingo/maltose"
+	"github.com/graingo/maltose/errors/merror"
 )
 
-// Client 是 HTTP 客户端，用于管理 HTTP 请求。
+// Client is the HTTP client for HTTP request management.
 type Client struct {
-	http.Client                         // 底层 HTTP 客户端。
-	baseURL           string            // 请求的基础 URL。
-	header            map[string]string // 自定义请求头。
-	cookies           map[string]string // 自定义 Cookie。
-	retryCount        int               // 请求失败重试次数。
-	retryInterval     time.Duration     // 请求失败重试间隔。
-	middlewareHandler []HandlerFunc     // 拦截器处理程序。
+	http.Client                         // Underlying HTTP Client.
+	header            map[string]string // Custom header map.
+	cookies           map[string]string // Custom cookie map.
+	prefix            string            // Prefix for request.
+	retryCount        int               // Retry count when request fails.
+	retryInterval     time.Duration     // Retry interval when request fails.
+	middlewareHandler []HandlerFunc     // Interceptor handlers
 }
 
 const (
@@ -40,12 +42,12 @@ var (
 	defaultUserAgent = fmt.Sprintf(`mclient %s`, maltose.VERSION)
 )
 
-// New 创建一个新的 HTTP 客户端
+// New creates a new HTTP client.
 func New() *Client {
 	c := &Client{
 		Client: http.Client{
 			Transport: &http.Transport{
-				// 默认情况下，不验证 HTTPS 证书
+				// No validation for https certification of the server in default.
 				TLSClientConfig: &tls.Config{
 					InsecureSkipVerify: true,
 				},
@@ -59,7 +61,7 @@ func New() *Client {
 	return c
 }
 
-// Clone 克隆当前客户端
+// Clone deeply clones current client and returns a new one.
 func (c *Client) Clone() *Client {
 	newClient := New()
 	*newClient = *c
@@ -72,4 +74,18 @@ func (c *Client) Clone() *Client {
 		newClient.cookies[k] = v
 	}
 	return newClient
+}
+
+// LoadKeyCrt creates and returns a TLS configuration object with given certificate file path and key file path.
+func LoadKeyCrt(crtPath, keyPath string) (*tls.Config, error) {
+	crt, err := tls.LoadX509KeyPair(crtPath, keyPath)
+	if err != nil {
+		err = merror.Wrapf(err, `tls.LoadX509KeyPair failed for certFile "%s", keyFile "%s"`, crtPath, keyPath)
+		return nil, err
+	}
+	tlsConfig := &tls.Config{}
+	tlsConfig.Certificates = []tls.Certificate{crt}
+	tlsConfig.Time = time.Now
+	tlsConfig.Rand = rand.Reader
+	return tlsConfig, nil
 }

@@ -7,7 +7,7 @@ import (
 	"github.com/graingo/maltose/errors/mcode"
 )
 
-// Error 错误结构体
+// Error is the error structure.
 type Error struct {
 	error error
 	text  string
@@ -15,7 +15,7 @@ type Error struct {
 	stack stack
 }
 
-// Error 实现了 Error 接口，它返回所有的错误信息。
+// Error implements the Error interface, it returns all error information.
 func (err *Error) Error() string {
 	if err == nil {
 		return ""
@@ -33,7 +33,7 @@ func (err *Error) Error() string {
 	return errStr
 }
 
-// Cause 返回根错误
+// Cause returns the root error.
 func (err *Error) Cause() error {
 	if err == nil {
 		return nil
@@ -60,8 +60,8 @@ func (err *Error) Cause() error {
 	return nil
 }
 
-// Current 创建并返回当前错误。
-// 如果当前错误为 nil，则返回 nil。
+// Current creates and returns the current error.
+// If the current error is nil, it returns nil.
 func (err *Error) Current() error {
 	if err == nil {
 		return nil
@@ -74,8 +74,8 @@ func (err *Error) Current() error {
 	}
 }
 
-// Unwrap 别名函数 `Next`。
-// 它只是为了实现 Go 版本 1.17 之后的 stdlib errors.Unwrap 接口。
+// Unwrap is an alias function for `Next`.
+// It is only for implementing the stdlib errors.Unwrap interface after Go version 1.17.
 func (err *Error) Unwrap() error {
 	if err == nil {
 		return nil
@@ -83,8 +83,8 @@ func (err *Error) Unwrap() error {
 	return err.error
 }
 
-// Equal 比较两个错误是否相同。
-// 请注意，在默认的错误比较中，只有当它们的 `code` 和 `text` 相同时，错误才被认为是相同的。
+// Equal compares two errors for equality.
+// Note that in the default error comparison, only when their `code` and `text` are the same, the error is considered the same.
 func (err *Error) Equal(target error) bool {
 	if err == target {
 		return true

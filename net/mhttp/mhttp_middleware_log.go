@@ -4,39 +4,39 @@ import (
 	"time"
 )
 
-// MiddlewareLog 日志中间件
+// MiddlewareLog is a middleware for logging HTTP requests.
 func MiddlewareLog() MiddlewareFunc {
 	return func(r *Request) {
-		// 开始时间
+		// start time
 		start := time.Now()
 
-		// 获取请求信息
+		// get request information
 		path := r.Request.URL.Path
 		raw := r.Request.URL.RawQuery
 		if raw != "" {
 			path = path + "?" + raw
 		}
 
-		// 执行后续中间件
+		// execute next middleware
 		r.Next()
 
-		// 计算处理时间
+		// calculate processing time
 		latency := time.Since(start)
 
-		// 获取响应状态
+		// get response status
 		status := r.Writer.Status()
 
-		// 记录日志
+		// record log
 		r.Logger().Infof(r.Request.Context(),
 			"[HTTP] %-3d | %13v | %-15s | %-7s | %s",
-			status,           // 状态码固定3位
-			latency,          // 耗时固定13位
-			r.ClientIP(),     // IP地址固定15位
-			r.Request.Method, // HTTP方法固定7位
+			status,           // status code fixed 3 digits
+			latency,          // latency fixed 13 digits
+			r.ClientIP(),     // IP address fixed 15 digits
+			r.Request.Method, // HTTP method fixed 7 digits
 			path,
 		)
 
-		// 如果有错误，记录错误日志
+		// if there are errors, record error log
 		if len(r.Errors) > 0 {
 			for _, e := range r.Errors {
 				r.Logger().Errorf(r.Request.Context(),

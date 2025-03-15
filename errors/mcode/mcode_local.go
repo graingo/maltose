@@ -2,29 +2,29 @@ package mcode
 
 import "fmt"
 
-// localCode 是错误码的实现
+// localCode is the implementation of the error code.
 type localCode struct {
 	code    int
 	message string
 	detail  any
 }
 
-// Code 返回错误码
+// Code returns the error code.
 func (c localCode) Code() int {
 	return c.code
 }
 
-// Message 返回错误信息
+// Message returns the error message.
 func (c localCode) Message() string {
 	return c.message
 }
 
-// Detail 返回当前错误码的详细信息，主要用于错误码的扩展字段。
+// Detail returns the detailed information of the current error code, mainly for the extended fields of the error code.
 func (c localCode) Detail() any {
 	return c.detail
 }
 
-// String 返回错误码的字符串表示
+// String returns the string representation of the error code.
 func (c localCode) String() string {
 	if c.detail != nil {
 		return fmt.Sprintf(`%d:%s %v`, c.code, c.message, c.detail)

@@ -12,10 +12,10 @@ import (
 	zh_translations "github.com/go-playground/validator/v10/translations/zh"
 )
 
-// RuleFunc 自定义验证规则函数
+// RuleFunc is the custom validation rule function.
 type RuleFunc func(fl validator.FieldLevel) bool
 
-// registerValidateTranslator 注册 gin validator 翻译器
+// registerValidateTranslator registers the gin validator translator.
 func (s *Server) registerValidateTranslator(locale string) {
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		zhT := zh.New()
@@ -33,15 +33,15 @@ func (s *Server) registerValidateTranslator(locale string) {
 	s.setupExtendedTags()
 }
 
-// RegisterRuleWithTranslation 注册自定义验证规则和翻译
+// RegisterRuleWithTranslation registers the custom validation rule and translation.
 func (s *Server) RegisterRuleWithTranslation(rule string, fn RuleFunc, errMessage map[string]string) {
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		// 注册验证规则
+		// register validation rule
 		_ = v.RegisterValidation(rule, func(fl validator.FieldLevel) bool {
 			return fn(fl)
 		})
 
-		// 注册错误翻译
+		// register error translation
 		if s.translator != nil {
 			for lang, msg := range errMessage {
 				switch lang {
@@ -55,17 +55,17 @@ func (s *Server) RegisterRuleWithTranslation(rule string, fn RuleFunc, errMessag
 	}
 }
 
-// 注册中文翻译
+// registerZhTranslation registers the Chinese translation.
 func registerZhTranslation(v *validator.Validate, trans ut.Translator, tag string, msg string) {
 	registerTranslation(v, trans, tag, msg)
 }
 
-// 注册英文翻译
+// registerEnTranslation registers the English translation.
 func registerEnTranslation(v *validator.Validate, trans ut.Translator, tag string, msg string) {
 	registerTranslation(v, trans, tag, msg)
 }
 
-// 注册翻译
+// registerTranslation registers the translation.
 func registerTranslation(v *validator.Validate, trans ut.Translator, tag string, msg string) {
 	_ = v.RegisterTranslation(tag, trans, func(ut ut.Translator) error {
 		return ut.Add(tag, msg, true)
@@ -75,10 +75,10 @@ func registerTranslation(v *validator.Validate, trans ut.Translator, tag string,
 	})
 }
 
-// 扩展 struct tag 支持
+// setupExtendedTags extends the struct tag support.
 func (s *Server) setupExtendedTags() {
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		// 支持"dc"标签作为字段描述
+		// support "dc" tag as field description
 		v.RegisterTagNameFunc(func(fld reflect.StructField) string {
 			name := fld.Tag.Get("dc")
 			if name == "" {

@@ -9,22 +9,22 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
-// IDGenerator 实现了 trace.IDGenerator 接口
+// IDGenerator implements the trace.IDGenerator interface.
 type IDGenerator struct {
 	spanCounter uint64
 }
 
-// NewIDGenerator 返回一个新的 IDGenerator 实例
+// NewIDGenerator returns a new IDGenerator instance.
 func NewIDGenerator() *IDGenerator {
 	return &IDGenerator{}
 }
 
-// NewIDs 生成新的 trace 和 span ID
+// NewIDs generates new trace and span IDs.
 func (gen *IDGenerator) NewIDs(ctx context.Context) (trace.TraceID, trace.SpanID) {
 	return gen.newTraceID(), gen.newSpanID()
 }
 
-// NewSpanID 生成一个新的 span ID
+// NewSpanID generates a new span ID.
 func (gen *IDGenerator) NewSpanID(ctx context.Context, traceID trace.TraceID) trace.SpanID {
 	return gen.newSpanID()
 }

@@ -8,15 +8,15 @@ import (
 	"github.com/graingo/maltose/container/mvar"
 )
 
-// Meta 用作结构体的嵌入属性以启用元数据特性
+// Meta is used as an embedded property to enable metadata features
 type Meta struct{}
 
 const (
-	metaAttributeName = "Meta"       // 结构体中元数据的属性名
-	metaTypeName      = "mmeta.Meta" // 用于类型字符串比较
+	metaAttributeName = "Meta"       // The attribute name of metadata in the structure
+	metaTypeName      = "mmeta.Meta" // The type name for type string comparison
 )
 
-// Data 从 `object` 中检索并返回所有元数据
+// Data retrieves and returns all metadata from `object`
 func Data(object any) map[string]string {
 	reflectType, err := StructType(object)
 	if err != nil {
@@ -30,7 +30,7 @@ func Data(object any) map[string]string {
 	return map[string]string{}
 }
 
-// Get 从 `object` 中检索并返回指定的元数据
+// Get retrieves and returns the specified metadata from `object`
 func Get(object any, key string) *mvar.Var {
 	v, ok := Data(object)[key]
 	if !ok {
@@ -39,7 +39,7 @@ func Get(object any, key string) *mvar.Var {
 	return mvar.New(v)
 }
 
-// StructType 获取结构体的反射类型
+// StructType retrieves and returns the reflection type of the structure
 func StructType(object any) (reflect.Type, error) {
 	var reflectType reflect.Type
 	if rt, ok := object.(reflect.Type); ok {
@@ -59,7 +59,7 @@ func StructType(object any) (reflect.Type, error) {
 	return reflectType, nil
 }
 
-// ParseTag 解析标签字符串为 map
+// ParseTag parses the tag string to a map
 func ParseTag(tag string) map[string]string {
 	var (
 		key  string
@@ -67,7 +67,7 @@ func ParseTag(tag string) map[string]string {
 	)
 
 	for tag != "" {
-		// 跳过前导空格
+		// skip leading spaces
 		i := 0
 		for i < len(tag) && tag[i] == ' ' {
 			i++
@@ -77,7 +77,7 @@ func ParseTag(tag string) map[string]string {
 			break
 		}
 
-		// 扫描到冒号
+		// scan to colon
 		i = 0
 		for i < len(tag) && tag[i] > ' ' && tag[i] != ':' && tag[i] != '"' && tag[i] != 0x7f {
 			i++
@@ -88,7 +88,7 @@ func ParseTag(tag string) map[string]string {
 		key = tag[:i]
 		tag = tag[i+1:]
 
-		// 扫描引号内的值
+		// scan the value in quotes
 		i = 1
 		for i < len(tag) && tag[i] != '"' {
 			if tag[i] == '\\' {

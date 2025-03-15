@@ -8,13 +8,13 @@ import (
 	"go.opentelemetry.io/otel/baggage"
 )
 
-// Baggage 是一种在分布式系统的上下文中传播键值对数据的机制
-// 它允许将自定义数据（如用户ID、请求ID等）附加到跟踪中，并在服务调用之间传播
+// Baggage is a mechanism for propagating key-value data in a distributed system.
+// It allows attaching custom data (such as user ID, request ID, etc.) to traces and propagating them across service calls.
 type Baggage struct {
 	ctx context.Context
 }
 
-// NewBaggage 创建一个新的 Baggage 实例
+// NewBaggage creates a new Baggage instance.
 func NewBaggage(ctx context.Context) *Baggage {
 	if ctx == nil {
 		ctx = context.Background()
@@ -24,7 +24,7 @@ func NewBaggage(ctx context.Context) *Baggage {
 	}
 }
 
-// SetValue 设置单个 baggage 值
+// SetValue sets a single baggage value.
 func (b *Baggage) SetValue(key string, value interface{}) context.Context {
 	member, _ := baggage.NewMember(key, cast.ToString(value))
 	bag, _ := baggage.New(member)
@@ -32,7 +32,7 @@ func (b *Baggage) SetValue(key string, value interface{}) context.Context {
 	return b.ctx
 }
 
-// SetMap 批量设置 baggage 值
+// SetMap sets multiple baggage values.
 func (b *Baggage) SetMap(data map[string]interface{}) context.Context {
 	members := make([]baggage.Member, 0)
 	for k, v := range data {
@@ -44,7 +44,7 @@ func (b *Baggage) SetMap(data map[string]interface{}) context.Context {
 	return b.ctx
 }
 
-// GetMap 获取所有 baggage 值
+// GetMap gets all baggage values.
 func (b *Baggage) GetMap() map[string]interface{} {
 	bag := baggage.FromContext(b.ctx)
 	result := make(map[string]interface{})
@@ -54,7 +54,7 @@ func (b *Baggage) GetMap() map[string]interface{} {
 	return result
 }
 
-// GetVar 获取指定 key 的 baggage 值
+// GetVar gets the baggage value for the specified key.
 func (b *Baggage) GetVar(key string) *mvar.Var {
 	bag := baggage.FromContext(b.ctx)
 	member := bag.Member(key)

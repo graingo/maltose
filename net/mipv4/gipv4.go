@@ -6,38 +6,38 @@ import (
 )
 
 var (
-	// localIPv4 缓存本地IPv4地址
+	// localIPv4 cache local IPv4 address.
 	localIPv4 = ""
-	// intranetIPv4Array 缓存内网IPv4地址数组
+	// intranetIPv4Array cache intranet IPv4 address array.
 	intranetIPv4Array []string
 )
 
-// GetIntranetIpArray 获取本地内网IPv4地址数组
+// GetIntranetIpArray gets the local intranet IPv4 address array.
 func GetIntranetIpArray() ([]string, error) {
 	if intranetIPv4Array != nil {
 		return intranetIPv4Array, nil
 	}
 	ips := make([]string, 0)
-	// 获取所有网络接口
+	// get all network interfaces
 	interfaces, err := net.Interfaces()
 	if err != nil {
 		return ips, err
 	}
-	// 遍历所有网络接口
+	// iterate all network interfaces
 	for _, i := range interfaces {
-		// 跳过 down 的接口
+		// skip down interfaces
 		if i.Flags&net.FlagUp == 0 {
 			continue
 		}
-		// 获取接口的地址
+		// get interface addresses
 		addrs, err := i.Addrs()
 		if err != nil {
 			return ips, err
 		}
-		// 遍历所有地址
+		// iterate all addresses
 		for _, addr := range addrs {
 			if ipNet, ok := addr.(*net.IPNet); ok && !ipNet.IP.IsLoopback() {
-				// 只处理IPv4地址
+				// only process IPv4 addresses
 				if ipv4 := ipNet.IP.To4(); ipv4 != nil {
 					ip := ipv4.String()
 					if IsIntranet(ip) {
@@ -51,7 +51,7 @@ func GetIntranetIpArray() ([]string, error) {
 	return ips, nil
 }
 
-// GetIpArray 获取本地所有IPv4地址数组
+// GetIpArray gets the local all IPv4 address array.
 func GetIpArray() ([]string, error) {
 	ips := make([]string, 0)
 	interfaces, err := net.Interfaces()
@@ -77,7 +77,7 @@ func GetIpArray() ([]string, error) {
 	return ips, nil
 }
 
-// GetLocalIp 获取本地首个IPv4地址
+// GetLocalIp gets the local first IPv4 address.
 func GetLocalIp() (string, error) {
 	if localIPv4 != "" {
 		return localIPv4, nil
@@ -93,17 +93,17 @@ func GetLocalIp() (string, error) {
 	return "", nil
 }
 
-// IsIntranet 判断所给IP是否为内网IP
+// IsIntranet checks if the given IP is an intranet IP.
 func IsIntranet(ip string) bool {
-	// 分割IP地址
+	// split IP address
 	parts := strings.Split(ip, ".")
 	if len(parts) != 4 {
 		return false
 	}
-	// 判断是否为内网IP
-	// A类: 10.0.0.0--10.255.255.255
-	// B类: 172.16.0.0--172.31.255.255
-	// C类: 192.168.0.0--192.168.255.255
+	// check if it is an intranet IP
+	// A range: 10.0.0.0--10.255.255.255
+	// B range: 172.16.0.0--172.31.255.255
+	// C range: 192.168.0.0--192.168.255.255
 	if parts[0] == "10" ||
 		(parts[0] == "172" && inRange(parts[1], 16, 31)) ||
 		(parts[0] == "192" && parts[1] == "168") {
@@ -112,7 +112,7 @@ func IsIntranet(ip string) bool {
 	return false
 }
 
-// inRange 判断字符串表示的数字是否在指定范围内
+// inRange checks if the string-represented number is within the specified range.
 func inRange(s string, min, max int) bool {
 	num := 0
 	for _, c := range s {

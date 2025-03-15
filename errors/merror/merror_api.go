@@ -6,8 +6,8 @@ import (
 	"github.com/graingo/maltose/errors/mcode"
 )
 
-// New 创建一个新的错误
-// 例子：err := merror.New("用户名不能为空")
+// New creates a new error.
+// Example: err := merror.New("username cannot be empty")
 func New(text string) error {
 	return &Error{
 		stack: callers(),
@@ -16,8 +16,8 @@ func New(text string) error {
 	}
 }
 
-// Newf 创建一个新的错误
-// 例子：err := merror.Newf("用户名%s不能为空", admin)
+// Newf creates a new error.
+// Example: err := merror.Newf("username %s cannot be empty", admin)
 func Newf(format string, a ...any) error {
 	return &Error{
 		stack: callers(),
@@ -26,8 +26,8 @@ func Newf(format string, a ...any) error {
 	}
 }
 
-// Wrap 包装一个错误
-// 例子：err := merror.Wrap(err, "用户名不能为空")
+// Wrap wraps an error.
+// Example: err := merror.Wrap(err, "username cannot be empty")
 func Wrap(err error, text string) error {
 	return &Error{
 		stack: callers(),
@@ -37,8 +37,8 @@ func Wrap(err error, text string) error {
 	}
 }
 
-// Wrapf 包装一个错误
-// 例子：err := merror.Wrapf(err, "用户名%s不能为空", admin)
+// Wrapf wraps an error.
+// Example: err := merror.Wrapf(err, "username %s cannot be empty", admin)
 func Wrapf(err error, format string, a ...any) error {
 	return &Error{
 		stack: callers(),

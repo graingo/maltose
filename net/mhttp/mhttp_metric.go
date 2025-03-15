@@ -21,7 +21,7 @@ const (
 	metricAttrKeyNetworkProtocolVersion = "network.protocol.version"
 )
 
-// 本地指标管理器
+// localMetricManager is the local metric manager.
 type localMetricManager struct {
 	HttpServerRequestActive        mmetric.UpDownCounter
 	HttpServerRequestTotal         mmetric.Counter
@@ -31,10 +31,10 @@ type localMetricManager struct {
 	HttpServerResponseBodySize     mmetric.Counter
 }
 
-// 全局指标管理器
+// global metric manager
 var metricManager = newMetricManager()
 
-// 创建新的指标管理器
+// create new metric manager
 func newMetricManager() *localMetricManager {
 	meter := mmetric.GetProvider().Meter(mmetric.MeterOption{
 		Instrument:        instrumentName,
@@ -44,7 +44,7 @@ func newMetricManager() *localMetricManager {
 		HttpServerRequestDuration: meter.MustHistogram(
 			"http.server.request.duration",
 			mmetric.MetricOption{
-				Help: "请求处理时长",
+				Help: "request duration",
 				Unit: "ms",
 				Buckets: []float64{
 					1, 5, 10, 25, 50, 75, 100, 250, 500, 750,
@@ -55,35 +55,35 @@ func newMetricManager() *localMetricManager {
 		HttpServerRequestTotal: meter.MustCounter(
 			"http.server.request.total",
 			mmetric.MetricOption{
-				Help: "请求总数",
+				Help: "request total",
 				Unit: "",
 			},
 		),
 		HttpServerRequestActive: meter.MustUpDownCounter(
 			"http.server.request.active",
 			mmetric.MetricOption{
-				Help: "活跃请求数",
+				Help: "active request",
 				Unit: "",
 			},
 		),
 		HttpServerRequestDurationTotal: meter.MustCounter(
 			"http.server.request.duration_total",
 			mmetric.MetricOption{
-				Help: "请求处理总时长",
+				Help: "request duration total",
 				Unit: "ms",
 			},
 		),
 		HttpServerRequestBodySize: meter.MustCounter(
 			"http.server.request.body_size",
 			mmetric.MetricOption{
-				Help: "请求体总大小",
+				Help: "request body size",
 				Unit: "bytes",
 			},
 		),
 		HttpServerResponseBodySize: meter.MustCounter(
 			"http.server.response.body_size",
 			mmetric.MetricOption{
-				Help: "响应体总大小",
+				Help: "response body size",
 				Unit: "bytes",
 			},
 		),
@@ -91,7 +91,7 @@ func newMetricManager() *localMetricManager {
 	return mm
 }
 
-// 获取请求时长指标选项
+// get request duration metric option
 func (m *localMetricManager) GetMetricOptionForRequestDurationByMap(attrMap mmetric.AttributeMap) mmetric.Option {
 	return mmetric.Option{
 		Attributes: attrMap.Pick(
@@ -101,7 +101,7 @@ func (m *localMetricManager) GetMetricOptionForRequestDurationByMap(attrMap mmet
 	}
 }
 
-// 获取请求指标选项
+// get request metric option
 func (m *localMetricManager) GetMetricOptionForRequestByMap(attrMap mmetric.AttributeMap) mmetric.Option {
 	return mmetric.Option{
 		Attributes: attrMap.Pick(
@@ -115,7 +115,7 @@ func (m *localMetricManager) GetMetricOptionForRequestByMap(attrMap mmetric.Attr
 	}
 }
 
-// 获取响应指标选项
+// get response metric option
 func (m *localMetricManager) GetMetricOptionForResponseByMap(attrMap mmetric.AttributeMap) mmetric.Option {
 	return mmetric.Option{
 		Attributes: attrMap.Pick(
@@ -131,7 +131,7 @@ func (m *localMetricManager) GetMetricOptionForResponseByMap(attrMap mmetric.Att
 	}
 }
 
-// 获取指标属性映射
+// get metric attribute map
 func (m *localMetricManager) GetMetricAttributeMap(r *Request) mmetric.AttributeMap {
 	var (
 		serverAddress   string
@@ -141,24 +141,24 @@ func (m *localMetricManager) GetMetricAttributeMap(r *Request) mmetric.Attribute
 		attrMap         = make(mmetric.AttributeMap)
 	)
 
-	// 解析服务器地址和端口
+	// parse server address and port
 	serverAddress, serverPort = parseHostPort(r.Request.Host)
 	if localAddr := r.Request.Context().Value(http.LocalAddrContextKey); localAddr != nil {
 		_, serverPort = parseHostPort(localAddr.(net.Addr).String())
 	}
 
-	// 获取路由路径
+	// get route path
 	httpRoute = r.FullPath()
 	if httpRoute == "" {
 		httpRoute = r.Request.URL.Path
 	}
 
-	// 获取协议版本
+	// get protocol version
 	if array := strings.Split(r.Request.Proto, "/"); len(array) > 1 {
 		protocolVersion = array[1]
 	}
 
-	// 设置基本属性
+	// set basic attributes
 	attrMap.Sets(mmetric.AttributeMap{
 		metricAttrKeyServerAddress:          serverAddress,
 		metricAttrKeyServerPort:             serverPort,
@@ -168,7 +168,7 @@ func (m *localMetricManager) GetMetricAttributeMap(r *Request) mmetric.Attribute
 		metricAttrKeyNetworkProtocolVersion: protocolVersion,
 	})
 
-	// 设置响应相关属性
+	// set response related attributes
 	if len(r.Errors) > 0 {
 		var errCode int
 		if err := r.Errors[0]; err != nil {
@@ -183,7 +183,7 @@ func (m *localMetricManager) GetMetricAttributeMap(r *Request) mmetric.Attribute
 	return attrMap
 }
 
-// 解析主机和端口
+// parse host and port
 func parseHostPort(hostPort string) (host, port string) {
 	parts := strings.Split(hostPort, ":")
 	if len(parts) > 1 {
@@ -192,7 +192,7 @@ func parseHostPort(hostPort string) (host, port string) {
 	return parts[0], "80"
 }
 
-// 获取请求协议
+// get request schema
 func getSchema(r *Request) string {
 	if r.Request.TLS != nil {
 		return "https"
@@ -200,7 +200,7 @@ func getSchema(r *Request) string {
 	return "http"
 }
 
-// 处理请求前的指标收集
+// handle metrics before request
 func (s *Server) handleMetricsBeforeRequest(r *Request) {
 	if !mmetric.IsEnabled() {
 		return
@@ -212,13 +212,13 @@ func (s *Server) handleMetricsBeforeRequest(r *Request) {
 		requestOption = metricManager.GetMetricOptionForRequestByMap(attrMap)
 	)
 
-	// 增加活跃请求计数
+	// increase active request count
 	metricManager.HttpServerRequestActive.Inc(
 		ctx,
 		requestOption,
 	)
 
-	// 记录请求体大小
+	// record request body size
 	metricManager.HttpServerRequestBodySize.Add(
 		ctx,
 		float64(r.Request.ContentLength),
@@ -226,7 +226,7 @@ func (s *Server) handleMetricsBeforeRequest(r *Request) {
 	)
 }
 
-// 处理请求后的指标收集
+// handle metrics after request done
 func (s *Server) handleMetricsAfterRequestDone(r *Request, startTime time.Time) {
 	if !mmetric.IsEnabled() {
 		return
@@ -240,30 +240,30 @@ func (s *Server) handleMetricsAfterRequestDone(r *Request, startTime time.Time) 
 		histogramOption = metricManager.GetMetricOptionForRequestDurationByMap(attrMap)
 	)
 
-	// 增加请求总数
+	// increase request total
 	metricManager.HttpServerRequestTotal.Inc(ctx, responseOption)
 
-	// 减少活跃请求计数
+	// decrease active request count
 	metricManager.HttpServerRequestActive.Dec(
 		ctx,
 		metricManager.GetMetricOptionForRequestByMap(attrMap),
 	)
 
-	// 记录响应体大小
+	// record response body size
 	metricManager.HttpServerResponseBodySize.Add(
 		ctx,
 		float64(r.Writer.Size()),
 		responseOption,
 	)
 
-	// 记录请求处理时长
+	// record request duration total
 	metricManager.HttpServerRequestDurationTotal.Add(
 		ctx,
 		durationMilli,
 		responseOption,
 	)
 
-	// 记录请求处理时长分布
+	// record request duration distribution
 	metricManager.HttpServerRequestDuration.Record(
 		durationMilli,
 		histogramOption,

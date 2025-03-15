@@ -7,9 +7,9 @@ import (
 	"github.com/spf13/cast"
 )
 
-// ServerConfig 服务器配置
+// ServerConfig is the server configuration.
 type ServerConfig struct {
-	// 基础配置
+	// basic config
 	Address        string
 	ServerName     string
 	ServerRoot     string
@@ -19,29 +19,29 @@ type ServerConfig struct {
 	IdleTimeout    time.Duration
 	MaxHeaderBytes int
 
-	// TLS 配置
+	// TLS config
 	TLSEnable     bool
 	TLSCertFile   string
 	TLSKeyFile    string
 	TLSServerName string
 
-	// 优雅关闭配置
+	// graceful shutdown config
 	GracefulEnable   bool
 	GracefulTimeout  time.Duration
 	GracefulWaitTime time.Duration
 
-	// API 文档配置
+	// API doc config
 	OpenapiPath     string
 	SwaggerPath     string
 	SwaggerTemplate string
 
-	// 日志配置
+	// log config
 	Logger *mlog.Logger
 }
 
 func NewConfig() ServerConfig {
 	return ServerConfig{
-		// 基础配置默认值
+		// basic config default values
 		Address:        defaultPort,
 		ServerName:     DefaultServerName,
 		ServerLocale:   "zh",
@@ -50,21 +50,21 @@ func NewConfig() ServerConfig {
 		IdleTimeout:    time.Second * 60,
 		MaxHeaderBytes: 1 << 20, // 1MB
 
-		// TLS 默认配置
+		// TLS default config
 		TLSEnable: false,
 
-		// 优雅关闭默认配置
+		// graceful shutdown default config
 		GracefulEnable:   true,
 		GracefulTimeout:  time.Second * 30,
 		GracefulWaitTime: time.Second * 5,
 
-		// 日志默认配置
+		// log default config
 		Logger: mlog.New(),
 	}
 }
 
-// SetConfig 设置服务器配置
-func (s *Server) SetConfig(configMap map[string]any) {
+// SetConfigWithMap sets the server config.
+func (s *Server) SetConfigWithMap(configMap map[string]any) {
 	if v, ok := configMap["address"]; ok {
 		s.config.Address = cast.ToString(v)
 	}
@@ -90,7 +90,7 @@ func (s *Server) SetConfig(configMap map[string]any) {
 		s.config.MaxHeaderBytes = cast.ToInt(v)
 	}
 
-	// TLS 配置
+	// TLS config
 	if v, ok := configMap["tls_enable"]; ok {
 		s.config.TLSEnable = cast.ToBool(v)
 	}
@@ -104,7 +104,7 @@ func (s *Server) SetConfig(configMap map[string]any) {
 		s.config.TLSServerName = cast.ToString(v)
 	}
 
-	// 优雅关闭配置
+	// graceful shutdown config
 	if v, ok := configMap["graceful_enable"]; ok {
 		s.config.GracefulEnable = cast.ToBool(v)
 	}
@@ -115,7 +115,7 @@ func (s *Server) SetConfig(configMap map[string]any) {
 		s.config.GracefulWaitTime = cast.ToDuration(v)
 	}
 
-	// API 文档配置
+	// API doc config
 	if v, ok := configMap["openapi_path"]; ok {
 		s.config.OpenapiPath = cast.ToString(v)
 	}
@@ -127,17 +127,17 @@ func (s *Server) SetConfig(configMap map[string]any) {
 	}
 }
 
-// SetAddress 设置服务器监听地址
+// SetAddress sets the server listening address.
 func (s *Server) SetAddress(addr string) {
 	s.config.Address = addr
 }
 
-// SetServerName
+// SetServerName sets the server name.
 func (s *Server) SetServerName(name string) {
 	s.config.ServerName = name
 }
 
-// Logger 获取日志实例
+// Logger gets the logger instance.
 func (s *Server) Logger() *mlog.Logger {
 	return s.config.Logger
 }

@@ -8,11 +8,11 @@ import (
 )
 
 const (
-	configNodeNameLogger = "logger" // 配置文件中的日志节点名
+	configNodeNameLogger = "logger" // config node name for logger
 )
 
-// Log 返回一个 glog.Logger 实例
-// 参数 name 是实例名称
+// Log returns a glog.Logger instance
+// The parameter name is the instance name
 func Log(name ...string) *mlog.Logger {
 	var (
 		ctx          = context.Background()
@@ -24,22 +24,22 @@ func Log(name ...string) *mlog.Logger {
 
 	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameLogger, instanceName)
 	v := globalInstances.GetOrSetFunc(instanceKey, func() any {
-		// 创建日志实例
+		// create logger instance
 		logger := mlog.Instance(instanceName)
-		// 尝试获取日志配置
+		// try to get logger config
 		var configMap map[string]any
-		// 先尝试获取特定命名的日志配置
+		// try to get logger config with certain name
 		certainLoggerNodeName := fmt.Sprintf(`%s.%s`, configNodeNameLogger, instanceName)
 		if v, _ := Config().Get(ctx, certainLoggerNodeName); v.IsNil() {
 			configMap = v.Map()
 		}
-		// 如果特定配置不存在，则使用全局日志配置
+		// if certain config not exists, use global logger config
 		if len(configMap) == 0 {
 			if v, _ := Config().Get(ctx, configNodeNameLogger); !v.IsEmpty() {
 				configMap = v.Map()
 			}
 		}
-		// 如果存在配置，则设置到日志实例
+		// if config exists, set to logger instance
 		if len(configMap) > 0 {
 			if err := logger.SetConfigWithMap(configMap); err != nil {
 				panic(err)

@@ -9,7 +9,7 @@ import (
 )
 
 var (
-	localInstances = minstance.New()
+	instances = minstance.New()
 )
 
 // Config 是配置管理对象
@@ -53,7 +53,7 @@ func Instance(name ...string) *Config {
 		instanceName = name[0]
 	}
 
-	v := localInstances.GetOrSetFunc(instanceName, func() any {
+	return instances.GetOrSetFunc(instanceName, func() any {
 		adapterFile, err := NewAdapterFile()
 		if err != nil {
 			_ = fmt.Errorf(`create config instance failed: %+v`, err)
@@ -63,9 +63,7 @@ func Instance(name ...string) *Config {
 			adapterFile.SetFileName(instanceName)
 		}
 		return NewWithAdapter(adapterFile)
-	})
-
-	return v.(*Config)
+	}).(*Config)
 }
 
 // SetAdapter 设置配置适配器

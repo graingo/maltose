@@ -8,22 +8,22 @@ import (
 	"github.com/graingo/maltose/os/mlog"
 )
 
-// contextKey 定义上下文键类型
+// contextKey defines the context key type.
 type contextKey string
 
 const (
-	// requestKey 用于在上下文中存储 Request 对象的键
+	// requestKey is the key for storing Request objects in the context.
 	requestKey  contextKey = "MaltoseRequest"
 	ResponseKey contextKey = "MaltoseResponse"
 )
 
-// Request 请求封装
+// Request is the request wrapper.
 type Request struct {
 	*gin.Context
-	server *Server // 服务器实例
+	server *Server // server instance
 }
 
-// RequestFromCtx 从上下文中获取 Request 对象
+// RequestFromCtx gets the Request object from the context.
 func RequestFromCtx(ctx context.Context) *Request {
 	if ctx == nil {
 		return nil
@@ -37,39 +37,39 @@ func RequestFromCtx(ctx context.Context) *Request {
 }
 
 func newRequest(c *gin.Context, s *Server) *Request {
-	// 先尝试从上下文获取
+	// try to get from context first
 	if r := RequestFromCtx(c.Request.Context()); r != nil {
 		return r
 	}
-	// 创建新的 Request 对象
+	// create new Request object
 	r := &Request{Context: c, server: s}
-	// 直接修改原始 context，而不是创建新的 request
+	// directly modify the original context, not create a new request
 	r.Request = c.Request.WithContext(context.WithValue(c.Request.Context(), requestKey, r))
 	return r
 }
 
-// GetServerName 获取服务器名称
+// GetServerName gets the server name.
 func (r *Request) GetServerName() string {
 	return r.server.config.ServerName
 }
 
-// Logger 获取日志实例
+// Logger gets the logger instance.
 func (r *Request) Logger() *mlog.Logger {
 	return r.server.Logger()
 }
 
-// GetHandlerResponse 获取处理器响应
+// GetHandlerResponse gets the handler response.
 func (r *Request) GetHandlerResponse() any {
 	res, _ := r.Get(string(ResponseKey))
 	return res
 }
 
-// SetHandlerResponse 设置处理器响应
+// SetHandlerResponse sets the handler response.
 func (r *Request) SetHandlerResponse(res any) {
 	r.Set(string(ResponseKey), res)
 }
 
-// Error 添加错误信息
+// Error adds an error message.
 func (r *Request) Error(err error) *Request {
 	r.Errors = append(r.Errors, &gin.Error{
 		Err:  err,
@@ -78,7 +78,7 @@ func (r *Request) Error(err error) *Request {
 	return r
 }
 
-// GetTranslator 获取翻译器
+// GetTranslator gets the translator.
 func (r *Request) GetTranslator() ut.Translator {
 	return r.server.translator
 }

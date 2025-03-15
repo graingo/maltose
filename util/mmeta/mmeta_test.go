@@ -19,7 +19,7 @@ func TestMeta_Basic(t *testing.T) {
 		Name: "john",
 	}
 
-	// 测试基础功能
+	// test basic features
 	if len(mmeta.Data(a)) != 2 {
 		t.Error("Expected 2 meta items")
 	}
@@ -33,7 +33,7 @@ func TestMeta_Basic(t *testing.T) {
 		t.Error("Expected nil for non-existent key")
 	}
 
-	// 测试 JSON 序列化
+	// test JSON serialization
 	b, err := json.Marshal(a)
 	if err != nil {
 		t.Error(err)

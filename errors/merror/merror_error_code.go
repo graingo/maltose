@@ -4,8 +4,8 @@ import (
 	"github.com/graingo/maltose/errors/mcode"
 )
 
-// Code 返回错误码
-// 如果错误没有设置错误码，它将返回 Unwrap 方法返回的错误的错误码。
+// Code returns the error code.
+// If the error does not have a set error code, it will return the error code of the error returned by the `Unwrap` method.
 func (err *Error) Code() mcode.Code {
 	if err == nil {
 		return mcode.CodeNil
@@ -16,7 +16,7 @@ func (err *Error) Code() mcode.Code {
 	return err.code
 }
 
-// SetCode 设置错误码
+// SetCode sets the error code.
 func (err *Error) SetCode(code mcode.Code) {
 	if err == nil {
 		return

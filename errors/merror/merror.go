@@ -2,37 +2,37 @@ package merror
 
 import "github.com/graingo/maltose/errors/mcode"
 
-// IEqual 定义了用于比较两个错误是否相等接口
+// IEqual defines the interface for comparing two errors for equality.
 type IEqual interface {
 	Error() string
 	Equal(target error) bool
 }
 
-// ICode 定义了 Code 功能接口
+// ICode defines the interface for the Code functionality.
 type ICode interface {
 	Error() string
 	Code() mcode.Code
 }
 
-// IStack 定义了 Stack 功能接口
+// IStack defines the interface for the Stack functionality.
 type IStack interface {
 	Error() string
 	Stack() string
 }
 
-// ICause 定义了 Cause 功能接口
+// ICause defines the interface for the Cause functionality.
 type ICause interface {
 	Error() string
 	Cause() error
 }
 
-// ICurrent 定义了 Current 功能接口
+// ICurrent defines the interface for the Current functionality.
 type ICurrent interface {
 	Error() string
 	Current() error
 }
 
-// IUnwrap 定义了 Unwrap 功能接口
+// IUnwrap defines the interface for the Unwrap functionality.
 type IUnwrap interface {
 	Error() string
 	Unwrap() error

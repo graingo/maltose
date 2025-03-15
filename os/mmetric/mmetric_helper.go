@@ -1,125 +1,116 @@
-// Package mmetric 提供指标收集和监控的辅助函数
 package mmetric
 
 import (
 	"context"
 )
 
-// ===== MeterOption 辅助函数 =====
-
-// NewMeterOption 创建新的计量器选项
+// NewMeterOption creates a new meter option
 func NewMeterOption() MeterOption {
 	return MeterOption{}
 }
 
-// WithInstrument 设置仪表名称
+// WithInstrument sets the instrument name
 func (o MeterOption) WithInstrument(instrument string) MeterOption {
 	o.Instrument = instrument
 	return o
 }
 
-// WithInstrumentVersion 设置仪表版本
+// WithInstrumentVersion sets the instrument version
 func (o MeterOption) WithInstrumentVersion(version string) MeterOption {
 	o.InstrumentVersion = version
 	return o
 }
 
-// WithMeterAttributes 设置属性
+// WithMeterAttributes sets the attributes
 func (o MeterOption) WithMeterAttributes(attrs Attributes) MeterOption {
 	o.Attributes = attrs
 	return o
 }
 
-// ===== MetricOption 辅助函数 =====
-
-// NewMetricOption 创建新的指标选项
+// NewMetricOption creates a new metric option
 func NewMetricOption() MetricOption {
 	return MetricOption{}
 }
 
-// WithHelp 设置帮助信息
+// WithHelp sets the help information
 func (o MetricOption) WithHelp(help string) MetricOption {
 	o.Help = help
 	return o
 }
 
-// WithUnit 设置单位
+// WithUnit sets the unit
 func (o MetricOption) WithUnit(unit string) MetricOption {
 	o.Unit = unit
 	return o
 }
 
-// WithMetricAttributes 设置属性
+// WithMetricAttributes sets the attributes
 func (o MetricOption) WithMetricAttributes(attrs Attributes) MetricOption {
 	o.Attributes = attrs
 	return o
 }
 
-// WithBuckets 设置直方图桶
+// WithBuckets sets the histogram buckets
 func (o MetricOption) WithBuckets(buckets []float64) MetricOption {
 	o.Buckets = buckets
 	return o
 }
 
-// ===== Option 辅助函数 =====
-
-// NewOption 创建新的操作选项
+// NewOption creates a new option
 func NewOption() Option {
 	return Option{
 		Attributes: make(AttributeMap),
 	}
 }
 
-// WithOptionAttributes 设置属性
+// WithOptionAttributes sets the attributes
 func (o Option) WithOptionAttributes(attrs AttributeMap) Option {
 	o.Attributes = attrs
 	return o
 }
 
-// ===== 便捷函数 =====
-
-// GetMeter 获取指定名称的计量器
+// GetMeter gets the meter with the specified name
 func GetMeter(name string) Meter {
 	return GetProvider().Meter(NewMeterOption().WithInstrument(name))
 }
 
-// NewCounter 创建计数器
+// NewCounter creates a counter
 func NewCounter(name string, option MetricOption) (Counter, error) {
 	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
 	return meter.Counter(name, option)
 }
 
-// NewMustCounter 创建计数器，如果出错则 panic
+// NewMustCounter creates a counter, panics if it fails
 func NewMustCounter(name string, option MetricOption) Counter {
 	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
 	return meter.MustCounter(name, option)
 }
 
-// NewUpDownCounter 创建上下计数器
+// NewUpDownCounter creates an up-down counter
 func NewUpDownCounter(name string, option MetricOption) (UpDownCounter, error) {
 	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
 	return meter.UpDownCounter(name, option)
 }
 
-// NewMustUpDownCounter 创建上下计数器，如果出错则 panic
+// NewMustUpDownCounter creates an up-down counter, panics if it fails
 func NewMustUpDownCounter(name string, option MetricOption) UpDownCounter {
 	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
 	return meter.MustUpDownCounter(name, option)
 }
 
-// NewHistogram 创建直方图
+// NewHistogram creates a histogram
 func NewHistogram(name string, option MetricOption) (Histogram, error) {
 	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
 	return meter.Histogram(name, option)
 }
 
-// NewMustHistogram 创建直方图，如果出错则 panic
+// NewMustHistogram creates a histogram, panics if it fails
 func NewMustHistogram(name string, option MetricOption) Histogram {
 	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
 	return meter.MustHistogram(name, option)
 }
 
-// Shutdown 关闭提供者
+// Shutdown shuts down the provider
 func Shutdown(ctx context.Context) error {
 	return GetProvider().Shutdown(ctx)
 }

@@ -5,97 +5,74 @@ import (
 	"context"
 )
 
-// Provider 指标提供者接口
+// Provider is the interface for metric providers
 type Provider interface {
-	// Meter 创建计量器
-	Meter(option MeterOption) Meter
-
-	// Shutdown 关闭提供者
-	Shutdown(ctx context.Context) error
+	Meter(option MeterOption) Meter     // Meter creates a meter
+	Shutdown(ctx context.Context) error // Shutdown shuts down the provider
 }
 
-// Meter 计量器接口
+// Meter is the interface for meters
 type Meter interface {
-	// Counter 创建计数器
-	Counter(name string, option MetricOption) (Counter, error)
-
-	// MustCounter 创建计数器，如果创建失败则 panic
-	MustCounter(name string, option MetricOption) Counter
-
-	// UpDownCounter 创建上下计数器
-	UpDownCounter(name string, option MetricOption) (UpDownCounter, error)
-
-	// MustUpDownCounter 创建上下计数器，如果创建失败则 panic
-	MustUpDownCounter(name string, option MetricOption) UpDownCounter
-
-	// Histogram 创建直方图
-	Histogram(name string, option MetricOption) (Histogram, error)
-
-	// MustHistogram 创建直方图，如果创建失败则 panic
-	MustHistogram(name string, option MetricOption) Histogram
+	Counter(name string, option MetricOption) (Counter, error)             // Counter creates a counter
+	MustCounter(name string, option MetricOption) Counter                  // MustCounter creates a counter, panics if creation fails
+	UpDownCounter(name string, option MetricOption) (UpDownCounter, error) // UpDownCounter creates an up-down counter
+	MustUpDownCounter(name string, option MetricOption) UpDownCounter      // MustUpDownCounter creates an up-down counter, panics if creation fails
+	Histogram(name string, option MetricOption) (Histogram, error)         // Histogram creates a histogram
+	MustHistogram(name string, option MetricOption) Histogram              // MustHistogram creates a histogram, panics if creation fails
 }
 
-// Counter 计数器接口，用于记录单调递增的值
+// Counter is the interface for counters
 type Counter interface {
-	// Add 添加指定值
-	Add(ctx context.Context, value float64, opts ...Option)
-
-	// Inc 增加 1
-	Inc(ctx context.Context, opts ...Option)
+	Add(ctx context.Context, value float64, opts ...Option) // Add adds a specified value
+	Inc(ctx context.Context, opts ...Option)                // Inc increments the counter by 1
 }
 
-// UpDownCounter 上下计数器接口，用于记录可增可减的值
+// UpDownCounter is the interface for up-down counters
 type UpDownCounter interface {
-	// Add 添加指定值（可为负数）
-	Add(ctx context.Context, value float64, opts ...Option)
-
-	// Inc 增加 1
-	Inc(ctx context.Context, opts ...Option)
-
-	// Dec 减少 1
-	Dec(ctx context.Context, opts ...Option)
+	Add(ctx context.Context, value float64, opts ...Option) // Add adds a specified value (can be negative)
+	Inc(ctx context.Context, opts ...Option)                // Inc increments the counter by 1
+	Dec(ctx context.Context, opts ...Option)                // Dec decrements the counter by 1
 }
 
-// Histogram 直方图接口，用于记录值的分布情况
+// Histogram is the interface for histograms
 type Histogram interface {
-	// Record 记录一个值
-	Record(value float64, opts ...Option)
+	Record(value float64, opts ...Option) // Record records a value
 }
 
-// MeterOption 计量器选项
+// MeterOption is the option for meters
 type MeterOption struct {
-	Instrument        string     // 仪表名称
-	InstrumentVersion string     // 仪表版本
-	Attributes        Attributes // 属性
+	Instrument        string     // Instrument name
+	InstrumentVersion string     // Instrument version
+	Attributes        Attributes // Attributes
 }
 
-// MetricOption 指标选项
+// MetricOption is the option for metrics
 type MetricOption struct {
-	Help       string     // 帮助信息
-	Unit       string     // 单位
-	Attributes Attributes // 属性
-	Buckets    []float64  // 直方图桶（可能不被所有实现支持）
+	Help       string     // Help information
+	Unit       string     // Unit
+	Attributes Attributes // Attributes
+	Buckets    []float64  // Buckets (may not be supported by all implementations)
 }
 
-// Option 操作选项，用于记录指标时添加标签
+// Option is the option for recording metrics
 type Option struct {
-	Attributes AttributeMap // 属性映射
+	Attributes AttributeMap // Attributes map
 }
 
-// Attributes 属性列表，键值对形式
+// Attributes is a list of attributes, key-value pairs
 type Attributes map[string]string
 
-// AttributeMap 属性映射，支持多种类型的值
+// AttributeMap is a map of attributes, supports multiple types of values
 type AttributeMap map[string]interface{}
 
-// Sets 设置多个属性
+// Sets sets multiple attributes
 func (m AttributeMap) Sets(attrs AttributeMap) {
 	for k, v := range attrs {
 		m[k] = v
 	}
 }
 
-// Pick 选择特定属性
+// Pick picks specific attributes
 func (m AttributeMap) Pick(keys ...string) AttributeMap {
 	result := make(AttributeMap)
 	for _, key := range keys {
@@ -106,30 +83,30 @@ func (m AttributeMap) Pick(keys ...string) AttributeMap {
 	return result
 }
 
-// 全局变量
+// Global variables
 var (
-	enabled                  = true              // 是否启用指标收集
-	defaultProvider          = newNoopProvider() // 默认的空操作提供者
-	activeProvider  Provider = defaultProvider   // 当前活跃的提供者，修改为 Provider 接口类型
+	enabled                  = true              // Whether to enable metric collection
+	defaultProvider          = newNoopProvider() // Default noop provider
+	activeProvider  Provider = defaultProvider   // Current active provider, modified to Provider interface type
 )
 
-// IsEnabled 检查是否启用了指标收集
+// IsEnabled checks if metric collection is enabled
 func IsEnabled() bool {
 	return enabled
 }
 
-// SetEnabled 设置是否启用指标收集
+// SetEnabled sets whether metric collection is enabled
 func SetEnabled(e bool) {
 	enabled = e
 }
 
-// SetProvider 设置活跃的提供者
+// SetProvider sets the active provider
 func SetProvider(provider Provider) {
 	activeProvider = provider
 	enabled = true
 }
 
-// GetProvider 获取当前活跃的提供者
+// GetProvider gets the current active provider
 func GetProvider() Provider {
 	if !enabled {
 		return defaultProvider

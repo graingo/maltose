@@ -8,7 +8,7 @@ import (
 	"github.com/graingo/maltose/util/mmeta"
 )
 
-// RouterGroup 路由组
+// RouterGroup is the router group for the server.
 type RouterGroup struct {
 	server      *Server
 	path        string
@@ -18,7 +18,7 @@ type RouterGroup struct {
 
 type RouterGroupOption func(*RouterGroup)
 
-// Group 创建新的路由组
+// Group creates a new router group.
 func (rg *RouterGroup) Group(path string, handlers ...RouterGroupOption) *RouterGroup {
 	group := &RouterGroup{
 		server:   rg.server,
@@ -33,7 +33,7 @@ func (rg *RouterGroup) Group(path string, handlers ...RouterGroupOption) *Router
 	return group
 }
 
-// Use 添加中间件
+// Use adds middlewares.
 func (rg *RouterGroup) Use(middlewares []MiddlewareFunc, handlers ...RouterGroupOption) *RouterGroup {
 	if rg.middlewares == nil {
 		rg.middlewares = make([]MiddlewareFunc, 0, len(middlewares))
@@ -47,49 +47,49 @@ func (rg *RouterGroup) Use(middlewares []MiddlewareFunc, handlers ...RouterGroup
 	return rg
 }
 
-// GET 注册 GET 请求路由
+// GET registers GET request route.
 func (rg *RouterGroup) GET(path string, handler HandlerFunc, middlewares ...MiddlewareFunc) *RouterGroup {
 	rg.addRouteWithMiddlewares("GET", path, handler, middlewares...)
 	return rg
 }
 
-// POST 注册 POST 请求路由
+// POST registers POST request route.
 func (rg *RouterGroup) POST(path string, handler HandlerFunc, middlewares ...MiddlewareFunc) *RouterGroup {
 	rg.addRouteWithMiddlewares("POST", path, handler, middlewares...)
 	return rg
 }
 
-// PUT 注册 PUT 请求路由
+// PUT registers PUT request route.
 func (rg *RouterGroup) PUT(path string, handler HandlerFunc, middlewares ...MiddlewareFunc) *RouterGroup {
 	rg.addRouteWithMiddlewares("PUT", path, handler, middlewares...)
 	return rg
 }
 
-// DELETE 注册 DELETE 请求路由
+// DELETE registers DELETE request route.
 func (rg *RouterGroup) DELETE(path string, handler HandlerFunc, middlewares ...MiddlewareFunc) *RouterGroup {
 	rg.addRouteWithMiddlewares("DELETE", path, handler, middlewares...)
 	return rg
 }
 
-// HEAD 注册 HEAD 请求路由
+// HEAD registers HEAD request route.
 func (rg *RouterGroup) HEAD(path string, handler HandlerFunc, middlewares ...MiddlewareFunc) *RouterGroup {
 	rg.addRouteWithMiddlewares("HEAD", path, handler, middlewares...)
 	return rg
 }
 
-// OPTIONS 注册 OPTIONS 请求路由
+// OPTIONS registers OPTIONS request route.
 func (rg *RouterGroup) OPTIONS(path string, handler HandlerFunc, middlewares ...MiddlewareFunc) *RouterGroup {
 	rg.addRouteWithMiddlewares("OPTIONS", path, handler, middlewares...)
 	return rg
 }
 
-// PATCH 注册 PATCH 请求路由
+// PATCH registers PATCH request route.
 func (rg *RouterGroup) PATCH(path string, handler HandlerFunc, middlewares ...MiddlewareFunc) *RouterGroup {
 	rg.addRouteWithMiddlewares("PATCH", path, handler, middlewares...)
 	return rg
 }
 
-// Any 注册所有 HTTP 方法路由
+// Any registers all HTTP methods route.
 func (rg *RouterGroup) Any(path string, handler HandlerFunc, middlewares ...MiddlewareFunc) *RouterGroup {
 	methods := []string{"GET", "POST", "PUT", "DELETE", "PATCH", "HEAD", "OPTIONS"}
 	for _, method := range methods {
@@ -98,22 +98,22 @@ func (rg *RouterGroup) Any(path string, handler HandlerFunc, middlewares ...Midd
 	return rg
 }
 
-// Handle 通用路由注册方法
+// Handle is a general route registration method.
 func (rg *RouterGroup) Handle(method, path string, handler HandlerFunc, middlewares ...MiddlewareFunc) *RouterGroup {
 	rg.addRouteWithMiddlewares(method, path, handler, middlewares...)
 	return rg
 }
 
-// BindObject 绑定控制器对象
+// BindObject binds the controller object.
 func (rg *RouterGroup) BindObject(object any) *RouterGroup {
 	return rg.bindObject(object)
 }
 
-// 内部方法，添加路由
+// addRouteWithMiddlewares is an internal method to add routes with middlewares.
 func (rg *RouterGroup) addRouteWithMiddlewares(method, path string, handler HandlerFunc, middlewares ...MiddlewareFunc) {
 	absolutePath := joinPaths(rg.path, path)
 
-	// 添加到预绑定列表
+	// add to pre-bind list
 	rg.server.preBindItems = append(rg.server.preBindItems, preBindItem{
 		Group:            rg,
 		Method:           method,
@@ -123,7 +123,7 @@ func (rg *RouterGroup) addRouteWithMiddlewares(method, path string, handler Hand
 		RouteMiddlewares: middlewares,
 	})
 
-	// 添加到路由列表用于文档和打印
+	// add to routes list for documentation and printing
 	rg.server.routes = append(rg.server.routes, Route{
 		Method:      method,
 		Path:        absolutePath,
@@ -132,7 +132,7 @@ func (rg *RouterGroup) addRouteWithMiddlewares(method, path string, handler Hand
 	})
 }
 
-// bindObject 处理对象的路由绑定 (内部方法)
+// bindObject handles the route binding of the object (internal method).
 func (rg *RouterGroup) bindObject(object any) *RouterGroup {
 	typ := reflect.TypeOf(object)
 	val := reflect.ValueOf(object)
@@ -140,7 +140,7 @@ func (rg *RouterGroup) bindObject(object any) *RouterGroup {
 	for i := 0; i < typ.NumMethod(); i++ {
 		method := typ.Method(i)
 
-		// 检查方法签名
+		// check method signature
 		if err := checkMethodSignature(method.Type); err != nil {
 			rg.server.Logger().Warnf(context.Background(),
 				"method [%s.%s] ignored, %s",
@@ -149,19 +149,19 @@ func (rg *RouterGroup) bindObject(object any) *RouterGroup {
 			continue
 		}
 
-		// 获取请求参数类型和元数据
+		// get request parameter type and metadata
 		reqType := method.Type.In(2)
 		reqElem := reqType.Elem()
 		reqInstance := reflect.New(reqElem).Interface()
 
-		// 获取路由信息
+		// get route information
 		path := mmeta.Get(reqInstance, "path").String()
 		httpMethod := mmeta.Get(reqInstance, "method").String()
 		if path == "" || httpMethod == "" {
 			continue
 		}
 
-		// 创建处理函数
+		// create handler function
 		handlerFunc := func(r *Request) {
 			req := reflect.New(reqElem).Interface()
 			if err := handleRequest(r, method, val, req); err != nil {
@@ -169,10 +169,10 @@ func (rg *RouterGroup) bindObject(object any) *RouterGroup {
 			}
 		}
 
-		// 构建完整路径
+		// build full path
 		fullPath := joinPaths(rg.path, path)
 
-		// 保存到路由列表
+		// save to routes list
 		rg.server.routes = append(rg.server.routes, Route{
 			Method:           httpMethod,
 			Path:             fullPath,
@@ -184,7 +184,7 @@ func (rg *RouterGroup) bindObject(object any) *RouterGroup {
 			RespType:         method.Type.Out(0),
 		})
 
-		// 添加到预绑定列表
+		// add to pre-bind list
 		rg.server.preBindItems = append(rg.server.preBindItems, preBindItem{
 			Group:       rg,
 			Method:      httpMethod,
@@ -198,7 +198,7 @@ func (rg *RouterGroup) bindObject(object any) *RouterGroup {
 	return rg
 }
 
-// 辅助函数，连接路径
+// joinPaths is a helper function to join paths.
 func joinPaths(absolutePath, relativePath string) string {
 	if relativePath == "" {
 		return absolutePath

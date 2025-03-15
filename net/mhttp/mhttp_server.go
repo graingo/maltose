@@ -10,23 +10,23 @@ import (
 	"time"
 )
 
-// 静态文件服务增强
+// SetStaticPath enhances the static file service.
 func (s *Server) SetStaticPath(prefix string, directory string) {
-	// 实现静态文件服务
+	// implement static file service
 	s.engine.StaticFS(prefix, http.Dir(directory))
 }
 
-// Run 启动 HTTP 服务
+// Run starts the HTTP server.
 func (s *Server) Run() {
 	ctx := context.Background()
 
-	// 注册 OpenAPI 和 Swagger
+	// register OpenAPI and Swagger
 	s.registerDoc(ctx)
 
-	// 在启动前注册所有路由
+	// register all routes before starting
 	s.bindRoutes(ctx)
 
-	// 打印路由信息
+	// print route information
 	s.printRoute(ctx)
 
 	srv := &http.Server{
@@ -38,7 +38,7 @@ func (s *Server) Run() {
 		MaxHeaderBytes: s.config.MaxHeaderBytes,
 	}
 
-	// 创建错误通道
+	// create error channel
 	errChan := make(chan error, 1)
 	go func() {
 		var err error
@@ -56,7 +56,7 @@ func (s *Server) Run() {
 		}
 	}()
 
-	// 监听系统信号
+	// listen system signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 
@@ -75,7 +75,7 @@ func (s *Server) Run() {
 		defer cancel()
 
 		if s.config.GracefulEnable {
-			// 等待活跃连接完成
+			// wait for active connections to complete
 			time.Sleep(s.config.GracefulWaitTime)
 		}
 

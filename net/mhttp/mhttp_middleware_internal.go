@@ -25,24 +25,24 @@ const (
 	tracingMiddlewareHandled   contextKey = "TracingMiddlewareHandled"
 )
 
-// internalMiddlewareDefaultResponse 内部默认响应处理中间件
+// internalMiddlewareDefaultResponse internal default response processing middleware
 func internalMiddlewareDefaultResponse() MiddlewareFunc {
 	return func(r *Request) {
 		r.Next()
 
-		// 如果已经写入了响应,则跳过
+		// if response has been written, skip
 		if r.Writer.Written() {
 			return
 		}
 
-		// 处理错误情况
+		// handle error case
 		if len(r.Errors) > 0 {
 			err := r.Errors.Last().Err
 			r.String(500, fmt.Sprintf("Error: %s", err.Error()))
 			return
 		}
 
-		// 获取处理器响应
+		// get handler response
 		if res := r.GetHandlerResponse(); res != nil {
 			switch v := res.(type) {
 			case string:
@@ -55,19 +55,19 @@ func internalMiddlewareDefaultResponse() MiddlewareFunc {
 			return
 		}
 
-		// 没有响应则返回空字符串
+		// if no response, return empty string
 		r.String(200, "")
 	}
 }
 
-// internalMiddlewareRecovery 内部错误恢复中间件
+// internalMiddlewareRecovery internal error recovery middleware
 func internalMiddlewareRecovery() MiddlewareFunc {
 	return func(r *Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				// 记录错误日志
+				// record error log
 				r.Logger().Errorf(r.Request.Context(), "Panic recovered: %v", err)
-				// 返回 500 错误
+				// return 500 error
 				r.String(500, "Internal Server Error")
 			}
 		}()
@@ -75,29 +75,29 @@ func internalMiddlewareRecovery() MiddlewareFunc {
 	}
 }
 
-// internalMiddlewareMetric 内部指标收集中间件
+// internalMiddlewareMetric internal metric collection middleware
 func internalMiddlewareMetric() MiddlewareFunc {
 	return func(r *Request) {
-		// 记录开始时间
+		// record start time
 		startTime := time.Now()
 
-		// 请求前指标收集
+		// collect metrics before request
 		r.server.handleMetricsBeforeRequest(r)
 
-		// 执行后续中间件
+		// execute next middleware
 		r.Next()
 
-		// 请求后指标收集
+		// collect metrics after request done
 		r.server.handleMetricsAfterRequestDone(r, startTime)
 	}
 }
 
-// internalMiddlewareServerTrace 返回一个中间件用于OpenTelemetry跟踪
+// internalMiddlewareServerTrace returns a middleware for OpenTelemetry tracing
 func internalMiddlewareServerTrace() MiddlewareFunc {
 	return func(r *Request) {
 		ctx := r.Request.Context()
 
-		// 避免重复处理
+		// avoid duplicate processing
 		if ctx.Value(tracingMiddlewareHandled) != nil {
 			r.Next()
 			return
@@ -105,31 +105,31 @@ func internalMiddlewareServerTrace() MiddlewareFunc {
 
 		ctx = context.WithValue(ctx, tracingMiddlewareHandled, 1)
 
-		// 如果使用默认provider则跳过复杂的tracing
+		// if using default provider, skip complex tracing
 		if mtrace.IsUsingDefaultProvider() {
 			r.Next()
 			return
 		}
 
-		// 创建tracer
+		// create tracer
 		tr := otel.GetTracerProvider().Tracer(
 			instrumentName,
 			trace.WithInstrumentationVersion("v1.0.0"),
 		)
 
-		// 提取上下文和baggage
+		// extract context and baggage
 		ctx = otel.GetTextMapPropagator().Extract(
 			ctx,
 			propagation.HeaderCarrier(r.Request.Header),
 		)
 
-		// 规范化操作名称: HTTP {method} {route}
+		// normalize operation name: HTTP {method} {route}
 		spanName := fmt.Sprintf("HTTP %s %s", r.Request.Method, r.FullPath())
 		if r.FullPath() == "" {
 			spanName = fmt.Sprintf("HTTP %s %s", r.Request.Method, r.Request.URL.Path)
 		}
 
-		// 创建span
+		// create span
 		ctx, span := tr.Start(
 			ctx,
 			spanName,
@@ -137,22 +137,22 @@ func internalMiddlewareServerTrace() MiddlewareFunc {
 		)
 		defer span.End()
 
-		// 添加请求事件
+		// add request event
 		span.AddEvent(tracingEventHttpRequest, trace.WithAttributes(
 			attribute.String(tracingEventHttpRequestUrl, r.Request.URL.String()),
 			attribute.String(tracingEventHttpHeaders, cast.ToString(cast.ToStringMap(r.Request.Header))),
 			attribute.String(tracingEventHttpBaggage, cast.ToString(mtrace.GetBaggageMap(ctx))),
 		))
 
-		// 注入追踪上下文
+		// inject tracing context
 		r.Request = r.Request.WithContext(ctx)
 
-		// 继续处理请求
+		// continue processing request
 		r.Next()
 
-		// 错误处理
+		// handle error
 		if len(r.Errors) > 0 {
-			// 收集所有错误信息
+			// collect all error information
 			var errMsgs []string
 			for _, err := range r.Errors {
 				errMsgs = append(errMsgs, err.Error())
@@ -162,7 +162,7 @@ func internalMiddlewareServerTrace() MiddlewareFunc {
 			span.SetStatus(httpStatusCodeToSpanStatus(r.Writer.Status()))
 		}
 
-		// 添加响应事件
+		// add response event
 		span.AddEvent(tracingEventHttpResponse, trace.WithAttributes(
 			attribute.Int("http.status_code", r.Writer.Status()),
 			attribute.Int("http.response_content_length", r.Writer.Size()),
@@ -171,7 +171,7 @@ func internalMiddlewareServerTrace() MiddlewareFunc {
 	}
 }
 
-// httpStatusCodeToSpanStatus 将 HTTP 状态码转换为 span 状态
+// httpStatusCodeToSpanStatus converts HTTP status code to span status
 func httpStatusCodeToSpanStatus(code int) (codes.Code, string) {
 	if code < 100 || code >= 600 {
 		return codes.Error, fmt.Sprintf("Invalid HTTP status code %d", code)

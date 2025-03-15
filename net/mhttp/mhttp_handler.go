@@ -11,12 +11,12 @@ import (
 	"github.com/graingo/maltose/errors/merror"
 )
 
-// HandlerFunc 定义基础处理函数类型
+// HandlerFunc defines the basic handler function type.
 type HandlerFunc func(*Request)
 
-// handleRequest 处理请求并返回结果
+// handleRequest handles the request and returns the result.
 func handleRequest(r *Request, method reflect.Method, val reflect.Value, req interface{}) error {
-	// 参数绑定
+	// parameter binding
 	if err := r.ShouldBind(req); err != nil {
 		if validationErrors, ok := err.(validator.ValidationErrors); ok {
 			var errMsgs []string
@@ -30,38 +30,38 @@ func handleRequest(r *Request, method reflect.Method, val reflect.Value, req int
 		return err
 	}
 
-	// 调用方法
+	// call method
 	results := method.Func.Call([]reflect.Value{
 		val,
 		reflect.ValueOf(r.Request.Context()),
 		reflect.ValueOf(req),
 	})
 
-	// 处理返回值
+	// handle return value
 	if !results[1].IsNil() {
 		return results[1].Interface().(error)
 	}
 
-	// 设置响应到 Request 中供中间件使用
+	// set response to Request for middleware usage
 	response := results[0].Interface()
 	r.SetHandlerResponse(response)
 
 	return nil
 }
 
-// checkMethodSignature 检查方法签名是否符合要求
+// checkMethodSignature checks the method signature.
 func checkMethodSignature(typ reflect.Type) error {
-	// 检查参数数量和返回值数量
+	// check parameter number and return value number
 	if typ.NumIn() != 3 || typ.NumOut() != 2 {
 		return fmt.Errorf("invalid method signature, required: func(*Controller) (context.Context, *XxxReq) (*XxxRes, error)")
 	}
 
-	// 检查第二个参数是否为 context.Context
+	// check if the second parameter is context.Context
 	if !typ.In(1).Implements(reflect.TypeOf((*context.Context)(nil)).Elem()) {
 		return fmt.Errorf("first parameter should be context.Context")
 	}
 
-	// 检查第三个参数（请求参数）
+	// check if the third parameter is request parameter
 	reqType := typ.In(2)
 	if reqType.Kind() != reflect.Ptr {
 		return fmt.Errorf("request parameter should be pointer type")
@@ -70,7 +70,7 @@ func checkMethodSignature(typ reflect.Type) error {
 		return fmt.Errorf("request parameter should end with 'Req'")
 	}
 
-	// 检查第一个返回值（响应参数）
+	// check if the first return value is response parameter
 	resType := typ.Out(0)
 	if resType.Kind() != reflect.Ptr {
 		return fmt.Errorf("response parameter should be pointer type")
@@ -79,7 +79,7 @@ func checkMethodSignature(typ reflect.Type) error {
 		return fmt.Errorf("response parameter should end with 'Res'")
 	}
 
-	// 检查第二个返回值是否为 error
+	// check if the second return value is error
 	if !typ.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
 		return fmt.Errorf("second return value should be error")
 	}

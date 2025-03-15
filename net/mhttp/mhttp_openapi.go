@@ -5,7 +5,7 @@ import (
 	"strings"
 )
 
-// OpenAPI 规范对象
+// OpenAPI specification object
 type OpenAPI struct {
 	Openapi string              `json:"openapi"`
 	Info    Info                `json:"info"`
@@ -66,7 +66,7 @@ type Schema struct {
 }
 
 func createParameters(t reflect.Type) []Parameter {
-	// 如果是指针类型，获取其基础类型
+	// if it is a pointer type, get its base type
 	if t.Kind() == reflect.Ptr {
 		t = t.Elem()
 	}

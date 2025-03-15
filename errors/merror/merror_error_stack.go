@@ -7,7 +7,7 @@ import (
 	"strings"
 )
 
-// Stack 返回错误的堆栈信息
+// Stack returns the stack information of the error.
 func (err *Error) Stack() string {
 	if err == nil {
 		return ""
@@ -16,19 +16,19 @@ func (err *Error) Stack() string {
 	var (
 		buffer bytes.Buffer
 		pcs    [maxStackDepth]uintptr
-		n      = runtime.Callers(3, pcs[:]) // 跳过前3层调用栈
+		n      = runtime.Callers(3, pcs[:]) // Skip the first 3 stack frames
 	)
 
-	// 写入错误信息
+	// Write error information
 	buffer.WriteString(fmt.Sprintf("error: %s\n", err.Error()))
 	buffer.WriteString("stack:\n")
 
-	// 获取调用栈信息
+	// Get the stack information
 	frames := runtime.CallersFrames(pcs[:n])
 	for {
 		frame, more := frames.Next()
 
-		// 跳过标准库和运行时的调用
+		// Skip the calls to the standard library and runtime
 		if strings.HasPrefix(frame.File, runtime.GOROOT()) {
 			if !more {
 				break
@@ -36,7 +36,7 @@ func (err *Error) Stack() string {
 			continue
 		}
 
-		// 格式化堆栈信息
+		// Format the stack information
 		buffer.WriteString(fmt.Sprintf("  %s\n    %s:%d\n",
 			frame.Function,
 			frame.File,

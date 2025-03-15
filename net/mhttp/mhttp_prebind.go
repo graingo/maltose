@@ -6,7 +6,7 @@ import (
 	"github.com/gin-gonic/gin"
 )
 
-// preBindItem 预绑定项
+// preBindItem is the pre-binding item.
 type preBindItem struct {
 	Group            *RouterGroup
 	Method           string
@@ -17,7 +17,7 @@ type preBindItem struct {
 	RouteMiddlewares []MiddlewareFunc
 }
 
-// bindRoutes 绑定所有预绑定的路由
+// bindRoutes binds all pre-bound routes.
 func (s *Server) bindRoutes(_ context.Context) {
 	processedGroups := make(map[*RouterGroup]bool)
 
@@ -34,11 +34,11 @@ func (s *Server) bindRoutes(_ context.Context) {
 		}
 	}
 
-	// 第二步：注册所有路由及其路由级中间件
+	// second step: register all routes and their route-level middlewares
 	for _, item := range s.preBindItems {
 		var routeHandlers []gin.HandlerFunc
 
-		// 只处理路由级中间件
+		// only handle route-level middlewares
 		for _, middleware := range item.RouteMiddlewares {
 			ginMiddleware := func(c *gin.Context) {
 				middleware(newRequest(c, s))
@@ -46,20 +46,20 @@ func (s *Server) bindRoutes(_ context.Context) {
 			routeHandlers = append(routeHandlers, ginMiddleware)
 		}
 
-		// 添加最终处理函数
+		// add final handler function
 		finalHandler := func(c *gin.Context) {
 			item.HandlerFunc(newRequest(c, s))
 		}
 		routeHandlers = append(routeHandlers, finalHandler)
 
-		// 注册到 Gin
+		// register to Gin
 		item.Group.ginGroup.Handle(item.Method, item.Path, routeHandlers...)
 	}
 
-	// 清理预绑定列表
+	// clean pre-bind list
 	s.preBindItems = nil
 
-	// 清理中间件引用以帮助垃圾回收
+	// clean middleware references to help garbage collection
 	for group := range processedGroups {
 		group.middlewares = nil
 	}

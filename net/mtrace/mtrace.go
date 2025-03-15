@@ -25,13 +25,13 @@ func init() {
 	CheckSetDefaultTextMapPropagator()
 }
 
-// IsUsingDefaultProvider 检查是否使用默认的 trace provider
+// IsUsingDefaultProvider checks if the default trace provider is used.
 func IsUsingDefaultProvider() bool {
 	_, ok := otel.GetTracerProvider().(*provider.TracerProvider)
 	return ok
 }
 
-// CheckSetDefaultTextMapPropagator 如果之前未设置，则设置默认的 TextMapPropagator
+// CheckSetDefaultTextMapPropagator checks if the default TextMapPropagator is set.
 func CheckSetDefaultTextMapPropagator() {
 	p := otel.GetTextMapPropagator()
 	if len(p.Fields()) == 0 {
@@ -39,12 +39,12 @@ func CheckSetDefaultTextMapPropagator() {
 	}
 }
 
-// GetDefaultTextMapPropagator 返回用于对等体间上下文传播的默认传播器
+// GetDefaultTextMapPropagator returns the default TextMapPropagator for context propagation.
 func GetDefaultTextMapPropagator() propagation.TextMapPropagator {
 	return defaultTextMapPropagator
 }
 
-// GetTraceID 从上下文中获取 TraceId
+// GetTraceID gets the trace id from the context.
 func GetTraceID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
@@ -56,7 +56,7 @@ func GetTraceID(ctx context.Context) string {
 	return ""
 }
 
-// GetSpanID 从上下文中获取 SpanId
+// GetSpanID gets the span id from the context.
 func GetSpanID(ctx context.Context) string {
 	if ctx == nil {
 		return ""
@@ -68,32 +68,32 @@ func GetSpanID(ctx context.Context) string {
 	return ""
 }
 
-// SetBaggageValue 是一个便捷函数，用于向 baggage 添加一个键值对
+// SetBaggageValue is a convenient function for adding a key-value pair to baggage.
 func SetBaggageValue(ctx context.Context, key string, value any) context.Context {
 	return NewBaggage(ctx).SetValue(key, value)
 }
 
-// SetBaggageMap 是一个便捷函数，用于向 baggage 添加多个键值对
+// SetBaggageMap is a convenient function for adding multiple key-value pairs to baggage.
 func SetBaggageMap(ctx context.Context, data map[string]any) context.Context {
 	return NewBaggage(ctx).SetMap(data)
 }
 
-// GetBaggageMap 获取并返回 baggage 值的 map
+// GetBaggageMap gets and returns the map of baggage values.
 func GetBaggageMap(ctx context.Context) map[string]any {
 	return NewBaggage(ctx).GetMap()
 }
 
-// GetBaggageVar 从 baggage 中获取指定 key 的值并返回 *mvar.Var
+// GetBaggageVar gets and returns the value of the specified key from baggage.
 func GetBaggageVar(ctx context.Context, key string) *mvar.Var {
 	return NewBaggage(ctx).GetVar(key)
 }
 
-// WithUUID 将自定义的 UUID 作为 trace id 注入到上下文中
+// WithUUID injects a custom UUID as trace id into the context.
 func WithUUID(ctx context.Context, uuid string) (context.Context, error) {
 	return WithTraceID(ctx, strings.Replace(uuid, "-", "", -1))
 }
 
-// WithTraceID 将自定义的 trace id 注入到上下文中
+// WithTraceID injects a custom trace id into the context.
 func WithTraceID(ctx context.Context, traceID string) (context.Context, error) {
 	generatedTraceID, err := trace.TraceIDFromHex(traceID)
 	if err != nil {

@@ -9,7 +9,7 @@ type Tracer struct {
 	trace.Tracer
 }
 
-// NewTracer 创建并返回一个新的 tracer
+// NewTracer creates and returns a new tracer.
 func NewTracer(name ...string) *Tracer {
 	tracerName := ""
 	if len(name) > 0 {

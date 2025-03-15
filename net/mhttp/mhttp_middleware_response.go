@@ -7,19 +7,19 @@ import (
 	"github.com/graingo/maltose/errors/merror"
 )
 
-// DefaultResponse 标准响应结构
+// DefaultResponse standard response structure
 type DefaultResponse struct {
-	Code    int    `json:"code"`    // 业务码
-	Message string `json:"message"` // 提示信息
-	Data    any    `json:"data"`    // 业务数据
+	Code    int    `json:"code"`    // business code
+	Message string `json:"message"` // prompt information
+	Data    any    `json:"data"`    // business data
 }
 
-// MiddlewareResponse 标准响应中间件
+// MiddlewareResponse standard response middleware
 func MiddlewareResponse() MiddlewareFunc {
 	return func(r *Request) {
 		r.Next()
 
-		// 如果已经写入了响应,则跳过
+		// if response has been written, skip
 		if r.Writer.Written() {
 			return
 		}
@@ -30,10 +30,10 @@ func MiddlewareResponse() MiddlewareFunc {
 			data            = r.GetHandlerResponse()
 		)
 
-		// 处理错误情况
+		// handle error case
 		if len(r.Errors) > 0 {
 			err := r.Errors.Last().Err
-			// 获取错误码
+			// get error code
 			code = merror.Code(err)
 			if code == mcode.CodeNil {
 				code = mcode.CodeInternalError
@@ -41,7 +41,7 @@ func MiddlewareResponse() MiddlewareFunc {
 			msg = err.Error()
 			data = nil
 		} else if status := r.Writer.Status(); status != http.StatusOK {
-			// 处理 HTTP 状态码错误
+			// handle HTTP status code error
 			msg = http.StatusText(status)
 			switch status {
 			case http.StatusNotFound:
@@ -54,13 +54,13 @@ func MiddlewareResponse() MiddlewareFunc {
 				code = mcode.CodeInternalError
 			}
 			data = nil
-			// 创建错误对象供其他中间件使用
+			// create error object for other middleware usage
 			r.Error(merror.NewCode(code, msg))
 		} else {
 			msg = code.Message()
 		}
 
-		// 返回标准响应
+		// return standard response
 		r.JSON(r.Writer.Status(), DefaultResponse{
 			Code:    code.Code(),
 			Message: msg,

@@ -36,12 +36,12 @@ func (s *Server) initOpenAPI(_ context.Context) {
 	}
 
 	for _, route := range s.Routes() {
-		// 只处理控制器路由
+		// Only handle controller routes
 		if route.Type != routeTypeController {
 			continue
 		}
 
-		// 直接使用保存的类型信息
+		// Use the saved type information directly
 		reqType := route.ReqType
 		respType := route.RespType
 
@@ -100,7 +100,7 @@ func (s *Server) initOpenAPI(_ context.Context) {
 	s.openapi = spec
 }
 
-// openapiHandler 处理OpenAPI请求
+// openapiHandler handles OpenAPI requests.
 func (s *Server) openapiHandler(r *Request) {
 	if s.openapi == nil {
 		r.String(500, "OpenAPI specification is not properly initialized")
@@ -109,7 +109,7 @@ func (s *Server) openapiHandler(r *Request) {
 	r.JSON(200, s.openapi)
 }
 
-// swaggerHandler 处理Swagger请求
+// swaggerHandler handles Swagger requests.
 func (s *Server) swaggerHandler(r *Request) {
 	template := defaultSwaggerTemplate
 	if s.config.SwaggerTemplate != "" {
