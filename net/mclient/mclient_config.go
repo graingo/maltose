@@ -46,17 +46,6 @@ func (c *Client) SetContentType(contentType string) *Client {
 	return c
 }
 
-// SetHeaderRaw sets custom HTTP header using raw string.
-func (c *Client) SetHeaderRaw(headers string) *Client {
-	for _, line := range gstr.SplitAndTrim(headers, "\n") {
-		array, _ := gregex.MatchString(httpRegexHeaderRaw, line)
-		if len(array) >= 3 {
-			c.header[array[1]] = array[2]
-		}
-	}
-	return c
-}
-
 // SetCookie sets a cookie pair for the client.
 func (c *Client) SetCookie(key, value string) *Client {
 	c.cookies[key] = value

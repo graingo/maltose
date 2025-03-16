@@ -2,24 +2,27 @@ package mvar
 
 import (
 	"encoding/json"
+	"sync"
 	"time"
 
 	"github.com/spf13/cast"
 )
 
-// Var 是一个通用变量类型的实现
+// Var is a universal variable type implementation.
 type Var struct {
-	value interface{} // 底层值
-	safe  bool        // 是否线程安全
+	value any  // The underlying value.
+	safe  bool // Whether to enable thread safety, default is false.
+	mu    sync.RWMutex
 }
 
-// New 创建并返回一个新的 Var
-// safe 参数用于指定是否启用线程安全，默认为 false
-func New(value interface{}, safe ...bool) *Var {
+// New creates and returns a new Var.
+// The safe parameter is used to specify whether to enable thread safety, the default is false.
+func New(value any, safe ...bool) *Var {
 	if len(safe) > 0 && safe[0] {
 		return &Var{
 			value: value,
 			safe:  true,
+			mu:    sync.RWMutex{},
 		}
 	}
 	return &Var{
@@ -27,20 +30,20 @@ func New(value interface{}, safe ...bool) *Var {
 	}
 }
 
-// Val 返回原始值
-func (v *Var) Val() interface{} {
+// Val returns the original value.
+func (v *Var) Val() any {
 	if v == nil {
 		return nil
 	}
 	return v.value
 }
 
-// Interface 是 Val 的别名
-func (v *Var) Interface() interface{} {
+// Interface is an alias for Val.
+func (v *Var) Interface() any {
 	return v.Val()
 }
 
-// String 将值转换为字符串
+// String converts the value to a string.
 func (v *Var) String() string {
 	if v == nil {
 		return ""
@@ -48,7 +51,7 @@ func (v *Var) String() string {
 	return cast.ToString(v.Val())
 }
 
-// Bool 将值转换为布尔型
+// Bool converts the value to a boolean.
 func (v *Var) Bool() bool {
 	if v == nil {
 		return false
@@ -56,12 +59,12 @@ func (v *Var) Bool() bool {
 	return cast.ToBool(v.Val())
 }
 
-// Int 将值转换为 int
+// Int converts the value to an int.
 func (v *Var) Int() int {
 	return int(v.Int64())
 }
 
-// Int64 将值转换为 int64
+// Int64 converts the value to an int64.
 func (v *Var) Int64() int64 {
 	if v == nil {
 		return 0
@@ -69,7 +72,7 @@ func (v *Var) Int64() int64 {
 	return cast.ToInt64(v.Val())
 }
 
-// Uint64 将值转换为 uint64
+// Uint64 converts the value to an uint64.
 func (v *Var) Uint64() uint64 {
 	if v == nil {
 		return 0
@@ -77,7 +80,7 @@ func (v *Var) Uint64() uint64 {
 	return cast.ToUint64(v.Val())
 }
 
-// Float64 将值转换为 float64
+// Float64 converts the value to a float64.
 func (v *Var) Float64() float64 {
 	if v == nil {
 		return 0
@@ -85,8 +88,8 @@ func (v *Var) Float64() float64 {
 	return cast.ToFloat64(v.Val())
 }
 
-// Time 将值转换为 time.Time
-// format 参数用于指定时间字符串的格式
+// Time converts the value to a time.Time.
+// The format parameter is used to specify the format of the time string.
 func (v *Var) Time(format ...string) time.Time {
 	if v == nil {
 		return time.Time{}
@@ -94,14 +97,14 @@ func (v *Var) Time(format ...string) time.Time {
 	return cast.ToTime(v.Val())
 }
 
-// MarshalJSON 实现 json.Marshaler 接口
+// MarshalJSON implements the json.Marshaler interface.
 func (v *Var) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.Val())
 }
 
-// UnmarshalJSON 实现 json.Unmarshaler 接口
+// UnmarshalJSON implements the json.Unmarshaler interface.
 func (v *Var) UnmarshalJSON(b []byte) error {
-	var i interface{}
+	var i any
 	err := json.Unmarshal(b, &i)
 	if err != nil {
 		return err

@@ -16,7 +16,7 @@ type clientMiddleware struct {
 	err          error         // save err.
 }
 
-const clientMiddlewareKey gctx.StrKey = "__clientMiddlewareKey"
+const clientMiddlewareKey string = "__clientMiddlewareKey"
 
 // Use adds one or more middleware handlers to client.
 func (c *Client) Use(handlers ...HandlerFunc) *Client {
