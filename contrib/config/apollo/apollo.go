@@ -1,10 +1,3 @@
-// Copyright GoFrame Author(https://goframe.org). All Rights Reserved.
-//
-// This Source Code Form is subject to the terms of the MIT License.
-// If a copy of the MIT was not distributed with this file,
-// You can obtain one at https://github.com/gogf/gf.
-
-// Package apollo implements mcfg.Adapter using apollo service.
 package apollo
 
 import (
@@ -14,12 +7,12 @@ import (
 	apolloConfig "github.com/apolloconfig/agollo/v4/env/config"
 	"github.com/apolloconfig/agollo/v4/storage"
 	"github.com/go-playground/validator/v10"
-	"github.com/spf13/cast"
-
-	"github.com/gogf/gf/v2/encoding/gjson"
-	"github.com/gogf/gf/v2/errors/gerror"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/frame/m"
 	"github.com/graingo/maltose/os/mcfg"
+	"github.com/spf13/cast"
+	"github.com/tidwall/gjson"
+	"github.com/tidwall/sjson"
 )
 
 // Config is the configuration object for apollo client.
@@ -40,7 +33,7 @@ type Config struct {
 type Client struct {
 	config Config        // Config object when created.
 	client agollo.Client // Apollo client.
-	value  *m.Var        // Configmap content cached. It is `*gjson.Json` value internally.
+	value  *m.Var        // Configmap content cached. It is json string.
 }
 
 // New creates and returns mcfg.Adapter implementing using apollo service.
@@ -50,6 +43,7 @@ func New(ctx context.Context, config Config) (adapter mcfg.Adapter, err error) {
 	if err != nil {
 		return nil, err
 	}
+
 	if config.NamespaceName == "" {
 		config.NamespaceName = storage.GetDefaultNamespace()
 	}
@@ -57,6 +51,7 @@ func New(ctx context.Context, config Config) (adapter mcfg.Adapter, err error) {
 		config: config,
 		value:  m.NewVar(nil, true),
 	}
+
 	// Apollo client.
 	client.client, err = agollo.StartWithConfig(func() (*apolloConfig.AppConfig, error) {
 		return &apolloConfig.AppConfig{
@@ -72,7 +67,7 @@ func New(ctx context.Context, config Config) (adapter mcfg.Adapter, err error) {
 		}, nil
 	})
 	if err != nil {
-		return nil, gerror.Wrapf(err, `create apollo client failed with config: %+v`, config)
+		return nil, merror.Wrapf(err, `create apollo client failed with config: %+v`, config)
 	}
 	if config.Watch {
 		client.client.AddChangeListener(client)
@@ -100,25 +95,25 @@ func (c *Client) Available(ctx context.Context, resource ...string) (ok bool) {
 // Pattern like:
 // "x.y.z" for map item.
 // "x.0.y" for slice item.
-func (c *Client) Get(ctx context.Context, pattern string) (value interface{}, err error) {
+func (c *Client) Get(ctx context.Context, pattern string) (value any, err error) {
 	if c.value.IsNil() {
 		if err = c.updateLocalValue(ctx); err != nil {
 			return nil, err
 		}
 	}
-	return c.value.Val().(*gjson.Json).Get(pattern).Val(), nil
+	return gjson.Get(c.value.String(), pattern).Value(), nil
 }
 
 // Data retrieves and returns all configuration data in current resource as map.
 // Note that this function may lead lots of memory usage if configuration data is too large,
 // you can implement this function if necessary.
-func (c *Client) Data(ctx context.Context) (data map[string]interface{}, err error) {
+func (c *Client) Data(ctx context.Context) (data map[string]any, err error) {
 	if c.value.IsNil() {
 		if err = c.updateLocalValue(ctx); err != nil {
 			return nil, err
 		}
 	}
-	return c.value.Val().(*gjson.Json).Map(), nil
+	return gjson.Parse(c.value.String()).Value().(map[string]any), nil
 }
 
 // OnChange is called when config changes.
@@ -131,19 +126,16 @@ func (c *Client) OnNewestChange(event *storage.FullChangeEvent) {
 	// Nothing to do.
 }
 
-func (c *Client) updateLocalValue(ctx context.Context) (err error) {
-	var j = gjson.New(nil)
+func (c *Client) updateLocalValue(_ context.Context) (err error) {
+	var s = ""
 	cache := c.client.GetConfigCache(c.config.NamespaceName)
 	cache.Range(func(key, value any) bool {
-		err = j.Set(cast.ToString(key), value)
-		if err != nil {
-			return false
-		}
-		return true
+		s, err = sjson.Set(s, cast.ToString(key), value)
+		return err == nil
 	})
 	cache.Clear()
 	if err == nil {
-		c.value.Set(j)
+		c.value.Set(s)
 	}
 	return
 }

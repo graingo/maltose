@@ -1,49 +1,48 @@
-// Copyright 2019 gf Author(https://github.com/gogf/gf). All Rights Reserved.
-//
-// This Source Code Form is subject to the terms of the MIT License.
-// If a copy of the MIT was not distributed with this file,
-// You can obtain one at https://github.com/gogf/gf.
-
 package apollo_test
 
 import (
+	"context"
 	"testing"
 
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gctx"
-	"github.com/gogf/gf/v2/test/gtest"
-	"github.com/gogf/gf/v2/util/guid"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	"github.com/gogf/gf/contrib/config/apollo/v2"
+	"github.com/graingo/maltose/contrib/config/apollo"
+	"github.com/graingo/maltose/frame/m"
 )
 
 var (
-	ctx     = gctx.GetInitCtx()
+	ctx     = context.Background()
 	appId   = "SampleApp"
 	cluster = "default"
 	ip      = "http://localhost:8080"
 )
 
 func TestApollo(t *testing.T) {
-	gtest.C(t, func(t *gtest.T) {
-		adapter, err := apollo.New(ctx, apollo.Config{
-			AppID:   appId,
-			IP:      ip,
-			Cluster: cluster,
-		})
-		t.AssertNil(err)
-		config := g.Cfg(guid.S())
-		config.SetAdapter(adapter)
-
-		t.Assert(config.Available(ctx), true)
-		t.Assert(config.Available(ctx, "non-exist"), false)
-
-		v, err := config.Get(ctx, `server.address`)
-		t.AssertNil(err)
-		t.Assert(v.String(), ":8000")
-
-		m, err := config.Data(ctx)
-		t.AssertNil(err)
-		t.AssertGT(len(m), 0)
+	// Create adapter
+	adapter, err := apollo.New(ctx, apollo.Config{
+		AppID:   appId,
+		IP:      ip,
+		Cluster: cluster,
 	})
+	require.NoError(t, err)
+	require.NotNil(t, adapter)
+
+	// Set configuration
+	config := m.Config("apollo")
+	config.SetAdapter(adapter)
+
+	// Test availability
+	assert.True(t, config.Available(ctx))
+	assert.False(t, config.Available(ctx, "non-exist"))
+
+	// Test get configuration
+	v, err := config.Get(ctx, `server.address`)
+	assert.NoError(t, err)
+	assert.Equal(t, ":8000", v.String())
+
+	// Test get all configurations
+	data, err := config.Data(ctx)
+	assert.NoError(t, err)
+	assert.Greater(t, len(data), 0)
 }

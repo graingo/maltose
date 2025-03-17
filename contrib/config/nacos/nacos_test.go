@@ -1,30 +1,22 @@
-// Copyright 2019 gf Author(https://github.com/gogf/gf). All Rights Reserved.
-//
-// This Source Code Form is subject to the terms of the MIT License.
-// If a copy of the MIT was not distributed with this file,
-// You can obtain one at https://github.com/gogf/gf.
-
 package nacos_test
 
 import (
+	"context"
+	"encoding/json"
+	"net/http"
 	"net/url"
 	"testing"
 	"time"
 
+	"github.com/graingo/maltose/contrib/config/nacos"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
-
-	"github.com/gogf/gf/v2/encoding/gjson"
-	"github.com/gogf/gf/v2/frame/g"
-	"github.com/gogf/gf/v2/os/gctx"
-	"github.com/gogf/gf/v2/test/gtest"
-	"github.com/gogf/gf/v2/util/guid"
-
-	"github.com/gogf/gf/contrib/config/nacos/v2"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var (
-	ctx          = gctx.GetInitCtx()
+	ctx          = context.Background()
 	serverConfig = constant.ServerConfig{
 		IpAddr: "localhost",
 		Port:   8848,
@@ -41,61 +33,77 @@ var (
 )
 
 func TestNacos(t *testing.T) {
-	gtest.C(t, func(t *gtest.T) {
-		adapter, err := nacos.New(ctx, nacos.Config{
-			ServerConfigs: []constant.ServerConfig{serverConfig},
-			ClientConfig:  clientConfig,
-			ConfigParam:   configParam,
-		})
-		t.AssertNil(err)
-		config := g.Cfg(guid.S())
-		config.SetAdapter(adapter)
-
-		t.Assert(config.Available(ctx), true)
-		v, err := config.Get(ctx, `server.address`)
-		t.AssertNil(err)
-		t.Assert(v.String(), ":8000")
-
-		m, err := config.Data(ctx)
-		t.AssertNil(err)
-		t.AssertGT(len(m), 0)
+	// Create adapter
+	adapter, err := nacos.New(ctx, nacos.Config{
+		ServerConfigs: []constant.ServerConfig{serverConfig},
+		ClientConfig:  clientConfig,
+		ConfigParam:   configParam,
 	})
+	require.NoError(t, err)
+	require.NotNil(t, adapter)
+
+	// Test availability
+	assert.True(t, adapter.Available(ctx))
+
+	// Test get configuration
+	v, err := adapter.Get(ctx, `server.address`)
+	assert.NoError(t, err)
+	assert.Equal(t, ":8000", v)
+
+	// Test get all configurations
+	data, err := adapter.Data(ctx)
+	assert.NoError(t, err)
+	assert.Greater(t, len(data), 0)
 }
 
 func TestNacosOnConfigChangeFunc(t *testing.T) {
-	gtest.C(t, func(t *gtest.T) {
-		adapter, _ := nacos.New(ctx, nacos.Config{
-			ServerConfigs: []constant.ServerConfig{serverConfig},
-			ClientConfig:  clientConfig,
-			ConfigParam:   configParam,
-			Watch:         true,
-			OnConfigChange: func(namespace, group, dataId, data string) {
-				gtest.Assert("public", namespace)
-				gtest.Assert("test", group)
-				gtest.Assert("config.toml", dataId)
-				gtest.Assert("gf", g.Cfg().MustGet(gctx.GetInitCtx(), "app.name").String())
-			},
-		})
-		g.Cfg().SetAdapter(adapter)
-		t.Assert(g.Cfg().Available(ctx), true)
-		appName, err := g.Cfg().Get(ctx, "app.name")
-		t.AssertNil(err)
-		t.Assert(appName.String(), "")
-		c, err := g.Cfg().Data(ctx)
-		t.AssertNil(err)
-		j := gjson.New(c)
-		err = j.Set("app.name", "gf")
-		t.AssertNil(err)
-		res, err := j.ToTomlString()
-		t.AssertNil(err)
-		_, err = g.Client().Post(ctx, configPublishUrl+"&content="+url.QueryEscape(res))
-		t.AssertNil(err)
-		time.Sleep(5 * time.Second)
-		err = j.Remove("app")
-		t.AssertNil(err)
-		res2, err := j.ToTomlString()
-		t.AssertNil(err)
-		_, err = g.Client().Post(ctx, configPublishUrl+"&content="+url.QueryEscape(res2))
-		t.AssertNil(err)
+	configChanged := make(chan bool)
+
+	adapter, err := nacos.New(ctx, nacos.Config{
+		ServerConfigs: []constant.ServerConfig{serverConfig},
+		ClientConfig:  clientConfig,
+		ConfigParam:   configParam,
+		Watch:         true,
+		OnConfigChange: func(namespace, group, dataId, data string) {
+			assert.Equal(t, "public", namespace)
+			assert.Equal(t, "test", group)
+			assert.Equal(t, "config.toml", dataId)
+			configChanged <- true
+		},
 	})
+	require.NoError(t, err)
+	require.NotNil(t, adapter)
+
+	// Test configuration changes
+	testData := map[string]interface{}{
+		"app": map[string]interface{}{
+			"name": "test",
+		},
+	}
+
+	// Publish new configuration
+	content, err := json.Marshal(testData)
+	require.NoError(t, err)
+
+	// Send request using standard http package
+	_, err = http.Post(configPublishUrl+"&content="+url.QueryEscape(string(content)),
+		"application/json", nil)
+	require.NoError(t, err)
+
+	// Wait for configuration change callback
+	select {
+	case <-configChanged:
+		// Configuration changed successfully
+	case <-time.After(5 * time.Second):
+		t.Fatal("configuration change timeout")
+	}
+
+	// Cleanup configuration
+	delete(testData, "app")
+	content, err = json.Marshal(testData)
+	require.NoError(t, err)
+
+	_, err = http.Post(configPublishUrl+"&content="+url.QueryEscape(string(content)),
+		"application/json", nil)
+	require.NoError(t, err)
 }

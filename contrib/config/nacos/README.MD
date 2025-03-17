@@ -57,36 +57,6 @@ func init() {
 }
 ```
 
-## Import boot package in top of main
-
-It is strongly recommended import your boot package in top of your `main.go`.
-
-Note the top `import`: `_ "github.com/gogf/gf/example/config/nacos/boot"` .
-
-```go
-package main
-
-import (
-    _ "github.com/gogf/gf/example/config/nacos/boot"
-
-    "github.com/gogf/gf/v2/frame/g"
-    "github.com/gogf/gf/v2/os/gctx"
-)
-
-func main() {
-    var ctx = gctx.GetInitCtx()
-
-    // Available checks.
-    g.Dump(g.Cfg().Available(ctx))
-
-    // All key-value configurations.
-    g.Dump(g.Cfg().Data(ctx))
-
-    // Retrieve certain value by key.
-    g.Dump(g.Cfg().MustGet(ctx, "server.address"))
-}
-```
-
 ## License
 
 `GoFrame nacos` is licensed under the [MIT License](../../../LICENSE), 100% free and open-source, forever.

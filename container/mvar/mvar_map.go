@@ -7,27 +7,26 @@ import (
 	"strconv"
 )
 
-// Map 将值转换为 map[string]interface{}
-func (v *Var) Map() map[string]interface{} {
+// Map will convert the value to a map[string]any.
+func (v *Var) Map() map[string]any {
 	if v == nil {
 		return nil
 	}
 
 	switch value := v.Val().(type) {
-	case map[string]interface{}:
+	case map[string]any:
 		return value
-	case map[interface{}]interface{}:
-		m := make(map[string]interface{}, len(value))
+	case map[any]any:
+		m := make(map[string]any, len(value))
 		for k, v := range value {
 			m[String(k)] = v
 		}
 		return m
 	case string:
-		// 尝试解析 JSON 字符串
 		if value == "" {
 			return nil
 		}
-		m := make(map[string]interface{})
+		m := make(map[string]any)
 		if json.Unmarshal([]byte(value), &m) == nil {
 			return m
 		}
@@ -35,30 +34,29 @@ func (v *Var) Map() map[string]interface{} {
 		if len(value) == 0 {
 			return nil
 		}
-		m := make(map[string]interface{})
+		m := make(map[string]any)
 		if json.Unmarshal(value, &m) == nil {
 			return m
 		}
-	case *map[string]interface{}:
+	case *map[string]any:
 		if value == nil {
 			return nil
 		}
 		return *value
-	case *map[interface{}]interface{}:
+	case *map[any]any:
 		if value == nil {
 			return nil
 		}
-		m := make(map[string]interface{}, len(*value))
+		m := make(map[string]any, len(*value))
 		for k, v := range *value {
 			m[String(k)] = v
 		}
 		return m
 	default:
-		// 处理结构体
 		if value == nil {
 			return nil
 		}
-		if v, ok := value.(map[string]interface{}); ok {
+		if v, ok := value.(map[string]any); ok {
 			return v
 		}
 		rv := reflect.ValueOf(value)
@@ -69,13 +67,13 @@ func (v *Var) Map() map[string]interface{} {
 		}
 		switch kind {
 		case reflect.Map:
-			m := make(map[string]interface{}, rv.Len())
+			m := make(map[string]any, rv.Len())
 			for _, key := range rv.MapKeys() {
 				m[String(key.Interface())] = rv.MapIndex(key).Interface()
 			}
 			return m
 		case reflect.Struct:
-			m := make(map[string]interface{})
+			m := make(map[string]any)
 			rt := rv.Type()
 			for i := 0; i < rv.NumField(); i++ {
 				field := rt.Field(i)
@@ -90,8 +88,8 @@ func (v *Var) Map() map[string]interface{} {
 	return nil
 }
 
-// String 将任意类型转换为字符串
-func String(value interface{}) string {
+// String will convert any type to a string.
+func String(value any) string {
 	if value == nil {
 		return ""
 	}

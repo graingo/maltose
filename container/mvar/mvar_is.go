@@ -2,12 +2,12 @@ package mvar
 
 import "reflect"
 
-// IsNil 检查值是否为 nil
+// IsNil checks if the value is nil.
 func (v *Var) IsNil() bool {
 	return v == nil || v.value == nil
 }
 
-// IsEmpty 检查值是否为空
+// IsEmpty checks if the value is empty.
 func (v *Var) IsEmpty() bool {
 	if v == nil {
 		return true
@@ -49,16 +49,16 @@ func (v *Var) IsEmpty() bool {
 		return len(value) == 0
 	case []string:
 		return len(value) == 0
-	case map[string]interface{}:
+	case map[string]any:
 		return len(value) == 0
-	case map[interface{}]interface{}:
+	case map[any]any:
 		return len(value) == 0
 	default:
 		return v.IsNil()
 	}
 }
 
-// IsInt 检查值是否可以转换为整数
+// IsInt checks if the value can be converted to an integer.
 func (v *Var) IsInt() bool {
 	switch v.Val().(type) {
 	case int, int8, int16, int32, int64,
@@ -68,7 +68,7 @@ func (v *Var) IsInt() bool {
 	return false
 }
 
-// IsUint 检查值是否可以转换为无符号整数
+// IsUint checks if the value can be converted to an unsigned integer.
 func (v *Var) IsUint() bool {
 	switch v.Val().(type) {
 	case uint, uint8, uint16, uint32, uint64:
@@ -77,7 +77,7 @@ func (v *Var) IsUint() bool {
 	return false
 }
 
-// IsFloat 检查值是否可以转换为浮点数
+// IsFloat checks if the value can be converted to a float.
 func (v *Var) IsFloat() bool {
 	switch v.Val().(type) {
 	case float32, float64:
@@ -86,7 +86,7 @@ func (v *Var) IsFloat() bool {
 	return false
 }
 
-// IsSlice 检查值是否为切片类型
+// IsSlice checks if the value is a slice type.
 func (v *Var) IsSlice() bool {
 	switch v.Val().(type) {
 	case []interface{}, []int, []string, []byte, []rune:
@@ -95,7 +95,7 @@ func (v *Var) IsSlice() bool {
 	return false
 }
 
-// IsMap 检查值是否为映射类型
+// IsMap checks if the value is a map type.
 func (v *Var) IsMap() bool {
 	switch v.Val().(type) {
 	case map[string]interface{}, map[interface{}]interface{}:
@@ -104,7 +104,7 @@ func (v *Var) IsMap() bool {
 	return false
 }
 
-// IsStruct 检查值是否为结构体
+// IsStruct checks if the value is a struct type.
 func (v *Var) IsStruct() bool {
 	if v.IsNil() {
 		return false

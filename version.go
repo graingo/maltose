@@ -2,5 +2,5 @@ package maltose
 
 const (
 	// VERSION is the current maltose version.
-	VERSION = "v0.0.1"
+	VERSION = "v0.0.0"
 )
