@@ -4,7 +4,7 @@ import (
 	"context"
 
 	"github.com/graingo/maltose/container/mvar"
-	"github.com/spf13/cast"
+	"github.com/graingo/mconv"
 	"go.opentelemetry.io/otel/baggage"
 )
 
@@ -26,7 +26,7 @@ func NewBaggage(ctx context.Context) *Baggage {
 
 // SetValue sets a single baggage value.
 func (b *Baggage) SetValue(key string, value interface{}) context.Context {
-	member, _ := baggage.NewMember(key, cast.ToString(value))
+	member, _ := baggage.NewMember(key, mconv.ToString(value))
 	bag, _ := baggage.New(member)
 	b.ctx = baggage.ContextWithBaggage(b.ctx, bag)
 	return b.ctx
@@ -36,7 +36,7 @@ func (b *Baggage) SetValue(key string, value interface{}) context.Context {
 func (b *Baggage) SetMap(data map[string]interface{}) context.Context {
 	members := make([]baggage.Member, 0)
 	for k, v := range data {
-		member, _ := baggage.NewMember(k, cast.ToString(v))
+		member, _ := baggage.NewMember(k, mconv.ToString(v))
 		members = append(members, member)
 	}
 	bag, _ := baggage.New(members...)

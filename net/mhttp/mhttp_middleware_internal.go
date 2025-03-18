@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/graingo/maltose/net/mtrace"
-	"github.com/spf13/cast"
+	"github.com/graingo/mconv"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -16,7 +16,7 @@ import (
 )
 
 const (
-	instrumentName                        = "github.com/graingo/maltose/net/mhttp.Server"
+	instrumentName                        = "github.com/graingo/maltose/net/mhttp.server"
 	tracingEventHttpRequest               = "http.request"
 	tracingEventHttpRequestUrl            = "http.request.url"
 	tracingEventHttpHeaders               = "http.headers"
@@ -140,8 +140,8 @@ func internalMiddlewareServerTrace() MiddlewareFunc {
 		// add request event
 		span.AddEvent(tracingEventHttpRequest, trace.WithAttributes(
 			attribute.String(tracingEventHttpRequestUrl, r.Request.URL.String()),
-			attribute.String(tracingEventHttpHeaders, cast.ToString(cast.ToStringMap(r.Request.Header))),
-			attribute.String(tracingEventHttpBaggage, cast.ToString(mtrace.GetBaggageMap(ctx))),
+			attribute.String(tracingEventHttpHeaders, mconv.ToString(mconv.ToStringMap(r.Request.Header))),
+			attribute.String(tracingEventHttpBaggage, mconv.ToString(mtrace.GetBaggageMap(ctx))),
 		))
 
 		// inject tracing context

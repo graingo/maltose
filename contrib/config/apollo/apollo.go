@@ -10,7 +10,7 @@ import (
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/frame/m"
 	"github.com/graingo/maltose/os/mcfg"
-	"github.com/spf13/cast"
+	"github.com/graingo/mconv"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -130,7 +130,7 @@ func (c *Client) updateLocalValue(_ context.Context) (err error) {
 	var s = ""
 	cache := c.client.GetConfigCache(c.config.NamespaceName)
 	cache.Range(func(key, value any) bool {
-		s, err = sjson.Set(s, cast.ToString(key), value)
+		s, err = sjson.Set(s, mconv.ToString(key), value)
 		return err == nil
 	})
 	cache.Clear()

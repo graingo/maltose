@@ -1,91 +1,117 @@
 package mclient
 
 import (
-	"crypto/rand"
-	"crypto/tls"
-	"fmt"
 	"net/http"
-	"os"
 	"time"
-
-	"github.com/graingo/maltose"
-	"github.com/graingo/maltose/errors/merror"
 )
 
-// Client is the HTTP client for HTTP request management.
+// Client is an HTTP client with enhanced features.
 type Client struct {
-	http.Client                         // Underlying HTTP Client.
-	header            map[string]string // Custom header map.
-	cookies           map[string]string // Custom cookie map.
-	prefix            string            // Prefix for request.
-	retryCount        int               // Retry count when request fails.
-	retryInterval     time.Duration     // Retry interval when request fails.
-	middlewareHandler []HandlerFunc     // Interceptor handlers
+	// HTTP client for the request.
+	client *http.Client
+	// Default configuration for the client.
+	config ClientConfig
+	// Middleware functions.
+	middlewares []MiddlewareFunc
 }
 
-const (
-	httpProtocolName          = `http`
-	httpParamFileHolder       = `@file:`
-	httpRegexParamJson        = `^[\w\[\]]+=.+`
-	httpRegexHeaderRaw        = `^([\w\-]+):\s*(.+)`
-	httpHeaderHost            = `Host`
-	httpHeaderCookie          = `Cookie`
-	httpHeaderUserAgent       = `User-Agent`
-	httpHeaderContentType     = `Content-Type`
-	httpHeaderContentTypeJson = `application/json`
-	httpHeaderContentTypeXml  = `application/xml`
-	httpHeaderContentTypeForm = `application/x-www-form-urlencoded`
-)
-
-var (
-	hostname, _      = os.Hostname()
-	defaultUserAgent = fmt.Sprintf(`mclient %s`, maltose.VERSION)
-)
-
-// New creates a new HTTP client.
+// New creates and returns a new HTTP client object.
 func New() *Client {
 	c := &Client{
-		Client: http.Client{
-			Transport: &http.Transport{
-				// No validation for https certification of the server in default.
-				TLSClientConfig: &tls.Config{
-					InsecureSkipVerify: true,
-				},
-				DisableKeepAlives: true,
-			},
+		client: &http.Client{
+			Transport: http.DefaultTransport,
+			Timeout:   30 * time.Second,
 		},
-		header:  make(map[string]string),
-		cookies: make(map[string]string),
+		middlewares: make([]MiddlewareFunc, 0),
 	}
-	c.header[httpHeaderUserAgent] = defaultUserAgent
+
+	// Add default internal middlewares
+	c.Use(
+		internalMiddlewareRecovery(),
+		internalMiddlewareClientTrace(),
+		internalMiddlewareMetric(),
+	)
+
 	return c
 }
 
-// Clone deeply clones current client and returns a new one.
+// NewWithConfig creates and returns a client with given config.
+func NewWithConfig(config ClientConfig) *Client {
+	c := New()
+	c.config = config
+
+	// Apply configuration to http.Client
+	if config.Timeout > 0 {
+		c.client.Timeout = config.Timeout
+	}
+	if config.Transport != nil {
+		c.client.Transport = config.Transport
+	}
+
+	return c
+}
+
+// Use adds middleware handlers to the client.
+func (c *Client) Use(middlewares ...MiddlewareFunc) *Client {
+	c.middlewares = append(c.middlewares, middlewares...)
+	return c
+}
+
+// Clone creates and returns a copy of the current client.
 func (c *Client) Clone() *Client {
 	newClient := New()
-	*newClient = *c
-	newClient.header = make(map[string]string, len(c.header))
-	for k, v := range c.header {
-		newClient.header[k] = v
+	newClient.client = &http.Client{
+		Transport: c.client.Transport,
+		Timeout:   c.client.Timeout,
 	}
-	newClient.cookies = make(map[string]string, len(c.cookies))
-	for k, v := range c.cookies {
-		newClient.cookies[k] = v
-	}
+	newClient.config = c.config
+	newClient.middlewares = append(newClient.middlewares, c.middlewares...)
 	return newClient
 }
 
-// LoadKeyCrt creates and returns a TLS configuration object with given certificate file path and key file path.
-func LoadKeyCrt(crtPath, keyPath string) (*tls.Config, error) {
-	crt, err := tls.LoadX509KeyPair(crtPath, keyPath)
-	if err != nil {
-		err = merror.Wrapf(err, `tls.LoadX509KeyPair failed for certFile "%s", keyFile "%s"`, crtPath, keyPath)
-		return nil, err
+// Do performs the HTTP request using the underlying HTTP client.
+func (c *Client) Do(req *http.Request) (*http.Response, error) {
+	// 复制请求以避免修改原始请求
+	reqCopy := req.Clone(req.Context())
+
+	// 应用客户端配置
+	if c.config.Header != nil && reqCopy.Header == nil {
+		reqCopy.Header = make(http.Header)
 	}
-	tlsConfig := &tls.Config{}
-	tlsConfig.Certificates = []tls.Certificate{crt}
-	tlsConfig.Time = time.Now
-	tlsConfig.Rand = rand.Reader
-	return tlsConfig, nil
+
+	for k, v := range c.config.Header {
+		if reqCopy.Header.Get(k) == "" && len(v) > 0 {
+			reqCopy.Header.Set(k, v[0])
+		}
+	}
+
+	// 执行请求
+	return c.client.Do(reqCopy)
+}
+
+// GetClient returns the underlying http.Client.
+func (c *Client) GetClient() *http.Client {
+	return c.client
+}
+
+// SetTransport sets the client transport.
+func (c *Client) SetTransport(transport http.RoundTripper) *Client {
+	c.client.Transport = transport
+	c.config.Transport = transport
+	return c
+}
+
+// SetConfig sets the client configuration.
+func (c *Client) SetConfig(config ClientConfig) *Client {
+	c.config = config
+
+	// 应用配置到HTTP客户端
+	if config.Timeout > 0 {
+		c.client.Timeout = config.Timeout
+	}
+	if config.Transport != nil {
+		c.client.Transport = config.Transport
+	}
+
+	return c
 }

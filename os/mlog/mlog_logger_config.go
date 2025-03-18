@@ -6,8 +6,8 @@ import (
 
 	"github.com/graingo/maltose/errors/mcode"
 	"github.com/graingo/maltose/errors/merror"
+	"github.com/graingo/mconv"
 	"github.com/sirupsen/logrus"
-	"github.com/spf13/cast"
 )
 
 type Config struct {
@@ -50,7 +50,7 @@ func (l *Logger) SetConfig(config Config) error {
 func (l *Logger) SetConfigWithMap(config map[string]any) error {
 	// Set log level
 	if v, ok := config["level"]; ok {
-		if lvl, err := logrus.ParseLevel(cast.ToString(v)); err == nil {
+		if lvl, err := logrus.ParseLevel(mconv.ToString(v)); err == nil {
 			l.parent.SetLevel(lvl)
 			l.config.Level = Level(lvl)
 		}
@@ -58,15 +58,15 @@ func (l *Logger) SetConfigWithMap(config map[string]any) error {
 
 	// Update config values
 	if v, ok := config["path"]; ok {
-		l.config.Path = cast.ToString(v)
+		l.config.Path = mconv.ToString(v)
 	}
 
 	if v, ok := config["file"]; ok {
-		l.config.File = cast.ToString(v)
+		l.config.File = mconv.ToString(v)
 	}
 
 	if v, ok := config["auto_clean"]; ok {
-		l.config.AutoClean = cast.ToInt(v)
+		l.config.AutoClean = mconv.ToInt(v)
 	}
 
 	if v, ok := config["ctx_keys"]; ok {
@@ -82,7 +82,7 @@ func (l *Logger) SetConfigWithMap(config map[string]any) error {
 	// Set stdout
 	stdout := true // default enable stdout
 	if v, ok := config["stdout"]; ok {
-		stdout = cast.ToBool(v)
+		stdout = mconv.ToBool(v)
 		l.config.Stdout = stdout
 	}
 	if stdout {
@@ -113,13 +113,13 @@ func (l *Logger) SetConfigWithMap(config map[string]any) error {
 	// Set time format
 	timeFormat := defaultTimeFormat
 	if v, ok := config["time_format"]; ok {
-		timeFormat = cast.ToString(v)
+		timeFormat = mconv.ToString(v)
 		l.config.TimeFormat = timeFormat
 	}
 
 	// Set log format
 	if format, ok := config["format"]; ok {
-		formatStr := cast.ToString(format)
+		formatStr := mconv.ToString(format)
 		l.config.Format = formatStr
 
 		switch formatStr {

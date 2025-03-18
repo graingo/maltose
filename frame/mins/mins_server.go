@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	"github.com/graingo/maltose/net/mhttp"
-	"github.com/spf13/cast"
+	"github.com/graingo/mconv"
 )
 
 const (
@@ -20,7 +20,7 @@ func Server(name ...interface{}) *mhttp.Server {
 	)
 
 	if len(name) > 0 && name[0] != "" {
-		instanceName = cast.ToString(name[0])
+		instanceName = mconv.ToString(name[0])
 	}
 
 	return globalInstances.GetOrSetFunc(instanceKey, func() interface{} {

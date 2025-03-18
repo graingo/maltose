@@ -5,7 +5,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/spf13/cast"
+	"github.com/graingo/mconv"
 )
 
 // Var is a universal variable type implementation.
@@ -48,7 +48,7 @@ func (v *Var) String() string {
 	if v == nil {
 		return ""
 	}
-	return cast.ToString(v.Val())
+	return mconv.ToString(v.Val())
 }
 
 // Bool converts the value to a boolean.
@@ -56,7 +56,7 @@ func (v *Var) Bool() bool {
 	if v == nil {
 		return false
 	}
-	return cast.ToBool(v.Val())
+	return mconv.ToBool(v.Val())
 }
 
 // Int converts the value to an int.
@@ -69,7 +69,7 @@ func (v *Var) Int64() int64 {
 	if v == nil {
 		return 0
 	}
-	return cast.ToInt64(v.Val())
+	return mconv.ToInt64(v.Val())
 }
 
 // Uint64 converts the value to an uint64.
@@ -77,7 +77,7 @@ func (v *Var) Uint64() uint64 {
 	if v == nil {
 		return 0
 	}
-	return cast.ToUint64(v.Val())
+	return mconv.ToUint64(v.Val())
 }
 
 // Float64 converts the value to a float64.
@@ -85,7 +85,7 @@ func (v *Var) Float64() float64 {
 	if v == nil {
 		return 0
 	}
-	return cast.ToFloat64(v.Val())
+	return mconv.ToFloat64(v.Val())
 }
 
 // Time converts the value to a time.Time.
@@ -94,7 +94,7 @@ func (v *Var) Time(format ...string) time.Time {
 	if v == nil {
 		return time.Time{}
 	}
-	return cast.ToTime(v.Val())
+	return mconv.ToTime(v.Val())
 }
 
 // MarshalJSON implements the json.Marshaler interface.
