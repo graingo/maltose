@@ -51,7 +51,7 @@ func New() *Server {
 	// add default middlewares
 	s.Use(
 		internalMiddlewareRecovery(),
-		internalMiddlewareServerTrace(),
+		internalMiddlewareTrace(),
 		internalMiddlewareMetric(),
 		internalMiddlewareDefaultResponse(),
 	)

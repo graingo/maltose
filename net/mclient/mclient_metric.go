@@ -184,7 +184,7 @@ func handleMetricsAfterRequestDone(req *http.Request, resp *http.Response, err e
 	metricManager.HttpClientRequestTotal.Inc(ctx, responseOption)
 
 	// Record request duration
-	metricManager.HttpClientRequestDuration.Record(ctx, durationMilli, responseOption)
+	metricManager.HttpClientRequestDuration.Record(durationMilli, responseOption)
 	metricManager.HttpClientRequestDurationTotal.Add(ctx, durationMilli, responseOption)
 
 	// Record response body size if available

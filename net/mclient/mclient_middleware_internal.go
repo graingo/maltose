@@ -70,8 +70,8 @@ func internalMiddlewareMetric() MiddlewareFunc {
 	}
 }
 
-// internalMiddlewareClientTrace client tracing middleware
-func internalMiddlewareClientTrace() MiddlewareFunc {
+// internalMiddlewareTrace client tracing middleware
+func internalMiddlewareTrace() MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(req *http.Request) (*http.Response, error) {
 			ctx := req.Context()

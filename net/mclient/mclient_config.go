@@ -16,12 +16,6 @@ type ClientConfig struct {
 	Timeout time.Duration
 	// Transport specifies the mechanism by which individual HTTP requests are made.
 	Transport http.RoundTripper
-	// EnableTracing enables tracing for all requests.
-	EnableTracing bool
-	// EnableMetric enables metrics collection for all requests.
-	EnableMetric bool
-	// EnableDump enables dump for all requests/responses.
-	EnableDump bool
 	// Header specifies the default header for requests.
 	Header http.Header
 	// BaseURL specifies the base URL for all requests.

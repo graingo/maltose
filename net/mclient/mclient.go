@@ -7,12 +7,9 @@ import (
 
 // Client is an HTTP client with enhanced features.
 type Client struct {
-	// HTTP client for the request.
-	client *http.Client
-	// Default configuration for the client.
-	config ClientConfig
-	// Middleware functions.
-	middlewares []MiddlewareFunc
+	client      *http.Client     // HTTP client for the request.
+	config      ClientConfig     // Default configuration for the client.
+	middlewares []MiddlewareFunc // Middleware functions.
 }
 
 // New creates and returns a new HTTP client object.
@@ -28,7 +25,7 @@ func New() *Client {
 	// Add default internal middlewares
 	c.Use(
 		internalMiddlewareRecovery(),
-		internalMiddlewareClientTrace(),
+		internalMiddlewareTrace(),
 		internalMiddlewareMetric(),
 	)
 
@@ -71,10 +68,10 @@ func (c *Client) Clone() *Client {
 
 // Do performs the HTTP request using the underlying HTTP client.
 func (c *Client) Do(req *http.Request) (*http.Response, error) {
-	// 复制请求以避免修改原始请求
+	// Clone request to avoid modifying the original request
 	reqCopy := req.Clone(req.Context())
 
-	// 应用客户端配置
+	// Apply client configuration
 	if c.config.Header != nil && reqCopy.Header == nil {
 		reqCopy.Header = make(http.Header)
 	}
@@ -85,7 +82,7 @@ func (c *Client) Do(req *http.Request) (*http.Response, error) {
 		}
 	}
 
-	// 执行请求
+	// Execute request
 	return c.client.Do(reqCopy)
 }
 
@@ -105,7 +102,7 @@ func (c *Client) SetTransport(transport http.RoundTripper) *Client {
 func (c *Client) SetConfig(config ClientConfig) *Client {
 	c.config = config
 
-	// 应用配置到HTTP客户端
+	// Apply configuration to HTTP client
 	if config.Timeout > 0 {
 		c.client.Timeout = config.Timeout
 	}

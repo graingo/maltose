@@ -92,8 +92,8 @@ func internalMiddlewareMetric() MiddlewareFunc {
 	}
 }
 
-// internalMiddlewareServerTrace returns a middleware for OpenTelemetry tracing
-func internalMiddlewareServerTrace() MiddlewareFunc {
+// internalMiddlewareTrace returns a middleware for OpenTelemetry tracing
+func internalMiddlewareTrace() MiddlewareFunc {
 	return func(r *Request) {
 		ctx := r.Request.Context()
 

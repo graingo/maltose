@@ -2,17 +2,27 @@ package mclient
 
 import (
 	"bytes"
+	"encoding/json"
+	"fmt"
 	"io"
 	"net/http"
+
+	"github.com/graingo/maltose/internal/intlog"
 )
 
 // Response is the struct for client request response.
 type Response struct {
 	*http.Response                   // Response is the underlying http.Response object of certain request.
-	request        *http.Request     // Request is the underlying http.Request object of certain request.
-	requestBody    []byte            // The body bytes of certain request, only available in Dump feature.
+	request        *Request          // The client request object that generated this response, including the underlying http.Request
 	cookies        map[string]string // Response cookies, which are only parsed once.
-	clientRequest  *Request          // The client request object that generated this response
+}
+
+// GetRequest returns the underlying http.Request.
+func (r *Response) GetRequest() *http.Request {
+	if r.request != nil && r.request.Request != nil {
+		return r.request.Request
+	}
+	return nil
 }
 
 // initCookie initializes the cookie map attribute of Response.
@@ -52,11 +62,11 @@ func (r *Response) ReadAll() []byte {
 	}
 	body, err := io.ReadAll(r.Response.Body)
 	if err != nil {
-		// 记录错误信息，但不中断执行流程
-		// 未来可考虑使用merror或其他日志包来记录此错误
+		// This logs error internally without interrupting execution flow
+		intlog.Error(r.request.Context(), "ReadAll error:", err)
 		return []byte{}
 	}
-	// 重置Body，以便多次读取
+	// Reset Body for multiple reads
 	r.SetBodyContent(body)
 	return body
 }
@@ -64,6 +74,44 @@ func (r *Response) ReadAll() []byte {
 // ReadAllString retrieves and returns the response content as string.
 func (r *Response) ReadAllString() string {
 	return string(r.ReadAll())
+}
+
+// Parse parses the response JSON to the given struct pointer.
+// It returns error if response is nil or parsing fails.
+func (r *Response) Parse(v interface{}) error {
+	if r == nil || r.Response == nil {
+		return fmt.Errorf("nil response")
+	}
+
+	// Check content type (optional, but recommended)
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "" && !bytes.Contains([]byte(contentType), []byte("application/json")) {
+		if r.request != nil {
+			intlog.Printf(r.request.Context(), "Warning: Content-Type is not application/json: %s", contentType)
+		}
+	}
+
+	// Read response body
+	body := r.ReadAll()
+	if len(body) == 0 {
+		return fmt.Errorf("empty response body")
+	}
+
+	// Parse JSON
+	if err := json.Unmarshal(body, v); err != nil {
+		return fmt.Errorf("JSON unmarshal error: %w", err)
+	}
+
+	return nil
+}
+
+// IsSuccess returns whether the response status code is in the 2xx range,
+// indicating that the request was successfully received, understood, and accepted.
+func (r *Response) IsSuccess() bool {
+	if r == nil || r.Response == nil {
+		return false
+	}
+	return r.StatusCode >= 200 && r.StatusCode < 300
 }
 
 // SetBodyContent overwrites response content with custom one.
