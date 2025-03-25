@@ -1,10 +1,13 @@
 package mclient
 
 import (
+	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"log"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -505,4 +508,201 @@ func ExampleChainedCalls() {
 	fmt.Printf("\nProduct updated:\n")
 	fmt.Printf("New price: $%.2f\n", updatedProduct.Price)
 	fmt.Printf("Stock status: %v\n", updatedProduct.InStock)
+}
+
+func ExampleRetry() {
+	// Create a client
+	client := New()
+
+	// Define response structure
+	type APIResponse struct {
+		Success bool   `json:"success"`
+		Message string `json:"message"`
+		Data    any    `json:"data"`
+	}
+
+	// Set up retry configuration
+	var response APIResponse
+	resp, err := client.R().
+		SetResult(&response).
+		// Configure retry: 3 retries with 2 second interval
+		SetRetry(3, 2*time.Second).
+		// Custom retry condition (retry on server errors or specific client errors)
+		SetRetryCondition(func(resp *http.Response, err error) bool {
+			// Always retry on network errors
+			if err != nil {
+				log.Printf("Retrying due to error: %v", err)
+				return true
+			}
+
+			// Retry on server errors (5xx) and rate limiting (429)
+			if resp != nil && (resp.StatusCode >= 500 || resp.StatusCode == 429) {
+				log.Printf("Retrying due to status code: %d", resp.StatusCode)
+				return true
+			}
+
+			return false
+		}).
+		GET("https://api.example.com/data")
+
+	if err != nil {
+		log.Printf("Request failed after retries: %v", err)
+		return
+	}
+	defer resp.Close()
+
+	if resp.IsSuccess() {
+		fmt.Printf("Request successful after retries: %s\n", response.Message)
+	} else {
+		fmt.Printf("Request failed: status code %d\n", resp.StatusCode)
+	}
+}
+
+func ExampleRateLimit() {
+	// Create a client with global rate limit
+	client := New().WithGlobalRateLimit(2, 1) // 2 requests per second, burst of 1
+
+	// Make multiple requests that will be rate limited
+	for i := 1; i <= 5; i++ {
+		start := time.Now()
+
+		resp, err := client.R().GET(fmt.Sprintf("https://api.example.com/resource/%d", i))
+
+		duration := time.Since(start)
+
+		if err != nil {
+			log.Printf("Request %d failed: %v", i, err)
+			continue
+		}
+		defer resp.Close()
+
+		log.Printf("Request %d completed in %v with status: %d",
+			i, duration, resp.StatusCode)
+	}
+
+	// Custom rate limiting for specific endpoints
+	apiLimiter := NewTokenBucketLimiter(5, 2) // 5 requests per second, burst of 2
+
+	// Create a rate limit middleware with custom conditions
+	rateLimitMiddleware := WithRateLimit(RateLimitOption{
+		Limiter: apiLimiter,
+		// Only apply rate limiting to certain paths
+		SkipCondition: func(req *http.Request) bool {
+			// Skip rate limiting for health checks
+			return strings.Contains(req.URL.Path, "/health")
+		},
+		// Custom error handler
+		ErrorHandler: func(ctx context.Context, err error) (*http.Response, error) {
+			// You could return a custom response here
+			return nil, fmt.Errorf("API rate limit exceeded: %w", err)
+		},
+	})
+
+	// Apply the middleware to specific requests only
+	resp, err := client.R().
+		Use(rateLimitMiddleware).
+		GET("https://api.example.com/data")
+
+	if err != nil {
+		log.Printf("Rate limited request failed: %v", err)
+		return
+	}
+	defer resp.Close()
+
+	log.Printf("Rate limited request succeeded with status: %d", resp.StatusCode)
+}
+
+func ExampleInterceptors() {
+	// Create a client with global interceptors
+	client := New().
+		// Add request ID to all requests
+		OnRequest(RequestID("")).
+		// Add user agent
+		OnRequest(UserAgent("MaltoseClient/1.0")).
+		// Add authentication interceptor with token provider
+		OnRequest(Authentication("Bearer", func() string {
+			// In a real application, this might fetch from a token store
+			return "my-api-token"
+		}))
+
+	// Make a request with the global interceptors
+	resp, err := client.R().GET("https://api.example.com/data")
+	if err != nil {
+		log.Printf("Request failed: %v", err)
+		return
+	}
+	defer resp.Close()
+
+	// You can also add interceptors to specific requests
+	type User struct {
+		ID    int    `json:"id"`
+		Name  string `json:"name"`
+		Email string `json:"email"`
+	}
+
+	var user User
+	resp, err = client.R().
+		SetResult(&user).
+		// Add custom request interceptor that modifies the request
+		OnRequest(func(ctx context.Context, req *http.Request) (*http.Request, error) {
+			// Add custom header just for this request
+			req.Header.Set("X-Custom-Header", "value")
+			return req, nil
+		}).
+		// Add custom response interceptor that processes the response
+		OnResponse(func(ctx context.Context, resp *http.Response) (*http.Response, error) {
+			// You can modify/process the response here
+			if resp != nil && resp.StatusCode == http.StatusUnauthorized {
+				log.Printf("Authentication failed, need to refresh token")
+			}
+			return resp, nil
+		}).
+		GET("https://api.example.com/users/1")
+
+	if err != nil {
+		log.Printf("User request failed: %v", err)
+		return
+	}
+	defer resp.Close()
+
+	fmt.Printf("User: %s (%s)\n", user.Name, user.Email)
+
+	// Example of response transformation interceptor
+	// This interceptor modifies the response body
+	cacheInterceptor := func(ctx context.Context, resp *http.Response) (*http.Response, error) {
+		if resp == nil {
+			return nil, nil
+		}
+
+		// Read and store response body (e.g., in a cache)
+		body, err := io.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		resp.Body.Close()
+
+		// Do something with the body (e.g., cache it)
+		log.Printf("Response body length: %d bytes", len(body))
+
+		// Restore the body for downstream consumers
+		resp.Body = io.NopCloser(bytes.NewReader(body))
+		resp.ContentLength = int64(len(body))
+
+		return resp, nil
+	}
+
+	// Create client with response transformation
+	transformClient := New().OnResponse(cacheInterceptor)
+
+	// The response body will be processed by the interceptor
+	resp, err = transformClient.R().GET("https://api.example.com/data")
+	if err != nil {
+		log.Printf("Transform request failed: %v", err)
+		return
+	}
+	defer resp.Close()
+
+	// Original response body is still available
+	content := resp.ReadAllString()
+	fmt.Printf("Response content: %s\n", content)
 }

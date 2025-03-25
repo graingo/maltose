@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"github.com/graingo/maltose/internal/intlog"
 )
@@ -15,13 +16,20 @@ import (
 // Request wraps the http.Request with additional features.
 type Request struct {
 	*http.Request
-	client      *Client
-	middlewares []MiddlewareFunc
-	queryParams url.Values
-	formParams  url.Values
-	result      interface{}
-	errorResult interface{}
+	client         *Client
+	middlewares    []MiddlewareFunc
+	queryParams    url.Values
+	formParams     url.Values
+	result         interface{}
+	errorResult    interface{}
+	retryCount     int
+	retryInterval  time.Duration
+	retryCondition func(*http.Response, error) bool
 }
+
+// -----------------------------------------------------------------------------
+// Client Methods
+// -----------------------------------------------------------------------------
 
 // NewRequest creates and returns a new request object.
 func (c *Client) NewRequest() *Request {
@@ -37,6 +45,10 @@ func (c *Client) NewRequest() *Request {
 func (c *Client) R() *Request {
 	return c.NewRequest()
 }
+
+// -----------------------------------------------------------------------------
+// Request Basic Setup Methods
+// -----------------------------------------------------------------------------
 
 // SetContext sets the context for the request.
 func (r *Request) SetContext(ctx context.Context) *Request {
@@ -76,6 +88,10 @@ func (r *Request) URL(url string) *Request {
 	return r
 }
 
+// -----------------------------------------------------------------------------
+// Header Related Methods
+// -----------------------------------------------------------------------------
+
 // Header sets an HTTP header for the request.
 func (r *Request) Header(key, value string) *Request {
 	if r.Request == nil {
@@ -105,6 +121,10 @@ func (r *Request) SetHeaders(headers map[string]string) *Request {
 func (r *Request) ContentType(contentType string) *Request {
 	return r.Header("Content-Type", contentType)
 }
+
+// -----------------------------------------------------------------------------
+// Request Body Methods
+// -----------------------------------------------------------------------------
 
 // SetBody sets the request body.
 func (r *Request) SetBody(body interface{}) *Request {
@@ -147,6 +167,10 @@ func (r *Request) Data(data interface{}) *Request {
 	return r
 }
 
+// -----------------------------------------------------------------------------
+// Query Parameter Methods
+// -----------------------------------------------------------------------------
+
 // SetQuery sets a query parameter for the request.
 func (r *Request) SetQuery(key, value string) *Request {
 	r.queryParams.Set(key, value)
@@ -160,6 +184,10 @@ func (r *Request) SetQueryMap(params map[string]string) *Request {
 	}
 	return r
 }
+
+// -----------------------------------------------------------------------------
+// Form Parameter Methods
+// -----------------------------------------------------------------------------
 
 // SetForm sets a form parameter for the request.
 func (r *Request) SetForm(key, value string) *Request {
@@ -175,6 +203,10 @@ func (r *Request) SetFormMap(params map[string]string) *Request {
 	return r
 }
 
+// -----------------------------------------------------------------------------
+// Response Processing Methods
+// -----------------------------------------------------------------------------
+
 // SetResult sets the result pointer for automatic JSON parsing on successful request.
 func (r *Request) SetResult(result interface{}) *Request {
 	r.result = result
@@ -186,6 +218,50 @@ func (r *Request) SetError(err interface{}) *Request {
 	r.errorResult = err
 	return r
 }
+
+// -----------------------------------------------------------------------------
+// Retry Configuration Methods
+// -----------------------------------------------------------------------------
+
+// SetRetry sets retry count and interval.
+func (r *Request) SetRetry(count int, interval time.Duration) *Request {
+	r.retryCount = count
+	r.retryInterval = interval
+	return r
+}
+
+// SetRetryCondition sets a custom retry condition function.
+// The function takes the HTTP response and error as input and returns
+// true if the request should be retried.
+func (r *Request) SetRetryCondition(condition func(*http.Response, error) bool) *Request {
+	r.retryCondition = condition
+	return r
+}
+
+// shouldRetry determines if a request should be retried based on the response and error.
+func (r *Request) shouldRetry(resp *http.Response, err error) bool {
+	// Use custom condition if provided
+	if r.retryCondition != nil {
+		return r.retryCondition(resp, err)
+	}
+
+	// Default retry condition
+	if err != nil {
+		// Retry on network/connection errors
+		return true
+	}
+
+	if resp != nil {
+		// Retry on 5xx (server errors) and 429 (too many requests)
+		return resp.StatusCode >= 500 || resp.StatusCode == 429
+	}
+
+	return false
+}
+
+// -----------------------------------------------------------------------------
+// HTTP Request Methods
+// -----------------------------------------------------------------------------
 
 // GET sets the method to GET and executes the request.
 func (r *Request) GET(url string) (*Response, error) {
@@ -236,6 +312,63 @@ func (r *Request) Send(url string) (*Response, error) {
 // DoRequest sends the request and returns the response.
 func (r *Request) DoRequest(ctx context.Context, method string, urlPath string) (*Response, error) {
 	var (
+		resp     *http.Response
+		err      error
+		response *Response
+		attempts = 0
+	)
+
+	// Start with at least one attempt (0 retries)
+	maxAttempts := r.retryCount + 1
+	if maxAttempts <= 0 {
+		maxAttempts = 1
+	}
+
+	for attempts < maxAttempts {
+		attempts++
+
+		// Create a new request for each attempt
+		resp, err, response = r.attemptRequest(ctx, method, urlPath)
+
+		// Break if we shouldn't retry
+		if !r.shouldRetry(resp, err) || attempts >= maxAttempts {
+			break
+		}
+
+		// Close the response before retry if it exists
+		if response != nil {
+			response.Close()
+			response = nil
+		}
+
+		// Log retry attempt
+		if r.Request != nil && r.Request.Context() != nil {
+			intlog.Printf(r.Request.Context(), "Retrying request (attempt %d/%d) after error: %v",
+				attempts, maxAttempts, err)
+		}
+
+		// Wait before retry if interval is set
+		if r.retryInterval > 0 {
+			select {
+			case <-time.After(r.retryInterval):
+				// Continue after waiting
+			case <-ctx.Done():
+				// Context cancelled during wait
+				return nil, ctx.Err()
+			}
+		}
+	}
+
+	if err != nil {
+		return nil, err
+	}
+
+	return response, nil
+}
+
+// attemptRequest makes a single attempt to execute the request
+func (r *Request) attemptRequest(ctx context.Context, method string, urlPath string) (*http.Response, error, *Response) {
+	var (
 		req  *http.Request
 		resp *http.Response
 		err  error
@@ -277,14 +410,22 @@ func (r *Request) DoRequest(ctx context.Context, method string, urlPath string) 
 		}
 		r.ContentType("application/x-www-form-urlencoded")
 	} else if r.Request != nil && r.Request.Body != nil {
-		// Otherwise use the previously set request body
-		body = r.Request.Body
+		// For retries, we need to make body re-readable
+		if bodyBytes, err := io.ReadAll(r.Request.Body); err == nil {
+			r.Request.Body.Close()
+			body = bytes.NewReader(bodyBytes)
+			r.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+		} else {
+			// If we can't read the body, use it directly
+			// Note: this might cause issues with retries
+			body = r.Request.Body
+		}
 	}
 
 	// Create the HTTP request
 	req, err = http.NewRequestWithContext(ctx, method, fullURL, body)
 	if err != nil {
-		return nil, err
+		return nil, err, nil
 	}
 
 	// Set headers from the client config
@@ -326,7 +467,7 @@ func (r *Request) DoRequest(ctx context.Context, method string, urlPath string) 
 
 	// Handle errors
 	if err != nil {
-		return nil, err
+		return resp, err, nil
 	}
 
 	// Create Response object
@@ -336,21 +477,24 @@ func (r *Request) DoRequest(ctx context.Context, method string, urlPath string) 
 	}
 
 	// Parse the response based on status code
-	if response.IsSuccess() {
+	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+		// Success response - parse into result if provided
 		if r.result != nil {
 			if err := response.Parse(r.result); err != nil {
 				response.Close()
-				return nil, err
+				return resp, err, nil
 			}
 		}
 	} else {
+		// Error response - parse into errorResult if provided
 		if r.errorResult != nil {
 			if err := response.Parse(r.errorResult); err != nil {
 				intlog.Printf(ctx, "Failed to parse error response: %v", err)
+				// Don't return here, we still want to return the response
 			}
 		}
 	}
 
 	// Return the response
-	return response, nil
+	return resp, nil, response
 }
