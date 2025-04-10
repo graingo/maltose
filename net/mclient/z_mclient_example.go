@@ -235,9 +235,15 @@ func ExampleMiddleware() {
 
 	// Add a global request logging middleware
 	client.Use(func(next HandlerFunc) HandlerFunc {
-		return func(req *http.Request) (*http.Response, error) {
+		return func(req *Request) (*Response, error) {
 			startTime := time.Now()
-			log.Printf("Starting request: %s %s", req.Method, req.URL.String())
+			var urlStr string
+			if req.Request != nil && req.Request.URL != nil {
+				urlStr = req.Request.URL.String()
+			} else {
+				urlStr = "<no url>"
+			}
+			log.Printf("Starting request: %s %s", req.Method, urlStr)
 
 			// Call the next handler
 			resp, err := next(req)
@@ -246,9 +252,9 @@ func ExampleMiddleware() {
 			duration := time.Since(startTime)
 			if err != nil {
 				log.Printf("Request failed: %v, duration: %v", err, duration)
-			} else {
+			} else if resp != nil {
 				log.Printf("Request completed: %s %s, status code: %d, duration: %v",
-					req.Method, req.URL.String(), resp.StatusCode, duration)
+					req.Method, urlStr, resp.StatusCode, duration)
 			}
 
 			return resp, err
@@ -257,9 +263,11 @@ func ExampleMiddleware() {
 
 	// Add a request ID middleware
 	requestIDMiddleware := func(next HandlerFunc) HandlerFunc {
-		return func(req *http.Request) (*http.Response, error) {
+		return func(req *Request) (*Response, error) {
 			// Set request ID
-			req.Header.Set("X-Request-ID", fmt.Sprintf("req-%d", time.Now().UnixNano()))
+			if req.Request != nil && req.Request.Header != nil {
+				req.Request.Header.Set("X-Request-ID", fmt.Sprintf("req-%d", time.Now().UnixNano()))
+			}
 			return next(req)
 		}
 	}
@@ -276,6 +284,62 @@ func ExampleMiddleware() {
 	defer resp.Close()
 
 	fmt.Printf("Request status: %d\n", resp.StatusCode)
+}
+
+func ExampleMiddlewareLog() {
+	// Create a client with logging middleware
+	client := New()
+
+	// Import the mlog package
+	// import "github.com/graingo/maltose/os/mlog"
+
+	// Use the default logger
+	// client.Use(MiddlewareLog(mlog.DefaultLogger()))
+
+	// Or create a custom logger middleware directly
+	client.Use(func(next HandlerFunc) HandlerFunc {
+		return func(req *Request) (*Response, error) {
+			start := time.Now()
+
+			// Log request
+			var urlStr string
+			if req.Request != nil && req.Request.URL != nil {
+				urlStr = req.Request.URL.String()
+			} else {
+				urlStr = "<no url>"
+			}
+			log.Printf("Request: %s %s", req.Method, urlStr)
+
+			// Execute request
+			resp, err := next(req)
+
+			// Log response
+			if err != nil {
+				log.Printf("Request failed: %v, Duration: %v", err, time.Since(start))
+				return resp, err
+			}
+
+			if resp != nil {
+				log.Printf("Response: %d, Duration: %v", resp.StatusCode, time.Since(start))
+			} else {
+				log.Printf("Response: nil, Duration: %v", time.Since(start))
+			}
+
+			return resp, nil
+		}
+	})
+
+	// Send a request
+	resp, err := client.R().
+		GET("https://api.example.com/users")
+
+	if err != nil {
+		log.Printf("Request failed: %v", err)
+		return
+	}
+	defer resp.Close()
+
+	fmt.Printf("Request successful, status code: %d\n", resp.StatusCode)
 }
 
 func ExampleRealWorldScenario() {
@@ -580,27 +644,26 @@ func ExampleRateLimit() {
 			i, duration, resp.StatusCode)
 	}
 
-	// Custom rate limiting for specific endpoints
-	apiLimiter := NewTokenBucketLimiter(5, 2) // 5 requests per second, burst of 2
-
-	// Create a rate limit middleware with custom conditions
-	rateLimitMiddleware := WithRateLimit(RateLimitOption{
-		Limiter: apiLimiter,
-		// Only apply rate limiting to certain paths
-		SkipCondition: func(req *http.Request) bool {
+	// Create a custom rate limit middleware
+	rateLimitConfig := RateLimitConfig{
+		RequestsPerSecond: 5, // 5 requests per second
+		Burst:             2, // burst of 2
+		Skip: func(req *Request) bool {
 			// Skip rate limiting for health checks
-			return strings.Contains(req.URL.Path, "/health")
+			if req.Request != nil && req.Request.URL != nil {
+				return strings.Contains(req.Request.URL.Path, "/health")
+			}
+			return false
 		},
-		// Custom error handler
-		ErrorHandler: func(ctx context.Context, err error) (*http.Response, error) {
+		ErrorHandler: func(ctx context.Context, err error) (*Response, error) {
 			// You could return a custom response here
 			return nil, fmt.Errorf("API rate limit exceeded: %w", err)
 		},
-	})
+	}
 
 	// Apply the middleware to specific requests only
 	resp, err := client.R().
-		Use(rateLimitMiddleware).
+		Use(MiddlewareRateLimit(rateLimitConfig)).
 		GET("https://api.example.com/data")
 
 	if err != nil {
@@ -614,16 +677,26 @@ func ExampleRateLimit() {
 
 func ExampleInterceptors() {
 	// Create a client with global interceptors
-	client := New().
-		// Add request ID to all requests
-		OnRequest(RequestID("")).
+	client := New()
+
+	// Add request interceptors
+	client.OnRequest(func(ctx context.Context, req *http.Request) (*http.Request, error) {
+		// Add request ID
+		req.Header.Set("X-Request-ID", fmt.Sprintf("req-%d", time.Now().UnixNano()))
+		return req, nil
+	})
+
+	client.OnRequest(func(ctx context.Context, req *http.Request) (*http.Request, error) {
 		// Add user agent
-		OnRequest(UserAgent("MaltoseClient/1.0")).
-		// Add authentication interceptor with token provider
-		OnRequest(Authentication("Bearer", func() string {
-			// In a real application, this might fetch from a token store
-			return "my-api-token"
-		}))
+		req.Header.Set("User-Agent", "MaltoseClient/1.0")
+		return req, nil
+	})
+
+	client.OnRequest(func(ctx context.Context, req *http.Request) (*http.Request, error) {
+		// Add authentication token
+		req.Header.Set("Authorization", "Bearer my-api-token")
+		return req, nil
+	})
 
 	// Make a request with the global interceptors
 	resp, err := client.R().GET("https://api.example.com/data")
@@ -705,4 +778,76 @@ func ExampleInterceptors() {
 	// Original response body is still available
 	content := resp.ReadAllString()
 	fmt.Printf("Response content: %s\n", content)
+}
+
+// ExampleUsingSummary demonstrates the usage of middlewares and interceptors in the latest version
+func ExampleUsingSummary() {
+	// Create a new client
+	client := New()
+
+	// 1. Using the logging middleware
+	client.Use(MiddlewareLog(nil)) // Pass your actual logger in production
+
+	// 2. Using the rate limiting middleware
+	client.Use(MiddlewareRateLimit(RateLimitConfig{
+		RequestsPerSecond: 100,
+		Burst:             10,
+		Skip: func(req *Request) bool {
+			// Skip health check endpoints
+			if req.Request != nil && req.Request.URL != nil {
+				return strings.Contains(req.Request.URL.Path, "/health")
+			}
+			return false
+		},
+	}))
+
+	// 3. Using request interceptors
+	client.OnRequest(func(ctx context.Context, req *http.Request) (*http.Request, error) {
+		req.Header.Set("X-API-Key", "my-api-key")
+		return req, nil
+	})
+
+	// 4. Using response interceptors
+	client.OnResponse(func(ctx context.Context, resp *http.Response) (*http.Response, error) {
+		log.Printf("Response received with status: %d", resp.StatusCode)
+		return resp, nil
+	})
+
+	// 5. Making a request with all middleware and interceptors active
+	resp, err := client.R().
+		SetHeader("Accept", "application/json").
+		GET("https://api.example.com/users")
+
+	if err != nil {
+		log.Printf("Request failed: %v", err)
+		return
+	}
+	defer resp.Close()
+
+	// 6. Working with the response
+	fmt.Printf("Request successful, status code: %d\n", resp.StatusCode)
+
+	// 7. Demonstrating request-specific middleware
+	resp, err = client.R().
+		// Add middleware only for this request
+		Use(func(next HandlerFunc) HandlerFunc {
+			return func(req *Request) (*Response, error) {
+				log.Printf("Request-specific middleware executed")
+				return next(req)
+			}
+		}).
+		// Add interceptor only for this request
+		OnRequest(func(ctx context.Context, req *http.Request) (*http.Request, error) {
+			req.Header.Set("X-Request-Specific", "true")
+			return req, nil
+		}).
+		GET("https://api.example.com/special")
+
+	if err != nil {
+		log.Printf("Special request failed: %v", err)
+		return
+	}
+	defer resp.Close()
+
+	fmt.Printf("Special request successful, status code: %d\n", resp.StatusCode)
 }

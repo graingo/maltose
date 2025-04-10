@@ -3,7 +3,6 @@ package mclient
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"sync"
 	"time"
 
@@ -111,43 +110,60 @@ func (l *TokenBucketLimiter) reserveToken() (time.Duration, bool) {
 // Rate Limiting Middleware
 // -----------------------------------------------------------------------------
 
-// RateLimitOption represents options for rate limiting middleware.
-type RateLimitOption struct {
-	// Limiter is the rate limiter implementation to use.
-	Limiter RateLimiter
-	// SkipCondition determines if rate limiting should be skipped for a request.
-	SkipCondition func(*http.Request) bool
-	// ErrorHandler handles rate limit errors.
-	ErrorHandler func(context.Context, error) (*http.Response, error)
+// RateLimitConfig represents options for rate limiting middleware.
+type RateLimitConfig struct {
+	// RequestsPerSecond is the number of requests allowed per second
+	RequestsPerSecond float64
+	// Burst is the maximum number of requests allowed to happen at once
+	Burst int
+	// Skip determines if rate limiting should be skipped for a request
+	Skip func(*Request) bool
+	// ErrorHandler handles rate limit errors
+	ErrorHandler func(context.Context, error) (*Response, error)
 }
 
-// WithRateLimit returns a middleware that limits the rate of requests.
-func WithRateLimit(options RateLimitOption) MiddlewareFunc {
-	// Create a default token bucket limiter if none is provided
-	if options.Limiter == nil {
-		options.Limiter = NewTokenBucketLimiter(10, 10) // Default: 10 requests/second
+// MiddlewareRateLimit returns a middleware that limits the rate of requests.
+func MiddlewareRateLimit(config RateLimitConfig) MiddlewareFunc {
+	// Default values
+	rps := config.RequestsPerSecond
+	if rps <= 0 {
+		rps = 100 // Default: 100 requests/second
 	}
 
+	burst := config.Burst
+	if burst <= 0 {
+		burst = 10 // Default: 10 burst
+	}
+
+	// Create a token bucket limiter
+	limiter := NewTokenBucketLimiter(rps, burst)
+
 	return func(next HandlerFunc) HandlerFunc {
-		return func(req *http.Request) (*http.Response, error) {
+		return func(req *Request) (*Response, error) {
 			ctx := req.Context()
 
 			// Skip rate limiting if condition is met
-			if options.SkipCondition != nil && options.SkipCondition(req) {
+			if config.Skip != nil && config.Skip(req) {
 				return next(req)
 			}
 
 			// Attempt to acquire a token
-			err := options.Limiter.Wait(ctx)
+			err := limiter.Wait(ctx)
 			if err != nil {
-				if options.ErrorHandler != nil {
-					return options.ErrorHandler(ctx, err)
+				if config.ErrorHandler != nil {
+					return config.ErrorHandler(ctx, err)
 				}
 				return nil, fmt.Errorf("rate limit error: %w", err)
 			}
 
 			// Log rate limiting info in debug mode
-			intlog.Printf(ctx, "Rate limiter allowed request to %s", req.URL.String())
+			var urlStr string
+			if req.Request != nil && req.Request.URL != nil {
+				urlStr = req.Request.URL.String()
+			} else {
+				urlStr = "<no url>"
+			}
+			intlog.Printf(ctx, "Rate limiter allowed request to %s", urlStr)
 
 			// Proceed with the request
 			return next(req)
@@ -157,9 +173,9 @@ func WithRateLimit(options RateLimitOption) MiddlewareFunc {
 
 // WithGlobalRateLimit applies rate limiting to all requests from this client.
 func (c *Client) WithGlobalRateLimit(rps float64, burst int) *Client {
-	limiter := NewTokenBucketLimiter(rps, burst)
-	c.Use(WithRateLimit(RateLimitOption{
-		Limiter: limiter,
+	c.Use(MiddlewareRateLimit(RateLimitConfig{
+		RequestsPerSecond: rps,
+		Burst:             burst,
 	}))
 	return c
 }

@@ -20,8 +20,8 @@ type Request struct {
 	middlewares    []MiddlewareFunc
 	queryParams    url.Values
 	formParams     url.Values
-	result         interface{}
-	errorResult    interface{}
+	result         any
+	errorResult    any
 	retryCount     int
 	retryInterval  time.Duration
 	retryCondition func(*http.Response, error) bool
@@ -127,12 +127,12 @@ func (r *Request) ContentType(contentType string) *Request {
 // -----------------------------------------------------------------------------
 
 // SetBody sets the request body.
-func (r *Request) SetBody(body interface{}) *Request {
+func (r *Request) SetBody(body any) *Request {
 	return r.Data(body)
 }
 
 // Data sets the request data.
-func (r *Request) Data(data interface{}) *Request {
+func (r *Request) Data(data any) *Request {
 	if r.Request == nil {
 		r.Request = &http.Request{
 			Header: make(http.Header),
@@ -208,13 +208,13 @@ func (r *Request) SetFormMap(params map[string]string) *Request {
 // -----------------------------------------------------------------------------
 
 // SetResult sets the result pointer for automatic JSON parsing on successful request.
-func (r *Request) SetResult(result interface{}) *Request {
+func (r *Request) SetResult(result any) *Request {
 	r.result = result
 	return r
 }
 
 // SetError sets the error pointer for automatic JSON parsing on error response.
-func (r *Request) SetError(err interface{}) *Request {
+func (r *Request) SetError(err any) *Request {
 	r.errorResult = err
 	return r
 }
@@ -328,7 +328,7 @@ func (r *Request) DoRequest(ctx context.Context, method string, urlPath string) 
 		attempts++
 
 		// Create a new request for each attempt
-		resp, err, response = r.attemptRequest(ctx, method, urlPath)
+		resp, response, err = r.attemptRequest(ctx, method, urlPath)
 
 		// Break if we shouldn't retry
 		if !r.shouldRetry(resp, err) || attempts >= maxAttempts {
@@ -367,7 +367,7 @@ func (r *Request) DoRequest(ctx context.Context, method string, urlPath string) 
 }
 
 // attemptRequest makes a single attempt to execute the request
-func (r *Request) attemptRequest(ctx context.Context, method string, urlPath string) (*http.Response, error, *Response) {
+func (r *Request) attemptRequest(ctx context.Context, method string, urlPath string) (*http.Response, *Response, error) {
 	var (
 		req  *http.Request
 		resp *http.Response
@@ -425,7 +425,7 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 	// Create the HTTP request
 	req, err = http.NewRequestWithContext(ctx, method, fullURL, body)
 	if err != nil {
-		return nil, err, nil
+		return nil, nil, err
 	}
 
 	// Set headers from the client config
@@ -446,11 +446,28 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 		}
 	}
 
+	// Set the updated http.Request in our Request object
+	r.Request = req
+
+	// Create a Response placeholder that will be filled by middleware
+	var response *Response
+
 	// Prepare the middleware chain
 	middlewares := append(r.client.middlewares, r.middlewares...)
 	if len(middlewares) > 0 {
-		handler := func(req *http.Request) (*http.Response, error) {
-			return r.client.Do(req)
+		// Base handler - direct HTTP client call without middleware
+		handler := func(req *Request) (*Response, error) {
+			// At this point, use the underlying http.Request
+			httpResp, err := r.client.Do(req.Request)
+			if err != nil {
+				return nil, err
+			}
+
+			// Create Response object
+			return &Response{
+				Response: httpResp,
+				request:  req,
+			}, nil
 		}
 
 		// Apply middlewares in reverse order
@@ -458,31 +475,34 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 			handler = middlewares[i](handler)
 		}
 
-		// Execute the middleware chain
-		resp, err = handler(req)
+		// Execute the middleware chain with our Request object
+		response, err = handler(r)
 	} else {
 		// Direct request without middleware
 		resp, err = r.client.Do(req)
+		if err != nil {
+			return resp, nil, err
+		}
+
+		// Create Response object
+		response = &Response{
+			Response: resp,
+			request:  r,
+		}
 	}
 
 	// Handle errors
 	if err != nil {
-		return resp, err, nil
-	}
-
-	// Create Response object
-	response := &Response{
-		Response: resp,
-		request:  r,
+		return nil, nil, err
 	}
 
 	// Parse the response based on status code
-	if resp.StatusCode >= 200 && resp.StatusCode < 300 {
+	if response.StatusCode >= 200 && response.StatusCode < 300 {
 		// Success response - parse into result if provided
 		if r.result != nil {
 			if err := response.Parse(r.result); err != nil {
 				response.Close()
-				return resp, err, nil
+				return response.Response, nil, err
 			}
 		}
 	} else {
@@ -496,5 +516,5 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 	}
 
 	// Return the response
-	return resp, nil, response
+	return response.Response, response, nil
 }

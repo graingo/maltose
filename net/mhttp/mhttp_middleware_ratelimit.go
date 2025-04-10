@@ -29,8 +29,8 @@ func DefaultRateLimitConfig() RateLimitConfig {
 	}
 }
 
-// RateLimitMiddleware creates a middleware that implements rate limiting using a token bucket algorithm
-func RateLimitMiddleware(config RateLimitConfig) MiddlewareFunc {
+// MiddlewareRateLimit creates a middleware that implements rate limiting using a token bucket algorithm
+func MiddlewareRateLimit(config RateLimitConfig) MiddlewareFunc {
 	if config.Rate <= 0 {
 		config.Rate = 100 // Default to 100 requests per second
 	}
@@ -88,8 +88,8 @@ func RateLimitMiddleware(config RateLimitConfig) MiddlewareFunc {
 	}
 }
 
-// RateLimitByIP creates a middleware that implements rate limiting per IP address
-func RateLimitByIP(config RateLimitConfig) MiddlewareFunc {
+// MiddlewareRateLimitByIP creates a middleware that implements rate limiting per IP address
+func MiddlewareRateLimitByIP(config RateLimitConfig) MiddlewareFunc {
 	// Create a map to store rate limiters for each IP
 	limiters := make(map[string]*rateLimiter)
 	var mu sync.RWMutex

@@ -20,16 +20,24 @@ type Interceptors struct {
 // InterceptorMiddleware creates a middleware that applies the interceptors.
 func InterceptorMiddleware(interceptors Interceptors) MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
-		return func(req *http.Request) (*http.Response, error) {
+		return func(req *Request) (*Response, error) {
 			ctx := req.Context()
 			var err error
+			httpReq := req.Request
+
+			if httpReq == nil {
+				return nil, nil
+			}
 
 			// Apply request interceptors in order
 			for _, interceptor := range interceptors.RequestInterceptors {
-				if req, err = interceptor(ctx, req); err != nil {
+				if httpReq, err = interceptor(ctx, httpReq); err != nil {
 					return nil, err
 				}
 			}
+
+			// Update the underlying http.Request
+			req.Request = httpReq
 
 			// Execute the actual request
 			resp, err := next(req)
@@ -37,12 +45,21 @@ func InterceptorMiddleware(interceptors Interceptors) MiddlewareFunc {
 				return nil, err
 			}
 
+			if resp == nil || resp.Response == nil {
+				return resp, nil
+			}
+
+			httpResp := resp.Response
+
 			// Apply response interceptors in order
 			for _, interceptor := range interceptors.ResponseInterceptors {
-				if resp, err = interceptor(ctx, resp); err != nil {
+				if httpResp, err = interceptor(ctx, httpResp); err != nil {
 					return nil, err
 				}
 			}
+
+			// Update the underlying http.Response
+			resp.Response = httpResp
 
 			return resp, nil
 		}

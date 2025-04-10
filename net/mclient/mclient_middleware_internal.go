@@ -3,7 +3,6 @@ package mclient
 import (
 	"context"
 	"fmt"
-	"net/http"
 	"net/url"
 	"strings"
 	"time"
@@ -32,8 +31,8 @@ type contextKey string
 // internalMiddlewareRecovery internal error recovery middleware
 func internalMiddlewareRecovery() MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
-		return func(req *http.Request) (*http.Response, error) {
-			var resp *http.Response
+		return func(req *Request) (*Response, error) {
+			var resp *Response
 			var err error
 
 			defer func() {
@@ -52,18 +51,22 @@ func internalMiddlewareRecovery() MiddlewareFunc {
 // internalMiddlewareMetric internal metric collection middleware
 func internalMiddlewareMetric() MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
-		return func(req *http.Request) (*http.Response, error) {
+		return func(req *Request) (*Response, error) {
 			// Record start time
 			startTime := time.Now()
 
 			// Collect metrics before request
-			handleMetricsBeforeRequest(req)
+			handleMetricsBeforeRequest(req.Request)
 
 			// Execute next middleware
 			resp, err := next(req)
 
 			// Collect metrics after request done
-			handleMetricsAfterRequestDone(req, resp, err, startTime)
+			if resp != nil {
+				handleMetricsAfterRequestDone(req.Request, resp.Response, err, startTime)
+			} else {
+				handleMetricsAfterRequestDone(req.Request, nil, err, startTime)
+			}
 
 			return resp, err
 		}
@@ -73,7 +76,11 @@ func internalMiddlewareMetric() MiddlewareFunc {
 // internalMiddlewareTrace client tracing middleware
 func internalMiddlewareTrace() MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
-		return func(req *http.Request) (*http.Response, error) {
+		return func(req *Request) (*Response, error) {
+			if req.Request == nil {
+				return next(req)
+			}
+
 			ctx := req.Context()
 
 			// Avoid duplicate processing
@@ -85,7 +92,8 @@ func internalMiddlewareTrace() MiddlewareFunc {
 
 			// If using default provider, skip complex tracing
 			if mtrace.IsUsingDefaultProvider() {
-				return next(req.WithContext(ctx))
+				req.Request = req.Request.WithContext(ctx)
+				return next(req)
 			}
 
 			// Create tracer
@@ -95,11 +103,11 @@ func internalMiddlewareTrace() MiddlewareFunc {
 			)
 
 			// Normalize operation name: HTTP {method} {url}
-			urlPath := req.URL.Path
+			urlPath := req.Request.URL.Path
 			if urlPath == "" {
 				urlPath = "/"
 			}
-			spanName := fmt.Sprintf("HTTP %s %s", req.Method, urlPath)
+			spanName := fmt.Sprintf("HTTP %s %s", req.Request.Method, urlPath)
 
 			// Create span
 			ctx, span := tr.Start(
@@ -111,19 +119,19 @@ func internalMiddlewareTrace() MiddlewareFunc {
 
 			// Add request event
 			span.AddEvent(tracingEventHttpRequest, trace.WithAttributes(
-				attribute.String(tracingEventHttpRequestUrl, req.URL.String()),
-				attribute.String(tracingEventHttpHeaders, mconv.ToString(mconv.ToStringMap(req.Header))),
+				attribute.String(tracingEventHttpRequestUrl, req.Request.URL.String()),
+				attribute.String(tracingEventHttpHeaders, mconv.ToString(mconv.ToStringMap(req.Request.Header))),
 				attribute.String(tracingEventHttpBaggage, mconv.ToString(mtrace.GetBaggageMap(ctx))),
 			))
 
 			// Inject context into outgoing headers
 			otel.GetTextMapPropagator().Inject(
 				ctx,
-				propagation.HeaderCarrier(req.Header),
+				propagation.HeaderCarrier(req.Request.Header),
 			)
 
 			// Update request with tracing context
-			req = req.WithContext(ctx)
+			req.Request = req.Request.WithContext(ctx)
 
 			// Execute next middleware
 			resp, err := next(req)
@@ -135,7 +143,7 @@ func internalMiddlewareTrace() MiddlewareFunc {
 			}
 
 			// Add response event
-			if resp != nil {
+			if resp != nil && resp.Response != nil {
 				statusCode := resp.StatusCode
 				span.AddEvent(tracingEventHttpResponse, trace.WithAttributes(
 					attribute.Int("http.status_code", statusCode),
