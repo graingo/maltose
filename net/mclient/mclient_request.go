@@ -13,18 +13,34 @@ import (
 	"github.com/graingo/maltose/internal/intlog"
 )
 
-// Request wraps the http.Request with additional features.
+// Request is the struct for client request.
 type Request struct {
-	*http.Request
-	client         *Client
-	middlewares    []MiddlewareFunc
-	queryParams    url.Values
-	formParams     url.Values
-	result         any
-	errorResult    any
-	retryCount     int
-	retryInterval  time.Duration
-	retryCondition func(*http.Response, error) bool
+	*http.Request                                   // Request is the underlying http.Request object.
+	client         *Client                          // The client that creates this request.
+	response       *Response                        // The response object of this request.
+	ctx            context.Context                  // Context for the request.
+	timeout        time.Duration                    // Timeout for the request.
+	retryCount     int                              // Retry count for the request.
+	retryInterval  time.Duration                    // Retry interval for the request.
+	header         map[string]string                // Custom header map.
+	query          map[string]string                // Custom query map.
+	form           map[string]string                // Custom form map.
+	body           []byte                           // Custom body content.
+	contentType    string                           // Content type of the request.
+	middlewares    []MiddlewareFunc                 // Middleware functions.
+	queryParams    url.Values                       // Query parameters.
+	formParams     url.Values                       // Form parameters.
+	retryCondition func(*http.Response, error) bool // Retry condition.
+}
+
+// GetResponse returns the response object of this request.
+func (r *Request) GetResponse() *Response {
+	return r.response
+}
+
+// SetResponse sets the response object for this request.
+func (r *Request) SetResponse(resp *Response) {
+	r.response = resp
 }
 
 // -----------------------------------------------------------------------------
@@ -207,15 +223,19 @@ func (r *Request) SetFormMap(params map[string]string) *Request {
 // Response Processing Methods
 // -----------------------------------------------------------------------------
 
-// SetResult sets the result pointer for automatic JSON parsing on successful request.
+// SetResult sets the result object for successful response.
 func (r *Request) SetResult(result any) *Request {
-	r.result = result
+	if r.response != nil {
+		r.response.SetResult(result)
+	}
 	return r
 }
 
-// SetError sets the error pointer for automatic JSON parsing on error response.
+// SetError sets the error result object for error response.
 func (r *Request) SetError(err any) *Request {
-	r.errorResult = err
+	if r.response != nil {
+		r.response.SetError(err)
+	}
 	return r
 }
 
@@ -312,9 +332,8 @@ func (r *Request) Send(url string) (*Response, error) {
 // DoRequest sends the request and returns the response.
 func (r *Request) DoRequest(ctx context.Context, method string, urlPath string) (*Response, error) {
 	var (
-		resp     *http.Response
 		err      error
-		response *Response
+		resp     *Response
 		attempts = 0
 	)
 
@@ -328,17 +347,17 @@ func (r *Request) DoRequest(ctx context.Context, method string, urlPath string) 
 		attempts++
 
 		// Create a new request for each attempt
-		resp, response, err = r.attemptRequest(ctx, method, urlPath)
+		resp, err = r.attemptRequest(ctx, method, urlPath)
 
 		// Break if we shouldn't retry
-		if !r.shouldRetry(resp, err) || attempts >= maxAttempts {
+		if !r.shouldRetry(resp.Response, err) || attempts >= maxAttempts {
 			break
 		}
 
 		// Close the response before retry if it exists
-		if response != nil {
-			response.Close()
-			response = nil
+		if resp != nil {
+			resp.Close()
+			resp = nil
 		}
 
 		// Log retry attempt
@@ -363,15 +382,20 @@ func (r *Request) DoRequest(ctx context.Context, method string, urlPath string) 
 		return nil, err
 	}
 
-	return response, nil
+	// Parse response if needed
+	if err := resp.ParseResponse(); err != nil {
+		resp.Close()
+		return nil, err
+	}
+
+	return resp, nil
 }
 
 // attemptRequest makes a single attempt to execute the request
-func (r *Request) attemptRequest(ctx context.Context, method string, urlPath string) (*http.Response, *Response, error) {
+func (r *Request) attemptRequest(ctx context.Context, method string, urlPath string) (*Response, error) {
 	var (
-		req  *http.Request
-		resp *http.Response
-		err  error
+		req *http.Request
+		err error
 	)
 
 	// Prepare the request URL
@@ -425,7 +449,7 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 	// Create the HTTP request
 	req, err = http.NewRequestWithContext(ctx, method, fullURL, body)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
 	// Set headers from the client config
@@ -466,7 +490,6 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 			// Create Response object
 			return &Response{
 				Response: httpResp,
-				request:  req,
 			}, nil
 		}
 
@@ -479,42 +502,24 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 		response, err = handler(r)
 	} else {
 		// Direct request without middleware
-		resp, err = r.client.Do(req)
+		httpResp, err := r.client.Do(req)
 		if err != nil {
-			return resp, nil, err
+			return nil, err
 		}
 
 		// Create Response object
 		response = &Response{
-			Response: resp,
-			request:  r,
+			Response: httpResp,
 		}
 	}
 
 	// Handle errors
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 
-	// Parse the response based on status code
-	if response.StatusCode >= 200 && response.StatusCode < 300 {
-		// Success response - parse into result if provided
-		if r.result != nil {
-			if err := response.Parse(r.result); err != nil {
-				response.Close()
-				return response.Response, nil, err
-			}
-		}
-	} else {
-		// Error response - parse into errorResult if provided
-		if r.errorResult != nil {
-			if err := response.Parse(r.errorResult); err != nil {
-				intlog.Printf(ctx, "Failed to parse error response: %v", err)
-				// Don't return here, we still want to return the response
-			}
-		}
-	}
+	// Set response to request
+	r.SetResponse(response)
 
-	// Return the response
-	return response.Response, response, nil
+	return response, nil
 }

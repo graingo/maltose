@@ -3,7 +3,7 @@ package mclient
 import (
 	"bytes"
 	"encoding/json"
-	"fmt"
+	"errors"
 	"io"
 	"net/http"
 
@@ -13,16 +13,9 @@ import (
 // Response is the struct for client request response.
 type Response struct {
 	*http.Response                   // Response is the underlying http.Response object of certain request.
-	request        *Request          // The client request object that generated this response, including the underlying http.Request
 	cookies        map[string]string // Response cookies, which are only parsed once.
-}
-
-// GetRequest returns the underlying http.Request.
-func (r *Response) GetRequest() *http.Request {
-	if r.request != nil && r.request.Request != nil {
-		return r.request.Request
-	}
-	return nil
+	result         any               // Result object for successful response.
+	errorResult    any               // Error result object for error response.
 }
 
 // initCookie initializes the cookie map attribute of Response.
@@ -44,6 +37,12 @@ func (r *Response) GetCookie(key string) string {
 	return r.cookies[key]
 }
 
+// GetCookies retrieves and returns all cookie values.
+func (r *Response) GetCookies() map[string]string {
+	r.initCookie()
+	return r.cookies
+}
+
 // GetCookieMap retrieves and returns a copy of current cookie values map.
 func (r *Response) GetCookieMap() map[string]string {
 	r.initCookie()
@@ -63,7 +62,7 @@ func (r *Response) ReadAll() []byte {
 	body, err := io.ReadAll(r.Response.Body)
 	if err != nil {
 		// This logs error internally without interrupting execution flow
-		intlog.Error(r.request.Context(), "ReadAll error:", err)
+		intlog.Error(nil, "ReadAll error:", err)
 		return []byte{}
 	}
 	// Reset Body for multiple reads
@@ -76,30 +75,22 @@ func (r *Response) ReadAllString() string {
 	return string(r.ReadAll())
 }
 
-// Parse parses the response JSON to the given struct pointer.
-// It returns error if response is nil or parsing fails.
-func (r *Response) Parse(v interface{}) error {
-	if r == nil || r.Response == nil {
-		return fmt.Errorf("nil response")
+// Parse parses the response body into the given result.
+func (r *Response) Parse(result interface{}) error {
+	if r.Response == nil || r.Response.Body == nil {
+		return errors.New("response or response body is nil")
+	}
+	defer r.Response.Body.Close()
+
+	// Read the response body
+	body, err := io.ReadAll(r.Response.Body)
+	if err != nil {
+		return err
 	}
 
-	// Check content type (optional, but recommended)
-	contentType := r.Header.Get("Content-Type")
-	if contentType != "" && !bytes.Contains([]byte(contentType), []byte("application/json")) {
-		if r.request != nil {
-			intlog.Printf(r.request.Context(), "Warning: Content-Type is not application/json: %s", contentType)
-		}
-	}
-
-	// Read response body
-	body := r.ReadAll()
-	if len(body) == 0 {
-		return fmt.Errorf("empty response body")
-	}
-
-	// Parse JSON
-	if err := json.Unmarshal(body, v); err != nil {
-		return fmt.Errorf("JSON unmarshal error: %w", err)
+	// Try to parse as JSON
+	if err := json.Unmarshal(body, result); err != nil {
+		return err
 	}
 
 	return nil
@@ -127,4 +118,45 @@ func (r *Response) Close() error {
 		return nil
 	}
 	return r.Response.Body.Close()
+}
+
+// SetResult sets the result object for successful response.
+func (r *Response) SetResult(result interface{}) {
+	r.result = result
+}
+
+// SetError sets the error result object for error response.
+func (r *Response) SetError(err interface{}) {
+	r.errorResult = err
+}
+
+// ParseResponse parses the response based on status code.
+func (r *Response) ParseResponse() error {
+	if r.Response == nil {
+		return errors.New("response is nil")
+	}
+
+	if r.StatusCode >= 200 && r.StatusCode < 300 {
+		// Success response - parse into result if provided
+		if r.result != nil {
+			return r.Parse(r.result)
+		}
+	} else {
+		// Error response - parse into errorResult if provided
+		if r.errorResult != nil {
+			return r.Parse(r.errorResult)
+		}
+	}
+
+	return nil
+}
+
+// GetResult returns the result object.
+func (r *Response) GetResult() any {
+	return r.result
+}
+
+// GetError returns the error result object.
+func (r *Response) GetError() any {
+	return r.errorResult
 }

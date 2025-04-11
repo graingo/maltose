@@ -1,9 +1,9 @@
 package mclient
 
 // HandlerFunc defines the handler used by middleware.
-type HandlerFunc func(req *Request) (*Response, error)
+type HandlerFunc func(*Request) (*Response, error)
 
-// MiddlewareFunc defines a function to process middleware.
+// MiddlewareFunc is the function type for middleware.
 type MiddlewareFunc func(HandlerFunc) HandlerFunc
 
 // Use adds middleware handlers to the request.
