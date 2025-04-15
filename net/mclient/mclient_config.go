@@ -98,14 +98,6 @@ func (c *Client) SetTimeout(t time.Duration) *Client {
 	return c
 }
 
-// SetRetry sets retry count and interval.
-// Note: Retry implementation needs to be added to DoRequest method.
-func (c *Client) SetRetry(retryCount int, retryInterval time.Duration) *Client {
-	// Store retry settings in config or client struct
-	// Implementation needed
-	return c
-}
-
 // SetRedirectLimit limits the number of jumps.
 func (c *Client) SetRedirectLimit(redirectLimit int) *Client {
 	c.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
