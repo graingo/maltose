@@ -122,6 +122,7 @@ func TestJSONBodyRequest(t *testing.T) {
 	assert.Equal(t, "created", result.Status, "Expected status 'created'")
 }
 
+// TestRetryOnFailure tests retry mechanism on request failures
 func TestRetryOnFailure(t *testing.T) {
 	// Create test server that fails first two attempts
 	attempts := 0
@@ -166,6 +167,7 @@ func TestRetryOnFailure(t *testing.T) {
 	}
 }
 
+// TestCustomRetryCondition tests custom retry condition
 func TestCustomRetryCondition(t *testing.T) {
 	// Create test server that always returns 429
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -202,5 +204,57 @@ func TestCustomRetryCondition(t *testing.T) {
 
 	if resp.StatusCode != http.StatusTooManyRequests {
 		t.Errorf("Expected status code %d, got %d", http.StatusTooManyRequests, resp.StatusCode)
+	}
+}
+
+// TestAuthMiddleware tests authentication middleware functionality
+func TestAuthMiddleware(t *testing.T) {
+	// Create test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		// Assert auth header
+		assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"), "Expected Authorization header")
+
+		// Write response
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"message": "success"}`))
+	}))
+	defer server.Close()
+
+	// Create client with auth middleware
+	client := mclient.New()
+	client.Use(mclient.MiddlewareFunc(func(next mclient.HandlerFunc) mclient.HandlerFunc {
+		return func(req *mclient.Request) (*mclient.Response, error) {
+			req.SetHeader("Authorization", "Bearer test-token")
+			return next(req)
+		}
+	}))
+
+	// Send request
+	resp, err := client.R().GET(server.URL)
+	require.NoError(t, err, "Should not return error")
+	assert.Equal(t, http.StatusOK, resp.StatusCode, "Expected status code 200")
+}
+
+// TestRateLimitMiddleware tests rate limiting middleware
+func TestRateLimitMiddleware(t *testing.T) {
+	// Create test server
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.WriteHeader(http.StatusOK)
+		w.Write([]byte(`{"message": "success"}`))
+	}))
+	defer server.Close()
+
+	// Create client with rate limit middleware
+	client := mclient.New()
+	client.Use(mclient.MiddlewareRateLimit(mclient.RateLimitConfig{
+		RequestsPerSecond: 2,
+		Burst:             1,
+	}))
+
+	// Send multiple requests
+	for i := 0; i < 3; i++ {
+		resp, err := client.R().GET(server.URL)
+		require.NoError(t, err, "All requests should succeed, but with rate limiting")
+		assert.Equal(t, http.StatusOK, resp.StatusCode, "Expected status code 200")
 	}
 }
