@@ -13,10 +13,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// -----------------------------------------------------------------------------
-// Middleware Tests
-// -----------------------------------------------------------------------------
-
 // TestCustomMiddleware tests custom middleware functionality
 func TestCustomMiddleware(t *testing.T) {
 	// Create test server

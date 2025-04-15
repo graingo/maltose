@@ -62,7 +62,7 @@ func (r *Response) ReadAll() []byte {
 	body, err := io.ReadAll(r.Response.Body)
 	if err != nil {
 		// This logs error internally without interrupting execution flow
-		intlog.Error(nil, "ReadAll error:", err)
+		intlog.Error(r.Request.Context(), "ReadAll error:", err)
 		return []byte{}
 	}
 	// Reset Body for multiple reads
@@ -130,8 +130,8 @@ func (r *Response) SetError(err interface{}) {
 	r.errorResult = err
 }
 
-// ParseResponse parses the response based on status code.
-func (r *Response) ParseResponse() error {
+// parseResponse parses the response based on status code.
+func (r *Response) parseResponse() error {
 	if r.Response == nil {
 		return errors.New("response is nil")
 	}

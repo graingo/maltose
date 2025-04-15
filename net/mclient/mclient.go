@@ -1,6 +1,7 @@
 package mclient
 
 import (
+	"math/rand"
 	"net/http"
 	"time"
 )
@@ -111,4 +112,82 @@ func (c *Client) SetConfig(config ClientConfig) *Client {
 	}
 
 	return c
+}
+
+// calculateRetryDelay calculates the delay for the next retry attempt.
+func (r *Request) calculateRetryDelay(attempt int) time.Duration {
+	// If no retry config, use simple interval
+	if r.retryConfig == (RetryConfig{}) {
+		return r.retryInterval
+	}
+
+	// Calculate exponential backoff
+	delay := r.retryConfig.BaseInterval
+	for i := 1; i < attempt; i++ {
+		delay = time.Duration(float64(delay) * r.retryConfig.BackoffFactor)
+		if delay > r.retryConfig.MaxInterval {
+			delay = r.retryConfig.MaxInterval
+			break
+		}
+	}
+
+	// Add jitter
+	if r.retryConfig.JitterFactor > 0 {
+		jitter := time.Duration(float64(delay) * r.retryConfig.JitterFactor * (rand.Float64()*2 - 1))
+		delay += jitter
+		if delay < 0 {
+			delay = 0
+		}
+	}
+
+	return delay
+}
+
+// Do executes the request with retry logic.
+func (r *Request) Do() (*Response, error) {
+	var resp *Response
+	var err error
+
+	// Initialize random seed if needed
+	if r.retryConfig != (RetryConfig{}) && r.retryConfig.JitterFactor > 0 {
+		rand.Seed(time.Now().UnixNano())
+	}
+
+	// Try the request up to retryCount + 1 times
+	for attempt := 0; attempt <= r.retryCount; attempt++ {
+		if attempt > 0 {
+			// Calculate delay for this attempt
+			delay := r.calculateRetryDelay(attempt)
+			time.Sleep(delay)
+		}
+
+		// Execute the request
+		resp, err = r.DoRequest(r.ctx, r.Request.Method, r.Request.URL.String())
+
+		// Check if we should retry
+		if err == nil && resp != nil {
+			if r.retryCondition == nil {
+				// Default retry condition: retry on 5xx and 429
+				if resp.StatusCode < 500 && resp.StatusCode != 429 {
+					return resp, nil
+				}
+			} else if !r.retryCondition(resp.Response, nil) {
+				return resp, nil
+			}
+		} else if r.retryCondition == nil {
+			// Default retry condition: retry on network errors
+			if err != nil {
+				continue
+			}
+		} else if !r.retryCondition(nil, err) {
+			return resp, err
+		}
+
+		// Close response body if we're going to retry
+		if resp != nil {
+			resp.Close()
+		}
+	}
+
+	return resp, err
 }

@@ -88,7 +88,7 @@ func ExampleComprehensive() {
 		SetContext(ctx).
 		SetResult(&user).
 		SetError(&errorResponse).
-		SetRetry(3, 500*time.Millisecond).
+		SetRetrySimple(3, 500*time.Millisecond).
 		SetRetryCondition(func(resp *http.Response, err error) bool {
 			// Retry on network errors or server errors
 			return err != nil || (resp != nil && resp.StatusCode >= 500)

@@ -1,6 +1,7 @@
 package mclient
 
 import (
+	"context"
 	"fmt"
 	"log"
 	"time"
@@ -83,12 +84,12 @@ func ExampleUsingRateLimit() {
 		go func(index int) {
 			resp, err := client.R().GET("https://api.example.com/users")
 			if err != nil {
-				intlog.Printf(nil, "Request %d failed: %v", index, err)
+				intlog.Printf(context.Background(), "Request %d failed: %v", index, err)
 				return
 			}
 			defer resp.Close()
 
-			intlog.Printf(nil, "Request %d completed with status: %d", index, resp.StatusCode)
+			intlog.Printf(context.Background(), "Request %d completed with status: %d", index, resp.StatusCode)
 		}(i)
 	}
 
@@ -122,7 +123,7 @@ func ExampleCustomMiddleware() {
 						// Exponential backoff
 						backoff := time.Duration(1<<uint(attempt-1)) * 100 * time.Millisecond
 						time.Sleep(backoff)
-						intlog.Printf(nil, "Retrying request (attempt %d/%d) after %v",
+						intlog.Printf(context.Background(), "Retrying request (attempt %d/%d) after %v",
 							attempt, maxRetries, backoff)
 					}
 

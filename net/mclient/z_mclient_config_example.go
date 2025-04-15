@@ -78,7 +78,7 @@ func ExampleRequestConfiguration() {
 	// Configure retry policy
 	resp, err := client.R().
 		SetContext(ctx).
-		SetRetry(3, 1*time.Second).
+		SetRetrySimple(3, time.Second).
 		SetRetryCondition(func(resp *http.Response, err error) bool {
 			// Retry on network errors
 			if err != nil {

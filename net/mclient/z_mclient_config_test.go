@@ -10,10 +10,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// -----------------------------------------------------------------------------
-// Client Configuration Tests
-// -----------------------------------------------------------------------------
-
 // TestCloneClient tests cloning a client with its configuration
 func TestCloneClient(t *testing.T) {
 	// Create original client with custom configuration

@@ -12,10 +12,6 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-// -----------------------------------------------------------------------------
-// Error Handling and Retry Tests
-// -----------------------------------------------------------------------------
-
 // TestRetryMechanism tests the request retry functionality
 func TestRetryMechanism(t *testing.T) {
 	// Track number of requests
@@ -42,7 +38,7 @@ func TestRetryMechanism(t *testing.T) {
 
 	// Send request with retry configuration
 	resp, err := client.R().
-		SetRetry(3, 10*time.Millisecond). // 3 retries, 10ms interval
+		SetRetrySimple(3, 10*time.Millisecond). // 3 retries, 10ms interval
 		GET(server.URL)
 
 	// Assert response

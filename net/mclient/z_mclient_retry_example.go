@@ -7,28 +7,25 @@ import (
 	"time"
 )
 
-// ExampleRetryMechanism demonstrates how to use the retry mechanism
+// ExampleRetryMechanism demonstrates the basic retry mechanism.
 func ExampleRetryMechanism() {
-	// Create client
 	client := New()
 
-	// Send request with retry configuration
+	// Use simple retry configuration
 	resp, err := client.R().
-		SetRetry(3, time.Second). // 3 retries with 1 second interval
+		SetRetrySimple(3, time.Second).
 		GET("https://api.example.com/users")
 
 	if err != nil {
 		log.Printf("Request failed after retries: %v", err)
 		return
 	}
-	defer resp.Close()
 
-	fmt.Printf("Request successful after retries, status: %d\n", resp.StatusCode)
+	fmt.Printf("Response status: %d\n", resp.StatusCode)
 }
 
-// ExampleCustomRetryCondition demonstrates how to use custom retry conditions
+// ExampleCustomRetryCondition demonstrates how to use custom retry conditions.
 func ExampleCustomRetryCondition() {
-	// Create client
 	client := New()
 
 	// Define custom retry condition
@@ -48,95 +45,80 @@ func ExampleCustomRetryCondition() {
 			return true
 		}
 
-		// Don't retry for other status codes
 		return false
 	}
 
-	// Send request with custom retry configuration
+	// Configure retry strategy
+	config := RetryConfig{
+		Count:         3,                // Maximum 3 retries
+		BaseInterval:  time.Second,      // Base interval 1 second
+		MaxInterval:   30 * time.Second, // Maximum interval 30 seconds
+		BackoffFactor: 2.0,              // Exponential backoff factor 2.0
+		JitterFactor:  0.1,              // Random jitter factor 0.1
+	}
+
+	// Send request
 	resp, err := client.R().
-		SetRetry(5, 500*time.Millisecond).
+		SetRetry(config).
 		SetRetryCondition(customRetryCondition).
 		GET("https://api.example.com/users")
 
 	if err != nil {
-		log.Printf("Request failed after custom retries: %v", err)
+		log.Printf("Request failed after retries: %v", err)
 		return
 	}
-	defer resp.Close()
 
-	fmt.Printf("Request successful with custom retry, status: %d\n", resp.StatusCode)
+	fmt.Printf("Response status: %d\n", resp.StatusCode)
 }
 
-// ExampleChainedRequests demonstrates how to chain multiple requests
+// ExampleChainedRequests demonstrates how to chain multiple requests with retry.
 func ExampleChainedRequests() {
-	// Create client with common settings
 	client := New()
 
-	// Configure client with reasonable retry settings
-	client.SetConfig(ClientConfig{
-		Timeout: 30 * time.Second,
-		Header: http.Header{
-			"Accept":     []string{"application/json"},
-			"User-Agent": []string{"MClient/1.0"},
-		},
-	})
-
-	// First request - get a list of items
-	type Item struct {
-		ID    int     `json:"id"`
-		Name  string  `json:"name"`
-		Price float64 `json:"price"`
+	// Configure retry strategy
+	config := RetryConfig{
+		Count:         3,                // Maximum 3 retries
+		BaseInterval:  time.Second,      // Base interval 1 second
+		MaxInterval:   30 * time.Second, // Maximum interval 30 seconds
+		BackoffFactor: 2.0,              // Exponential backoff factor 2.0
+		JitterFactor:  0.1,              // Random jitter factor 0.1
 	}
-	var items []Item
 
-	resp1, err := client.R().
-		SetResult(&items).
-		SetRetry(3, time.Second).
-		GET("https://api.example.com/items")
+	// Define response structures
+	type User struct {
+		ID   int    `json:"id"`
+		Name string `json:"name"`
+	}
+
+	type UserList struct {
+		Users []User `json:"users"`
+	}
+
+	// Get user list
+	var userList UserList
+	_, err := client.R().
+		SetRetry(config).
+		SetResult(&userList).
+		GET("https://api.example.com/users")
 
 	if err != nil {
-		log.Printf("Failed to fetch items: %v", err)
-		return
-	}
-	defer resp1.Close()
-
-	if !resp1.IsSuccess() {
-		log.Printf("Failed to fetch items, status: %d", resp1.StatusCode)
+		log.Printf("Failed to get user list: %v", err)
 		return
 	}
 
-	fmt.Printf("Found %d items\n", len(items))
-
-	// If we have items, make a second request for details of the first item
-	if len(items) > 0 {
-		type ItemDetails struct {
-			ID          int      `json:"id"`
-			Name        string   `json:"name"`
-			Price       float64  `json:"price"`
-			Description string   `json:"description"`
-			Categories  []string `json:"categories"`
-			InStock     bool     `json:"in_stock"`
-		}
-		var details ItemDetails
-
-		resp2, err := client.R().
-			SetResult(&details).
-			SetRetry(3, time.Second).
-			GET(fmt.Sprintf("https://api.example.com/items/%d", items[0].ID))
+	// Process each user's details
+	for _, user := range userList.Users {
+		var userDetail User
+		_, err := client.R().
+			SetRetry(config).
+			SetResult(&userDetail).
+			GET(fmt.Sprintf("https://api.example.com/users/%d", user.ID))
 
 		if err != nil {
-			log.Printf("Failed to fetch item details: %v", err)
-			return
+			log.Printf("Failed to get user %d details: %v", user.ID, err)
+			continue
 		}
-		defer resp2.Close()
 
-		if resp2.IsSuccess() {
-			fmt.Printf("Item details: %s - $%.2f\n", details.Name, details.Price)
-			fmt.Printf("Description: %s\n", details.Description)
-			fmt.Printf("Categories: %v\n", details.Categories)
-			fmt.Printf("In stock: %v\n", details.InStock)
-		} else {
-			log.Printf("Failed to fetch item details, status: %d", resp2.StatusCode)
-		}
+		fmt.Printf("User %d: %s\n", userDetail.ID, userDetail.Name)
 	}
 }
