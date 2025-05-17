@@ -5,32 +5,30 @@ import (
 	"fmt"
 
 	"github.com/graingo/maltose/net/mhttp"
-	"github.com/graingo/mconv"
 )
 
 const (
 	configNodeNameServer = "server" // config node name for server
 )
 
-func Server(name ...interface{}) *mhttp.Server {
+func Server(name ...string) *mhttp.Server {
 	var (
 		ctx          = context.Background()
 		instanceName = mhttp.DefaultServerName
-		instanceKey  = fmt.Sprintf("%s.%v", frameCoreNameServer, name)
 	)
-
 	if len(name) > 0 && name[0] != "" {
-		instanceName = mconv.ToString(name[0])
+		instanceName = name[0]
 	}
+	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameServer, instanceName)
 
-	return globalInstances.GetOrSetFunc(instanceKey, func() interface{} {
+	instance := globalInstances.GetOrSetFunc(instanceKey, func() any {
 		server := mhttp.New()
 
 		if Config().Available(ctx) {
 			var (
-				configMap             map[string]any
-				serverConfigMap       map[string]any
-				loggerServerConfigMap map[string]any
+				loggerConfigMap map[string]any
+				globalConfigMap map[string]any
+				serverConfigMap map[string]any
 			)
 
 			// get global config
@@ -40,12 +38,12 @@ func Server(name ...interface{}) *mhttp.Server {
 			}
 
 			if configMap[configNodeNameServer] != "" {
-				serverConfigMap = make(map[string]any)
+				globalConfigMap = configMap[configNodeNameServer].(map[string]any)
 
 				// try to get instance specific config
-				if instanceConfig, ok := configMap[configNodeNameServer].(map[string]any)[instanceName]; ok {
+				if instanceConfig, ok := globalConfigMap[instanceName]; ok {
 					serverConfigMap = instanceConfig.(map[string]any)
-				} else if defaultConfig, ok := configMap[configNodeNameServer].(map[string]any)["default"]; ok {
+				} else if defaultConfig, ok := globalConfigMap["default"]; ok {
 					// try to get default instance config
 					serverConfigMap = defaultConfig.(map[string]any)
 				} else {
@@ -58,19 +56,19 @@ func Server(name ...interface{}) *mhttp.Server {
 					// basic config
 					server.SetConfigWithMap(serverConfigMap)
 					// logger config processing
-					loggerServerConfigMap = make(map[string]any)
+					loggerConfigMap = make(map[string]any)
 
 					// check current config for logger node
 					if cfg, ok := serverConfigMap[configNodeNameLogger].(map[string]any); ok {
-						loggerServerConfigMap = cfg
+						loggerConfigMap = cfg
 					} else {
 						// try to get global logger config
 						if cfg, ok := configMap["logger"].(map[string]any); ok {
-							loggerServerConfigMap = cfg
+							loggerConfigMap = cfg
 						}
 					}
-					if len(loggerServerConfigMap) > 0 {
-						if err := server.Logger().SetConfigWithMap(loggerServerConfigMap); err != nil {
+					if len(loggerConfigMap) > 0 {
+						if err := server.Logger().SetConfigWithMap(loggerConfigMap); err != nil {
 							panic(err)
 						}
 					}
@@ -82,5 +80,7 @@ func Server(name ...interface{}) *mhttp.Server {
 			server.SetServerName(instanceName)
 		}
 		return server
-	}).(*mhttp.Server)
+	})
+
+	return instance.(*mhttp.Server)
 }

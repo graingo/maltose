@@ -119,6 +119,18 @@ maltose/
     └── mmeta/     # 元数据工具
 ```
 
+# TODO
+
+- [ x ] mhttp 服务器
+- [ x ] mcfg 配置
+- [ x ] 链路跟踪
+- [ x ] mclient http 请求
+- [ ] mqueue 异步任务和队列
+- [ x ] mdb 数据库
+- [ ] mcache 缓存
+- [ ] mgrpc gRPC 支持？
+- [ ] mcli 生成脚手架，基于数据库表结构生成 model
+
 # 贡献指南
 
 1. Fork 本仓库

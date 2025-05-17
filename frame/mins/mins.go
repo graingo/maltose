@@ -6,6 +6,7 @@ const (
 	frameCoreNameLogger = "maltose.logger"
 	frameCoreNameRedis  = "maltose.redis"
 	frameCoreNameServer = "maltose.server"
+	frameCoreNameDB     = "maltose.db"
 )
 
 var (

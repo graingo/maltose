@@ -4,7 +4,7 @@ import (
 	"time"
 
 	"github.com/graingo/maltose/os/mlog"
-	"github.com/graingo/mconv"
+	"github.com/spf13/viper"
 )
 
 // ServerConfig is the server configuration.
@@ -64,67 +64,10 @@ func NewConfig() ServerConfig {
 }
 
 // SetConfigWithMap sets the server config.
-func (s *Server) SetConfigWithMap(configMap map[string]any) {
-	if v, ok := configMap["address"]; ok {
-		s.config.Address = mconv.ToString(v)
-	}
-	if v, ok := configMap["server_name"]; ok {
-		s.config.ServerName = mconv.ToString(v)
-	}
-	if v, ok := configMap["server_root"]; ok {
-		s.config.ServerRoot = mconv.ToString(v)
-	}
-	if v, ok := configMap["server_locale"]; ok {
-		s.config.ServerLocale = mconv.ToString(v)
-	}
-	if v, ok := configMap["read_timeout"]; ok {
-		s.config.ReadTimeout = mconv.ToDuration(v)
-	}
-	if v, ok := configMap["write_timeout"]; ok {
-		s.config.WriteTimeout = mconv.ToDuration(v)
-	}
-	if v, ok := configMap["idle_timeout"]; ok {
-		s.config.IdleTimeout = mconv.ToDuration(v)
-	}
-	if v, ok := configMap["max_header_bytes"]; ok {
-		s.config.MaxHeaderBytes = mconv.ToInt(v)
-	}
-
-	// TLS config
-	if v, ok := configMap["tls_enable"]; ok {
-		s.config.TLSEnable = mconv.ToBool(v)
-	}
-	if v, ok := configMap["tls_cert_file"]; ok {
-		s.config.TLSCertFile = mconv.ToString(v)
-	}
-	if v, ok := configMap["tls_key_file"]; ok {
-		s.config.TLSKeyFile = mconv.ToString(v)
-	}
-	if v, ok := configMap["tls_server_name"]; ok {
-		s.config.TLSServerName = mconv.ToString(v)
-	}
-
-	// graceful shutdown config
-	if v, ok := configMap["graceful_enable"]; ok {
-		s.config.GracefulEnable = mconv.ToBool(v)
-	}
-	if v, ok := configMap["graceful_timeout"]; ok {
-		s.config.GracefulTimeout = mconv.ToDuration(v)
-	}
-	if v, ok := configMap["graceful_wait_time"]; ok {
-		s.config.GracefulWaitTime = mconv.ToDuration(v)
-	}
-
-	// API doc config
-	if v, ok := configMap["openapi_path"]; ok {
-		s.config.OpenapiPath = mconv.ToString(v)
-	}
-	if v, ok := configMap["swagger_path"]; ok {
-		s.config.SwaggerPath = mconv.ToString(v)
-	}
-	if v, ok := configMap["swagger_template"]; ok {
-		s.config.SwaggerTemplate = mconv.ToString(v)
-	}
+func (s *Server) SetConfigWithMap(configMap map[string]any) error {
+	v := viper.New()
+	v.MergeConfigMap(configMap)
+	return v.Unmarshal(s)
 }
 
 // SetAddress sets the server listening address.

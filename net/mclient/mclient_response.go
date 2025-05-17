@@ -3,9 +3,12 @@ package mclient
 import (
 	"bytes"
 	"encoding/json"
+	"encoding/xml"
 	"errors"
+	"fmt"
 	"io"
 	"net/http"
+	"strings"
 
 	"github.com/graingo/maltose/internal/intlog"
 )
@@ -91,9 +94,24 @@ func (r *Response) Parse(result interface{}) error {
 	// Reset Body for multiple reads
 	r.SetBodyContent(body)
 
-	// Try to parse as JSON
-	if err := json.Unmarshal(body, result); err != nil {
-		return err
+	// Attempt to parse the response body
+	mediaType := r.Header.Get("Content-Type")
+	if idx := strings.Index(mediaType, ";"); idx != -1 {
+		mediaType = mediaType[:idx]
+	}
+	mediaType = strings.TrimSpace(strings.ToLower(mediaType)) // Normalize to lower case and trim spaces
+	switch mediaType {
+	case "application/json":
+		return json.Unmarshal(body, result)
+	case "application/xml", "text/xml":
+		return xml.Unmarshal(body, result)
+	case "text/plain":
+	default:
+		resultPtr, ok := result.(*string)
+		if !ok {
+			return fmt.Errorf("mclient: text/plain content type requires a *string to unmarshal into, got %T", result)
+		}
+		*resultPtr = string(body)
 	}
 
 	return nil

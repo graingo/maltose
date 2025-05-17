@@ -17,7 +17,7 @@ type AdapterFile struct {
 	fileName string
 }
 
-// NewAdapterFile 创建一个新的文件适配器
+// NewAdapterFile creates a new file adapter.
 func NewAdapterFile() (*AdapterFile, error) {
 	v := viper.New()
 	v.SetConfigName(DefaultConfigFileName)
@@ -33,26 +33,26 @@ func NewAdapterFile() (*AdapterFile, error) {
 	}, nil
 }
 
-// SetFileName 设置配置文件名
+// SetFileName sets the configuration file name.
 func (c *AdapterFile) SetFileName(name string) {
 	c.fileName = name
 	c.v.SetConfigName(name)
-	// 重新读取配置文件
+	// read the config file again
 	c.v.ReadInConfig()
 }
 
-// Get 获取配置值
+// Get gets the configuration value.
 func (c *AdapterFile) Get(ctx context.Context, pattern string) (any, error) {
 	return c.v.Get(pattern), nil
 }
 
-// Data 获取所有配置数据
+// Data gets all configuration data.
 func (c *AdapterFile) Data(ctx context.Context) (map[string]any, error) {
 	return c.v.AllSettings(), nil
 }
 
-// Available 检查和后端配置服务是否可用。
-// 可选参数 `resource` 指定某些配置资源。
+// Available checks and returns whether the configuration service is available.
+// The optional `resource` parameter specifies certain configuration resources.
 func (c *AdapterFile) Available(ctx context.Context, resource ...string) bool {
 	checkFileName := c.fileName
 	if len(resource) > 0 && resource[0] != "" {
@@ -70,7 +70,7 @@ func (c *AdapterFile) Available(ctx context.Context, resource ...string) bool {
 	return false
 }
 
-// IsExist 检查文件是否存在
+// IsExist checks if the file exists.
 func IsExist(path string) bool {
 	_, err := os.Stat(path)
 	return err == nil || os.IsExist(err)

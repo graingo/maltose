@@ -6,25 +6,26 @@ import (
 
 	"github.com/graingo/maltose/container/minstance"
 	"github.com/graingo/maltose/container/mvar"
+	"github.com/spf13/viper"
 )
 
 var (
 	instances = minstance.New()
 )
 
-// Config 是配置管理对象
+// Config is a configuration management object.
 type Config struct {
 	adapter Adapter
 }
 
 const (
-	// DefaultInstanceName 默认实例名称
+	// DefaultInstanceName is the default instance name.
 	DefaultInstanceName = "config"
-	// DefaultConfigFileName 默认配置文件名
+	// DefaultConfigFileName is the default config file name.
 	DefaultConfigFileName = "config"
 )
 
-// New 创建一个新的配置管理对象，并使用文件适配器
+// New creates a new configuration management object and uses the file adapter.
 func New() (*Config, error) {
 	adapterFile, err := NewAdapterFile()
 	if err != nil {
@@ -35,18 +36,18 @@ func New() (*Config, error) {
 	}, nil
 }
 
-// NewWithAdapter 创建一个新的配置管理对象
+// NewWithAdapter creates a new configuration management object with an adapter.
 func NewWithAdapter(adapter Adapter) *Config {
 	return &Config{
 		adapter: adapter,
 	}
 }
 
-// Instance 返回一个具有默认设置的 Config 实例
-// 参数 `name` 是实例的名称。但需要注意的是，如果配置目录中存在文件 "name.yaml"，则将其设置为默认配置文件
+// Instance returns a Config instance with default settings.
+// The `name` parameter is the instance name. Note that if a file named "name.yaml" exists in the config directory, it will be used as the default config file.
 //
-// 注意：如果配置目录中存在文件 "name.yaml"，则将其设置为默认配置文件
-// 如果配置目录中不存在文件 "name.yaml"，则使用默认配置文件名 "config"
+// Note: If a file named "name.yaml" exists in the config directory, it will be used as the default config file.
+// If a file named "name.yaml" does not exist in the config directory, the default config file name "config" will be used.
 func Instance(name ...string) *Config {
 	var instanceName = DefaultInstanceName
 	if len(name) > 0 && name[0] != "" {
@@ -66,19 +67,26 @@ func Instance(name ...string) *Config {
 	}).(*Config)
 }
 
-// SetAdapter 设置配置适配器
+// SetAdapter sets the configuration adapter.
 func (c *Config) SetAdapter(adapter Adapter) {
 	c.adapter = adapter
 }
 
-// GetAdapter 获取配置适配器
+// GetAdapter gets the configuration adapter.
 func (c *Config) GetAdapter() Adapter {
 	return c.adapter
 }
 
-// Get 获取指定键的配置值
-// 可选参数 `def` 是默认值，如果配置值为空，则返回默认值
-// 如果配置值为空，并且没有提供默认值，则返回 nil
+// getValueByPattern gets the configuration value for the specified key.
+func (c *Config) getValueByPattern(data map[string]any, pattern string) any {
+	v := viper.New()
+	v.MergeConfigMap(data)
+	return v.Get(pattern)
+}
+
+// Get gets the configuration value for the specified key.
+// The optional `def` parameter is the default value. If the configuration value is empty, the default value is returned.
+// If the configuration value is empty and no default value is provided, nil is returned.
 func (c *Config) Get(ctx context.Context, pattern string, def ...any) (*mvar.Var, error) {
 	var (
 		err   error
@@ -88,22 +96,44 @@ func (c *Config) Get(ctx context.Context, pattern string, def ...any) (*mvar.Var
 	if err != nil {
 		return nil, err
 	}
-	if value == nil {
-		if len(def) > 0 {
-			return mvar.New(def[0]), nil
-		}
-		return nil, nil
+	if value != nil {
+		return mvar.New(value), nil
 	}
-	return mvar.New(value), nil
+	if len(afterLoadHooks) > 0 {
+		data, err := c.Data(ctx)
+		if err != nil {
+			return nil, err
+		}
+		if value = c.getValueByPattern(data, pattern); value != nil {
+			return mvar.New(value), nil
+		}
+	}
+	if len(def) > 0 {
+		return mvar.New(def[0]), nil
+	}
+	return nil, nil
 }
 
-// Data 获取所有配置数据
+// Data gets all configuration data.
 func (c *Config) Data(ctx context.Context) (map[string]any, error) {
-	return c.adapter.Data(ctx)
+	rawData, err := c.adapter.Data(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	if len(afterLoadHooks) > 0 {
+		processedData, err := runAfterLoadHooks(ctx, rawData)
+		if err != nil {
+			return nil, err
+		}
+		return processedData, nil
+	}
+
+	return rawData, nil
 }
 
-// Available 检查适配器是否可用
-// 可选参数 `resource` 是资源名称，如果资源名称不为空，则检查资源是否可用
+// Available checks if the adapter is available.
+// The optional `resource` parameter is the resource name. If the resource name is not empty, it checks if the resource is available.
 func (c *Config) Available(ctx context.Context, resource ...string) bool {
 	return c.adapter.Available(ctx, resource...)
 }
