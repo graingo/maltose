@@ -18,6 +18,8 @@
 - 类 GoFrame 的元数据路由注册
 - 支持自动生成 OpenAPI/Swagger 文档
 - 简洁优雅的项目结构
+- 规范的代码分层架构
+- 易于扩展的模块化设计
 
 # 快速开始
 
@@ -25,6 +27,24 @@
 
 ```bash
 go get -u github.com/graingo/maltose
+```
+
+## 创建项目
+
+通过我们提供的快速启动模板创建新项目：
+
+```bash
+# 克隆快速启动模板
+git clone https://github.com/graingo/maltose-quickstart.git myproject
+
+# 进入项目目录
+cd myproject
+
+# 修改go.mod中的模块名
+# 将 github.com/graingo/maltose-quickstart 替换为你的项目包名
+
+# 运行项目
+go run main.go
 ```
 
 ## Hello World
@@ -105,31 +125,62 @@ server:
 
 # 项目结构
 
+## 框架源码结构
+
 ```
 maltose/
 ├── frame/          # 框架核心
-│   ├── m/         # 框架入口
-│   └── mins/      # 框架实例管理
-├── net/           # 网络相关
-│   └── mhttp/     # HTTP 服务实现
-├── os/            # 系统相关
-│   ├── mcfg/      # 配置管理
-│   └── mlog/      # 日志系统
-└── util/          # 工具包
-    └── mmeta/     # 元数据工具
+│   ├── m/          # 框架入口
+│   └── mins/       # 框架实例管理
+├── net/            # 网络相关
+│   ├── mhttp/      # HTTP 服务实现
+│   └── mclient/    # HTTP 客户端
+├── database/       # 数据库相关
+│   └── mdb/        # 数据库操作封装
+├── os/             # 系统相关
+│   ├── mcfg/       # 配置管理
+│   └── mlog/       # 日志系统
+├── util/           # 工具包
+│   └── mmeta/      # 元数据工具
+└── contrib/        # 扩展集成
+    ├── trace/      # 链路追踪
+    ├── metric/     # 指标监控
+    └── config/     # 配置中心
 ```
 
-# TODO
+## 最佳工程实践目录结构
 
-- [ x ] mhttp 服务器
-- [ x ] mcfg 配置
-- [ x ] 链路跟踪
-- [ x ] mclient http 请求
-- [ ] mqueue 异步任务和队列
-- [ x ] mdb 数据库
-- [ ] mcache 缓存
-- [ ] mgrpc gRPC 支持？
-- [ ] mcli 生成脚手架，基于数据库表结构生成 model
+```
+project/
+├── api/            # API 定义和请求/响应结构
+│   └── v1/         # API 版本
+├── cmd/            # 应用程序入口
+│   └── server.go   # 服务器启动
+├── config/         # 配置文件
+├── internal/       # 内部代码，不对外暴露
+│   ├── controller/ # 控制器，处理请求和响应
+│   ├── service/    # 服务层，实现业务逻辑
+│   ├── dao/        # 数据访问对象，处理数据库操作
+│   └── model/      # 模型定义
+│       ├── entity/ # 实体定义，映射数据库表结构
+│       └── do/     # 数据对象，用于业务数据传输
+├── route/          # 路由定义
+│   └── route.go    # 路由注册
+├── utility/        # 工具函数
+└── main.go         # 主入口文件
+```
+
+# 功能清单
+
+- [x] mhttp 服务器 - HTTP 服务框架
+- [x] mcfg 配置 - 配置管理
+- [x] mtrace 链路跟踪 - 分布式追踪
+- [x] mclient HTTP 请求 - HTTP 客户端
+- [x] mdb 数据库 - 数据库操作封装
+- [ ] mqueue 异步任务和队列 - 消息队列
+- [ ] mcache 缓存 - 缓存管理
+- [ ] mgrpc gRPC 支持 - RPC 服务
+- [ ] mcli 脚手架工具 - 基于数据库表结构生成代码
 
 # 贡献指南
 
