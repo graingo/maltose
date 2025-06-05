@@ -93,6 +93,10 @@ func (s *Server) initOpenAPI(_ context.Context) {
 			pathItem.Put = operation
 		case "DELETE":
 			pathItem.Delete = operation
+		case "PATCH":
+			pathItem.Patch = operation
+		case "HEAD":
+			pathItem.Head = operation
 		}
 		spec.Paths[route.Path] = pathItem
 	}

@@ -22,6 +22,8 @@ type PathItem struct {
 	Post   *Operation `json:"post,omitempty"`
 	Put    *Operation `json:"put,omitempty"`
 	Delete *Operation `json:"delete,omitempty"`
+	Patch  *Operation `json:"patch,omitempty"`
+	Head   *Operation `json:"head,omitempty"`
 }
 
 type Operation struct {
