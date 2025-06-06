@@ -1,6 +1,8 @@
+// Package gen contains the common logic for code generation.
 package gen
 
 import (
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -8,7 +10,9 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
+	"github.com/fatih/color"
 	"github.com/iancoleman/strcase"
 )
 
@@ -28,9 +32,7 @@ func (g *ServiceGenerator) Gen() error {
 			return err
 		}
 		if !info.IsDir() && strings.HasSuffix(info.Name(), ".go") {
-			if err := g.genFromFile(path); err != nil {
-				return fmt.Errorf("failed to generate from file %s: %w", path, err)
-			}
+			return g.genFromFile(path)
 		}
 		return nil
 	})
@@ -55,21 +57,117 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 		return err
 	}
 
-	genInfo.Interface = g.InterfaceMode
+	// The package for the controller to import is always ".../internal/service".
+	genInfo.SvcPackage = strings.ReplaceAll(filepath.Join(g.Module, "internal", "service"), "\\", "/")
 
-	// Set SvcModule path
-	svcPath := filepath.Join(g.Module, g.DstPath, "service", genInfo.Module)
-	genInfo.SvcModule = strings.ReplaceAll(svcPath, "\\", "/")
-
-	// Generate Service
-	svcOutputPath := filepath.Join(g.DstPath, "service", genInfo.Module, genInfo.FileName)
-	if err := generateFile(svcOutputPath, "service", TplGenService, genInfo); err != nil {
-		return err
+	// --- Service File Generation (Create if not exist, skip if exist) ---
+	svcOutputPath := filepath.Join(g.DstPath, "service", genInfo.FileName)
+	if _, err := os.Stat(svcOutputPath); os.IsNotExist(err) {
+		// File does not exist, generate skeleton.
+		templateName := TplGenService
+		if g.InterfaceMode {
+			templateName = TplGenServiceInterface
+		}
+		if err := generateFile(svcOutputPath, "service", templateName, genInfo); err != nil {
+			return fmt.Errorf("failed to generate service skeleton: %w", err)
+		}
+	} else {
+		// File exists, skip with a warning.
+		color.Yellow("Warning: Service file [%s] already exists, skipping generation.", genInfo.FileName)
 	}
 
-	// Generate Controller
-	controllerOutputPath := filepath.Join(g.DstPath, "controller", genInfo.Module, genInfo.FileName)
-	return generateFile(controllerOutputPath, "controller", TplGenController, genInfo)
+	// --- Controller Generation (Create or Append) ---
+	// Case 1: Professional layout like api/<module>/<version>/...
+	if genInfo.Version != "" && genInfo.Module != genInfo.Version {
+		// Handle controller struct file (create if not exist, otherwise skip)
+		controllerStructPath := filepath.Join(g.DstPath, "controller", genInfo.Module, genInfo.Module+".go")
+		if _, err := os.Stat(controllerStructPath); os.IsNotExist(err) {
+			if err := generateFile(controllerStructPath, "controllerStruct", TplGenControllerStruct, genInfo); err != nil {
+				return fmt.Errorf("failed to generate controller struct: %w", err)
+			}
+		}
+
+		// Handle controller method file (create or append)
+		// The method file is always named after the module, not the individual api file.
+		methodFileName := fmt.Sprintf("%s_%s.go", genInfo.Module, strings.ToLower(genInfo.Version))
+		controllerMethodPath := filepath.Join(g.DstPath, "controller", genInfo.Module, methodFileName)
+		return g.generateOrAppend(controllerMethodPath, TplGenControllerMethod, TplGenControllerMethodOnly, genInfo)
+	}
+
+	// Case 2: Simple layout like api/<version>/...
+	controllerPath := filepath.Join(g.DstPath, "controller", genInfo.Version, genInfo.FileName)
+	return g.generateOrAppend(controllerPath, TplGenController, TplGenControllerMethodOnly, genInfo)
+}
+
+// generateOrAppend handles the logic of creating a new file or appending to an existing one.
+func (g *ServiceGenerator) generateOrAppend(filePath, fullTpl, appendTpl string, data *ServiceTplData) error {
+	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		// File does not exist, generate a new one from scratch.
+		return generateFile(filePath, "controller", fullTpl, data)
+	}
+
+	// File exists, proceed with append logic.
+	existingMethods, err := parseGoFileForMethods(filePath)
+	if err != nil {
+		return fmt.Errorf("could not parse existing controller file %s: %w", filePath, err)
+	}
+
+	var methodsToAppend []Function
+	for _, neededMethod := range data.Functions {
+		if _, exists := existingMethods[neededMethod.Name]; !exists {
+			methodsToAppend = append(methodsToAppend, neededMethod)
+		}
+	}
+
+	if len(methodsToAppend) > 0 {
+		color.Yellow("Warning: Appending %d new method(s) to existing controller file: %s", len(methodsToAppend), filePath)
+		appendData := *data
+		appendData.Functions = methodsToAppend
+		return appendToFile(filePath, appendTpl, &appendData)
+	}
+
+	return nil // Nothing to append
+}
+
+// appendToFile executes a template and appends the result to a file.
+func appendToFile(filePath, tplContent string, data *ServiceTplData) error {
+	var buffer bytes.Buffer
+	tpl, err := template.New("method").Parse(tplContent)
+	if err != nil {
+		return fmt.Errorf("failed to parse append template: %w", err)
+	}
+	if err := tpl.Execute(&buffer, data); err != nil {
+		return fmt.Errorf("failed to execute append template: %w", err)
+	}
+
+	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open file for appending: %w", err)
+	}
+	defer f.Close()
+
+	if _, err := f.Write(buffer.Bytes()); err != nil {
+		return fmt.Errorf("failed to append to file: %w", err)
+	}
+	return nil
+}
+
+// parseGoFileForMethods parses a Go file and returns a set of its method names.
+func parseGoFileForMethods(path string) (map[string]struct{}, error) {
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, path, nil, 0)
+	if err != nil {
+		return nil, err
+	}
+
+	methods := make(map[string]struct{})
+	ast.Inspect(node, func(n ast.Node) bool {
+		if fn, isFn := n.(*ast.FuncDecl); isFn && fn.Recv != nil && len(fn.Recv.List) > 0 {
+			methods[fn.Name.Name] = struct{}{}
+		}
+		return true
+	})
+	return methods, nil
 }
 
 type Parser struct {
@@ -79,90 +177,117 @@ type Parser struct {
 	moduleRoot string
 }
 
-type Function struct {
-	Name    string
-	ReqName string
-	ResName string
-}
-
 func (p *Parser) Parse() (*ServiceTplData, error) {
 	var functions []Function
-	var currentReq, currentRes string
+	var moduleName, versionName, structBaseName, fileName string
 
-	fileName := strings.TrimSuffix(filepath.Base(p.file.Name.Name), ".go")
+	// --- Enhanced Path Parsing Logic ---
+	fullPath := p.fset.File(p.file.Pos()).Name()
+	relPath, err := filepath.Rel(p.moduleRoot, fullPath)
+	if err != nil {
+		return nil, fmt.Errorf("could not determine file path relative to module root: %w", err)
+	}
+
+	parts := strings.Split(filepath.ToSlash(relPath), "/")
+	apiIndex := -1
+	for i, part := range parts {
+		if part == "api" {
+			apiIndex = i
+			break
+		}
+	}
+
+	if apiIndex == -1 {
+		return nil, fmt.Errorf("path does not contain 'api' directory: %s", fullPath)
+	}
+
+	// api/<module>/<version>/<file>.go
+	if len(parts) > apiIndex+3 {
+		moduleName = parts[apiIndex+1]
+		versionName = parts[apiIndex+2]
+		fileName = parts[len(parts)-1]
+		structBaseName = strings.TrimSuffix(fileName, ".go")
+		// api/v1/hello.go -> api/hello/v1/hello.go (module=hello, version=v1)
+	} else if len(parts) > apiIndex+2 { // api/<version>/<file>.go
+		versionName = parts[apiIndex+1]
+		fileName = parts[len(parts)-1]
+		structBaseName = strings.TrimSuffix(fileName, ".go")
+		moduleName = versionName // In this case, the module is the version
+	} else {
+		return nil, fmt.Errorf("path format not supported. Use 'api/<version>/<file>.go' or 'api/<module>/<version>/<file>.go': %s", fullPath)
+	}
 
 	info := &ServiceTplData{
-		Module:     fileName,
-		Service:    strcase.ToCamel(fileName),
-		Controller: strcase.ToCamel(fileName),
-		SvcName:    strcase.ToCamel(fileName),
+		Module:     moduleName,
+		Service:    strcase.ToCamel(structBaseName),
+		Controller: strcase.ToCamel(moduleName) + strcase.ToCamel(versionName),
+		SvcName:    strcase.ToCamel(structBaseName),
 		ApiModule:  "", // Will be calculated below
-		SvcModule:  "", // Will be set later
 		ApiPkg:     p.file.Name.Name,
-		FileName:   fileName + ".go",
+		FileName:   fileName,
+		Version:    strcase.ToCamel(versionName),
 		Functions:  nil,
 	}
 
-	fullPath := p.fset.File(p.file.Pos()).Name()
+	// For simple case, controller name is c<Service>
+	if moduleName == versionName {
+		info.Controller = "c" + strcase.ToCamel(structBaseName)
+		info.Module = structBaseName // for logic and service file generation
+	}
+
 	absPath, err := filepath.Abs(fullPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not get absolute path for %s: %w", fullPath, err)
 	}
 
 	if p.moduleRoot != "" {
-		relPath, err := filepath.Rel(p.moduleRoot, filepath.Dir(absPath))
+		relDir, err := filepath.Rel(p.moduleRoot, filepath.Dir(absPath))
 		if err != nil {
 			return nil, fmt.Errorf("could not get relative path for %s: %w", absPath, err)
 		}
-		info.ApiModule = filepath.Join(p.module, relPath)
+		info.ApiModule = filepath.ToSlash(filepath.Join(p.module, relDir))
 	} else {
 		// Fallback for when module root is not found
-		apiModuleDir := filepath.Dir(strings.Replace(fullPath, "\\\\", "/", -1))
-		apiModuleDir = strings.ReplaceAll(apiModuleDir, "\\", "/")
+		apiModuleDir := filepath.ToSlash(filepath.Dir(fullPath))
 		if p.module != "" {
 			if i := strings.Index(apiModuleDir, p.module); i != -1 {
 				info.ApiModule = apiModuleDir[i:]
 			}
 		}
 	}
-	info.ApiModule = strings.ReplaceAll(info.ApiModule, "\\", "/")
+
+	// --- Robust Req/Res Parsing Logic ---
+	reqs := make(map[string]bool)
+	ress := make(map[string]bool)
 
 	ast.Inspect(p.file, func(n ast.Node) bool {
-		decl, ok := n.(*ast.GenDecl)
-		if !ok || decl.Tok != token.TYPE {
+		spec, ok := n.(*ast.TypeSpec)
+		if !ok {
 			return true
 		}
 
-		for _, spec := range decl.Specs {
-			typeSpec, ok := spec.(*ast.TypeSpec)
-			if !ok {
-				continue
-			}
-
-			if strings.HasSuffix(typeSpec.Name.Name, "Req") {
-				currentReq = typeSpec.Name.Name
-			} else if strings.HasSuffix(typeSpec.Name.Name, "Res") {
-				currentRes = typeSpec.Name.Name
-			}
-
-			if currentReq != "" && currentRes != "" {
-				funcName := strings.TrimSuffix(currentReq, "Req")
-				if strings.TrimSuffix(currentRes, "Res") == funcName {
-					functions = append(functions, Function{
-						Name:    funcName,
-						ReqName: currentReq,
-						ResName: currentRes,
-					})
-					currentReq, currentRes = "", ""
-				}
-			}
+		if strings.HasSuffix(spec.Name.Name, "Req") {
+			reqs[spec.Name.Name] = true
+		} else if strings.HasSuffix(spec.Name.Name, "Res") {
+			ress[spec.Name.Name] = true
 		}
-
 		return true
 	})
 
+	for reqName := range reqs {
+		funcName := strings.TrimSuffix(reqName, "Req")
+		resName := funcName + "Res"
+		if ress[resName] {
+			functions = append(functions, Function{
+				Name:    funcName,
+				ReqName: reqName,
+				ResName: resName,
+			})
+		}
+	}
+
 	if len(functions) == 0 {
-		return nil, fmt.Errorf("no matching Req/Res struct pairs found")
+		return nil, fmt.Errorf("no matching Req/Res struct pairs found in %s", fileName)
 	}
 
 	info.Functions = functions

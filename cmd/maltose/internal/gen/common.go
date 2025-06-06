@@ -18,19 +18,28 @@ import (
 	"gorm.io/gorm"
 )
 
-// ServiceTplData holds all the template variables for generating service and controller files.
+// ServiceTplData holds all the template variables for generating service files.
 type ServiceTplData struct {
-	Module      string
-	Service     string
-	Controller  string
-	SvcName     string
-	ApiModule   string
-	SvcModule   string
-	ApiPkg      string
-	FileName    string
-	Interface   bool
-	Functions   []Function
-	PackageName string
+	Module       string
+	Service      string
+	Controller   string
+	SvcName      string
+	ApiModule    string
+	ApiPkg       string
+	FileName     string
+	Interface    bool
+	Functions    []Function
+	PackageName  string
+	LogicPackage string
+	SvcPackage   string
+	Version      string
+}
+
+// Function holds the details of a function to be generated.
+type Function struct {
+	Name    string
+	ReqName string
+	ResName string
 }
 
 // DaoTplData holds all the template variables for generating DAO and entity files.
@@ -76,12 +85,13 @@ func generateFile(path, tplName, tplContent string, data interface{}) error {
 
 // funcMap contains helper functions for the templates.
 var funcMap = template.FuncMap{
-	"toCamel":    strcase.ToCamel,
-	"toSingular": inflection.Singular,
-	"dbTypeToGo": dbTypeToGo,
-	"makeTags":   makeTags,
-	"firstLower": strcase.ToLowerCamel,
-	"toTitle":    cases.Title(language.English).String,
+	"toCamel":     strcase.ToCamel,
+	"toSingular":  inflection.Singular,
+	"dbTypeToGo":  dbTypeToGo,
+	"makeTags":    makeTags,
+	"makeRemarks": makeRemarks,
+	"firstLower":  strcase.ToLowerCamel,
+	"toTitle":     cases.Title(language.English).String,
 	"trimPackage": func(pkgName string) string {
 		parts := strings.Split(pkgName, "/")
 		return parts[len(parts)-1]
@@ -137,4 +147,13 @@ func dbTypeToGo(column gorm.ColumnType) string {
 // makeTags creates gorm and json struct tags for a field.
 func makeTags(column gorm.ColumnType) string {
 	return fmt.Sprintf(`gorm:"column:%s" json:"%s"`, column.Name(), strcase.ToLowerCamel(column.Name()))
+}
+
+// makeRemarks creates remarks for a field.
+func makeRemarks(column gorm.ColumnType) string {
+	comment, ok := column.Comment()
+	if !ok {
+		return ""
+	}
+	return fmt.Sprintf("// %s", comment)
 }

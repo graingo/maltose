@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
@@ -16,12 +15,12 @@ var modelCmd = &cobra.Command{
 and generates GORM models in 'internal/model/entity'.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Starting GORM model generation...")
+		PrintInfo("Starting GORM model generation...\n")
 		if err := gen.GenerateModel(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			PrintError("%v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("✅ GORM models generated successfully.")
+		PrintSuccess("✅ GORM models generated successfully.\n")
 	},
 }
 

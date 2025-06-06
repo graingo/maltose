@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/openapi"
@@ -27,12 +26,12 @@ Default output file: ./openapi.yaml
 		// Define the output file path
 		outputFile := "./openapi.yaml"
 
-		fmt.Printf("Generating OpenAPI spec from: %s\n", srcDir)
+		PrintInfo("Generating OpenAPI spec from: %s\n", srcDir)
 		if err := openapi.Generate(srcDir, outputFile); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			PrintError("%v\n", err)
 			os.Exit(1)
 		}
-		fmt.Printf("Successfully generated OpenAPI specification to %s\n", outputFile)
+		PrintSuccess("Successfully generated OpenAPI specification to %s\n", outputFile)
 	},
 }
 

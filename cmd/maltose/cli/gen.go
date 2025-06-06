@@ -8,7 +8,7 @@ import (
 var genCmd = &cobra.Command{
 	Use:   "gen",
 	Short: "A collection of code generation commands",
-	Long:  `A collection of code generation commands for Maltose projects, such as generating models and DAOs.`,
+	Long:  `A collection of code generation commands for Maltose projects, such as generating models, daos, services, controllers, etc.`,
 }
 
 func init() {

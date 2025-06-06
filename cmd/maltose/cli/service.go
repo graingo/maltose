@@ -2,7 +2,6 @@ package cli
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"path/filepath"
 
@@ -12,11 +11,11 @@ import (
 )
 
 var (
-	srcPath    string
-	dstPath    string
-	moduleName string
-	moduleRoot string
-	genMode    string
+	srcPath     string
+	dstPath     string
+	moduleName  string
+	modRootFlag string
+	genMode     string
 )
 
 // serviceCmd represents the service command
@@ -35,29 +34,65 @@ it will recursively find all .go files.`,
 			srcPath = args[0]
 		}
 
-		absSrc, err := filepath.Abs(srcPath)
-		if err != nil {
-			log.Fatalf("Error getting absolute source path: %v", err)
+		var modRoot string
+
+		// If --mod-root is set, use it directly.
+		if modRootFlag != "" {
+			var err error
+			modRoot, err = filepath.Abs(modRootFlag)
+			if err != nil {
+				PrintError("Failed to get absolute path for --mod-root: %v\n", err)
+				os.Exit(1)
+			}
+		} else {
+			// Otherwise, find it based on current working directory.
+			cwd, err := os.Getwd()
+			if err != nil {
+				PrintError("Failed to get current working directory: %v\n", err)
+				os.Exit(1)
+			}
+			_, modRoot, err = findModuleInfo(cwd)
+			if err != nil {
+				PrintError("Could not find go.mod to determine module info: %v. Please run from within a Go module or use the --mod-root flag.\n", err)
+				os.Exit(1)
+			}
 		}
 
-		moduleName, moduleRoot, err = findModuleInfo(absSrc)
+		// Read the go.mod file from the determined root to get the module name
+		goModPath := filepath.Join(modRoot, "go.mod")
+		content, err := os.ReadFile(goModPath)
 		if err != nil {
-			log.Fatalf("Error: Could not find go.mod to determine module info: %v. Please run this command in a valid Go module.", err)
+			PrintError("Could not read go.mod at %s: %v\n", goModPath, err)
+			os.Exit(1)
+		}
+		detectedModule := modfile.ModulePath(content)
+
+		// Priority for module name: flag > detected
+		if moduleName == "" {
+			moduleName = detectedModule
+		}
+
+		// Source path needs to be absolute for reliable processing
+		absSrc, err := filepath.Abs(srcPath)
+		if err != nil {
+			PrintError("Failed to get absolute source path: %v\n", err)
+			os.Exit(1)
 		}
 
 		generator := &gen.ServiceGenerator{
 			SrcPath:       absSrc,
 			DstPath:       dstPath,
 			Module:        moduleName,
-			ModuleRoot:    moduleRoot,
+			ModuleRoot:    modRoot,
 			InterfaceMode: genMode == "interface",
 		}
 
 		if err := generator.Gen(); err != nil {
-			log.Fatalf("Error generating services: %v", err)
+			PrintError("%v\n", err)
+			os.Exit(1)
 		}
 
-		fmt.Println("Service and controller files generated successfully.")
+		PrintSuccess("Service and controller files generated successfully.\n")
 	},
 }
 
@@ -84,4 +119,6 @@ func init() {
 	serviceCmd.Flags().StringVarP(&srcPath, "src", "s", "api", "Source path for API definition files (directory or file)")
 	serviceCmd.Flags().StringVarP(&dstPath, "dst", "d", "internal", "Destination path for generated files")
 	serviceCmd.Flags().StringVarP(&genMode, "mode", "m", "interface", "Generation mode: 'interface' or 'struct'")
+	serviceCmd.Flags().StringVar(&moduleName, "module", "", "Go module name (e.g., github.com/user/project). If not set, it is detected from go.mod.")
+	serviceCmd.Flags().StringVar(&modRootFlag, "mod-root", "", "Manually specify the module root directory containing go.mod.")
 }

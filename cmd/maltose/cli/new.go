@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -30,13 +29,13 @@ It automatically replaces the module path in the new project's go.mod file.
 			repoURL = "https://github.com/graingo/maltose-quickstart.git"
 		}
 
-		fmt.Printf("Creating a new Maltose project in './%s'...\n", projectName)
-		fmt.Printf("Using template from: %s\n", repoURL)
+		PrintInfo("Creating a new Maltose project in './%s'...\n", projectName)
+		PrintInfo("Using template from: %s\n", repoURL)
 
 		// 1. Clone the repository
 		cloneCmd := exec.Command("git", "clone", repoURL, projectName)
 		if err := cloneCmd.Run(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error cloning template repository: %v\n", err)
+			PrintError("Cloning template repository failed: %v\n", err)
 			os.Exit(1)
 		}
 
@@ -49,7 +48,7 @@ It automatically replaces the module path in the new project's go.mod file.
 		// 3. Remove the .git directory
 		gitPath := filepath.Join(projectName, ".git")
 		if err := os.RemoveAll(gitPath); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to remove .git directory: %v\n", err)
+			PrintError("Failed to remove .git directory: %v\n", err)
 			os.Exit(1)
 		}
 
@@ -59,22 +58,22 @@ It automatically replaces the module path in the new project's go.mod file.
 
 		input, err := os.ReadFile(goModPath)
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to read go.mod: %v\n", err)
+			PrintError("Failed to read go.mod: %v\n", err)
 			os.Exit(1)
 		}
 
 		output := strings.Replace(string(input), oldModulePath, newModulePath, 1)
 		if err = os.WriteFile(goModPath, []byte(output), 0644); err != nil {
-			fmt.Fprintf(os.Stderr, "Failed to write updated go.mod: %v\n", err)
+			PrintError("Failed to write updated go.mod: %v\n", err)
 			os.Exit(1)
 		}
 
-		fmt.Printf("✅ Project '%s' created successfully.\n", projectName)
-		fmt.Printf("Module path set to '%s'.\n", newModulePath)
-		fmt.Println("\nTo get started:")
-		fmt.Printf("  cd %s\n", projectName)
-		fmt.Println("  go mod tidy")
-		fmt.Println("  go run .")
+		PrintSuccess("Project '%s' created successfully.\n", projectName)
+		PrintInfo("Module path set to '%s'.\n", newModulePath)
+		PrintInfo("\nTo get started:\n")
+		PrintInfo("  cd %s\n", projectName)
+		PrintInfo("  go mod tidy\n")
+		PrintInfo("  go run .\n")
 	},
 }
 

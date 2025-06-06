@@ -1,7 +1,6 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
@@ -16,12 +15,12 @@ var daoCmd = &cobra.Command{
 DAO layer in 'internal/dao' and 'internal/dao/internal'.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		fmt.Println("Starting DAO layer generation...")
+		PrintInfo("Starting DAO layer generation...\n")
 		if err := gen.GenerateDao(); err != nil {
-			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
+			PrintError("%v\n", err)
 			os.Exit(1)
 		}
-		fmt.Println("✅ DAO layer generated successfully.")
+		PrintSuccess("✅ DAO layer generated successfully.\n")
 	},
 }
 
