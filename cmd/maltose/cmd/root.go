@@ -10,7 +10,11 @@ import (
 var rootCmd = &cobra.Command{
 	Use:   "maltose",
 	Short: "Maltose CLI application",
-	Long:  `A longer description that spans multiple lines and likely contains examples and usage of using your application.`,
+	Long: `Maltose CLI is a powerful tool for the Maltose framework.
+
+It provides a collection of commands to boost your development efficiency,
+including creating new projects, generating code (models, DAO), 
+and generating OpenAPI documentation.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Default action when no subcommand is provided
 		fmt.Println("Maltose CLI. Use 'maltose help' for more information.")
