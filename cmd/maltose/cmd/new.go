@@ -11,6 +11,7 @@ import (
 )
 
 var moduleFlag string
+var repoURLFlag string
 
 // newCmd represents the new command
 var newCmd = &cobra.Command{
@@ -22,9 +23,15 @@ It automatically replaces the module path in the new project's go.mod file.
 	Args: cobra.ExactArgs(1), // Requires exactly one argument: the project name
 	Run: func(cmd *cobra.Command, args []string) {
 		projectName := args[0]
-		repoURL := "https://github.com/graingo/maltose-quickstart.git"
+
+		// Determine the repository URL to use
+		repoURL := repoURLFlag
+		if repoURL == "" {
+			repoURL = "https://github.com/graingo/maltose-quickstart.git"
+		}
 
 		fmt.Printf("Creating a new Maltose project in './%s'...\n", projectName)
+		fmt.Printf("Using template from: %s\n", repoURL)
 
 		// 1. Clone the repository
 		cloneCmd := exec.Command("git", "clone", repoURL, projectName)
@@ -74,4 +81,5 @@ It automatically replaces the module path in the new project's go.mod file.
 func init() {
 	rootCmd.AddCommand(newCmd)
 	newCmd.Flags().StringVar(&moduleFlag, "module", "", "Specify the Go module path for the new project.")
+	newCmd.Flags().StringVar(&repoURLFlag, "repo-url", "", "Specify a custom git repository URL for the project template.")
 }
