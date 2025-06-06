@@ -1,10 +1,10 @@
 module github.com/graingo/maltose/cmd/maltose
 
-go 1.23.9
+go 1.22.5
 
 require (
 	github.com/getkin/kin-openapi v0.132.0
-	github.com/graingo/maltose v0.0.0-20250517031718-84b638e89ec7
+	github.com/graingo/maltose v0.0.0-00010101000000-000000000000
 	github.com/jinzhu/inflection v1.0.0
 	github.com/joho/godotenv v1.5.1
 	github.com/spf13/cobra v1.8.0
@@ -28,5 +28,7 @@ require (
 	github.com/oasdiff/yaml3 v0.0.0-20250309153720-d2182401db90 // indirect
 	github.com/perimeterx/marshmallow v1.1.5 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
-	github.com/spf13/pflag v1.0.5 // indirect
+	github.com/spf13/pflag v1.0.6 // indirect
 )
+
+replace github.com/graingo/maltose => ../../
