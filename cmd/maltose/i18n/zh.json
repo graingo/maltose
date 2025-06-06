@@ -5,7 +5,7 @@
   },
   {
     "id": "goModNotFound",
-    "translation": "无法找到 go.mod 来确定模块信息: {{.Error}}。请在有效的 Go 模块中运行此命令。"
+    "translation": "无法找到 go.mod 来确定模块信息: {{.Error}}；请在有效的 Go 模块中运行此命令"
   },
   {
     "id": "serviceGenerationSuccess",
@@ -17,7 +17,7 @@
   },
   {
     "id": "gormModelGenerationSuccess",
-    "translation": "✅ GORM 模型生成成功。"
+    "translation": "✅ GORM 模型生成成功"
   },
   {
     "id": "openAPIGenerationStart",
@@ -33,7 +33,7 @@
   },
   {
     "id": "logicGenerationSuccess",
-    "translation": "Logic 文件生成成功。"
+    "translation": "Logic 文件生成成功"
   },
   {
     "id": "newProjectCreationStart",
