@@ -17,7 +17,7 @@ func GenerateModel() error {
 	fmt.Println("H Generating entity files...")
 	for _, table := range tables {
 		structName := strcase.ToCamel(inflection.Singular(table.Name))
-		data := DaoTplData{
+		data := daoTplData{
 			TableName:  table.Name,
 			StructName: structName,
 			Columns:    table.Columns,

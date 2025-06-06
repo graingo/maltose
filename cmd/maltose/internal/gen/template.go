@@ -28,7 +28,7 @@ const (
 		panic("implement me")
 	}
 	{{end}}
-	`
+`
 
 	// TplGenControllerStruct is the template for the controller struct definition file.
 	// Used for the case: api/<module>/<version>/...
@@ -42,7 +42,7 @@ const (
 	func New{{.Version}}() *{{.Controller}} {
 		return &{{.Controller}}{}
 	}
-	`
+`
 
 	// TplGenControllerMethod is the template for the controller method implementation file.
 	// Used for the case: api/<module>/<version>/...
@@ -63,7 +63,7 @@ const (
 		panic("implement me")
 	}
 	{{end}}
-	`
+`
 
 	// TplGenControllerMethodOnly is the template for appending new methods to an existing controller file.
 	TplGenControllerMethodOnly = `
@@ -95,7 +95,7 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 	func {{.Service}}() *s{{.Service}} {
 		return local{{.Service}}
 	}
-	`
+`
 
 	// TplGenServiceInterface is the template for the service interface.
 	TplGenServiceInterface = `// =================================================================================
@@ -122,7 +122,7 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 	func Register{{.Service}}(i I{{.Service}}) {
 		local{{.Service}} = i
 	}
-	`
+`
 
 	// TplGenServiceLogic is the template for the service logic implementation.
 	TplGenServiceLogic = `// =================================================================================
@@ -155,7 +155,7 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 		return
 	}
 	{{end}}
-	`
+`
 
 	// TplGenEntity is the template for generating model entity files.
 	TplGenEntity = `// =================================================================================
@@ -166,7 +166,7 @@ package entity
 // {{.StructName}} is the golang structure for table {{.TableName}}.
 type {{.StructName}} struct {
 {{- range .Columns}}
-    {{toCamel .Name}} {{dbTypeToGo .}} ` + "`{{makeTags .}}`" + `
+    {{toCamel .Name}} {{dbTypeToGo .}} ` + "`{{makeTags .}}`" + ` + {{makeRemarks .}}
 {{- end}}
 }
 

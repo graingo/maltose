@@ -25,6 +25,30 @@ type ServiceGenerator struct {
 	InterfaceMode bool   // Whether to generate service with interface
 }
 
+// Function holds the parsed information of a function.
+type serviceFunction struct {
+	Name         string
+	ReqName      string
+	ResName      string
+	ReqIsPointer bool
+	ResIsPointer bool
+}
+
+// ServiceTplData is the data structure for the service template.
+type serviceTplData struct {
+	Module       string
+	Service      string
+	Controller   string
+	SvcName      string
+	ApiModule    string
+	ApiPkg       string
+	FileName     string
+	Version      string
+	VersionLower string
+	Functions    []serviceFunction
+	SvcPackage   string
+}
+
 // Gen generates the service and controller files.
 func (g *ServiceGenerator) Gen() error {
 	return filepath.Walk(g.SrcPath, func(path string, info os.FileInfo, err error) error {
@@ -78,7 +102,7 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 
 	// --- Controller Generation (Create or Append) ---
 	// Case 1: Professional layout like api/<module>/<version>/...
-	if genInfo.Version != "" && genInfo.Module != genInfo.Version {
+	if genInfo.Version != "" && !strings.EqualFold(genInfo.Module, genInfo.Version) {
 		// Handle controller struct file (create if not exist, otherwise skip)
 		controllerStructPath := filepath.Join(g.DstPath, "controller", genInfo.Module, genInfo.Module+".go")
 		if _, err := os.Stat(controllerStructPath); os.IsNotExist(err) {
@@ -88,19 +112,18 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 		}
 
 		// Handle controller method file (create or append)
-		// The method file is always named after the module, not the individual api file.
 		methodFileName := fmt.Sprintf("%s_%s.go", genInfo.Module, strings.ToLower(genInfo.Version))
 		controllerMethodPath := filepath.Join(g.DstPath, "controller", genInfo.Module, methodFileName)
 		return g.generateOrAppend(controllerMethodPath, TplGenControllerMethod, TplGenControllerMethodOnly, genInfo)
 	}
 
 	// Case 2: Simple layout like api/<version>/...
-	controllerPath := filepath.Join(g.DstPath, "controller", genInfo.Version, genInfo.FileName)
+	controllerPath := filepath.Join(g.DstPath, "controller", genInfo.VersionLower, genInfo.FileName)
 	return g.generateOrAppend(controllerPath, TplGenController, TplGenControllerMethodOnly, genInfo)
 }
 
 // generateOrAppend handles the logic of creating a new file or appending to an existing one.
-func (g *ServiceGenerator) generateOrAppend(filePath, fullTpl, appendTpl string, data *ServiceTplData) error {
+func (g *ServiceGenerator) generateOrAppend(filePath, fullTpl, appendTpl string, data *serviceTplData) error {
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
 		// File does not exist, generate a new one from scratch.
 		return generateFile(filePath, "controller", fullTpl, data)
@@ -112,7 +135,7 @@ func (g *ServiceGenerator) generateOrAppend(filePath, fullTpl, appendTpl string,
 		return fmt.Errorf("could not parse existing controller file %s: %w", filePath, err)
 	}
 
-	var methodsToAppend []Function
+	var methodsToAppend []serviceFunction
 	for _, neededMethod := range data.Functions {
 		if _, exists := existingMethods[neededMethod.Name]; !exists {
 			methodsToAppend = append(methodsToAppend, neededMethod)
@@ -130,7 +153,7 @@ func (g *ServiceGenerator) generateOrAppend(filePath, fullTpl, appendTpl string,
 }
 
 // appendToFile executes a template and appends the result to a file.
-func appendToFile(filePath, tplContent string, data *ServiceTplData) error {
+func appendToFile(filePath, tplContent string, data *serviceTplData) error {
 	var buffer bytes.Buffer
 	tpl, err := template.New("method").Parse(tplContent)
 	if err != nil {
@@ -177,8 +200,8 @@ type Parser struct {
 	moduleRoot string
 }
 
-func (p *Parser) Parse() (*ServiceTplData, error) {
-	var functions []Function
+func (p *Parser) Parse() (*serviceTplData, error) {
+	var functions []serviceFunction
 	var moduleName, versionName, structBaseName, fileName string
 
 	// --- Enhanced Path Parsing Logic ---
@@ -217,22 +240,22 @@ func (p *Parser) Parse() (*ServiceTplData, error) {
 		return nil, fmt.Errorf("path format not supported. Use 'api/<version>/<file>.go' or 'api/<module>/<version>/<file>.go': %s", fullPath)
 	}
 
-	info := &ServiceTplData{
-		Module:     moduleName,
-		Service:    strcase.ToCamel(structBaseName),
-		Controller: strcase.ToCamel(moduleName) + strcase.ToCamel(versionName),
-		SvcName:    strcase.ToCamel(structBaseName),
-		ApiModule:  "", // Will be calculated below
-		ApiPkg:     p.file.Name.Name,
-		FileName:   fileName,
-		Version:    strcase.ToCamel(versionName),
-		Functions:  nil,
+	info := &serviceTplData{
+		Module:       moduleName,
+		Service:      strcase.ToCamel(structBaseName),
+		Controller:   strcase.ToCamel(moduleName) + strcase.ToCamel(versionName),
+		SvcName:      strcase.ToCamel(structBaseName),
+		ApiModule:    "", // Will be calculated below
+		ApiPkg:       p.file.Name.Name,
+		FileName:     fileName,
+		Version:      strcase.ToCamel(versionName),
+		VersionLower: strings.ToLower(versionName),
+		Functions:    nil,
 	}
 
 	// For simple case, controller name is c<Service>
-	if moduleName == versionName {
+	if strings.EqualFold(moduleName, versionName) {
 		info.Controller = "c" + strcase.ToCamel(structBaseName)
-		info.Module = structBaseName // for logic and service file generation
 	}
 
 	absPath, err := filepath.Abs(fullPath)
@@ -278,7 +301,7 @@ func (p *Parser) Parse() (*ServiceTplData, error) {
 		funcName := strings.TrimSuffix(reqName, "Req")
 		resName := funcName + "Res"
 		if ress[resName] {
-			functions = append(functions, Function{
+			functions = append(functions, serviceFunction{
 				Name:    funcName,
 				ReqName: reqName,
 				ResName: resName,

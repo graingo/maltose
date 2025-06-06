@@ -9,9 +9,9 @@ import (
 )
 
 var logicCmd = &cobra.Command{
-	Use:   "logic",
-	Short: "Generate logic file from service interface",
-	Long:  `Generate logic file implementation from a service interface file.`,
+	Use:   "logic [path]",
+	Short: "Generate logic files from service interfaces",
+	Long:  `Generate logic file implementations from service interface files.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Priority: argument > flag
 		if len(args) > 0 {
@@ -49,6 +49,6 @@ var logicCmd = &cobra.Command{
 func init() {
 	genCmd.AddCommand(logicCmd)
 
-	logicCmd.Flags().StringVarP(&srcPath, "src", "s", "internal/service", "Source service interface file (required)")
-	logicCmd.Flags().StringVarP(&dstPath, "dst", "d", "internal/logic", "Destination directory for generated files")
+	logicCmd.Flags().StringVarP(&srcPath, "src", "s", "internal/service", "Source directory for service interface files")
+	logicCmd.Flags().StringVarP(&dstPath, "dst", "d", "internal", "Destination root directory for generated files")
 }

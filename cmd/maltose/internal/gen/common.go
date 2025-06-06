@@ -18,40 +18,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// ServiceTplData holds all the template variables for generating service files.
-type ServiceTplData struct {
-	Module       string
-	Service      string
-	Controller   string
-	SvcName      string
-	ApiModule    string
-	ApiPkg       string
-	FileName     string
-	Interface    bool
-	Functions    []Function
-	PackageName  string
-	LogicPackage string
-	SvcPackage   string
-	Version      string
-}
-
-// Function holds the details of a function to be generated.
-type Function struct {
-	Name    string
-	ReqName string
-	ResName string
-}
-
-// DaoTplData holds all the template variables for generating DAO and entity files.
-type DaoTplData struct {
-	TableName       string
-	StructName      string
-	PackageName     string
-	InternalDaoName string
-	DaoName         string
-	Columns         []gorm.ColumnType
-}
-
 // generateFile creates a file based on a template.
 func generateFile(path, tplName, tplContent string, data interface{}) error {
 	// Create the template

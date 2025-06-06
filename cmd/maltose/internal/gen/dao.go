@@ -9,7 +9,18 @@ import (
 
 	"github.com/iancoleman/strcase"
 	"github.com/jinzhu/inflection"
+	"gorm.io/gorm"
 )
+
+// daoTplData holds all the template variables for generating DAO and entity files.
+type daoTplData struct {
+	TableName       string
+	StructName      string
+	PackageName     string
+	InternalDaoName string
+	DaoName         string
+	Columns         []gorm.ColumnType
+}
 
 // GenerateDao generates only the DAO files.
 func GenerateDao() error {
@@ -26,7 +37,7 @@ func GenerateDao() error {
 	for _, table := range tables {
 		structName := strcase.ToCamel(inflection.Singular(table.Name))
 		daoName := structName + "Dao"
-		data := DaoTplData{
+		data := daoTplData{
 			TableName:   table.Name,
 			StructName:  structName,
 			PackageName: modulePath,
