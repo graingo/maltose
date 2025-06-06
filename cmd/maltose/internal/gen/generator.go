@@ -1,5 +1,5 @@
-// Package gendao handles the logic for DAO layer generation.
-package gendao
+// Package gen handles the logic for DAO layer generation.
+package gen
 
 import (
 	"bytes"

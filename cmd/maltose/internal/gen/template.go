@@ -1,4 +1,4 @@
-package gendao
+package gen
 
 import (
 	"bytes"
