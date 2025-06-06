@@ -1,7 +1,6 @@
 package gen
 
 import (
-	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -9,7 +8,6 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
-	"text/template"
 
 	"github.com/iancoleman/strcase"
 )
@@ -64,51 +62,14 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	genInfo.SvcModule = strings.ReplaceAll(svcPath, "\\", "/")
 
 	// Generate Service
-	if err := g.generateFile("service", TplGenService, genInfo); err != nil {
+	svcOutputPath := filepath.Join(g.DstPath, "service", genInfo.Module, genInfo.FileName)
+	if err := generateFile(svcOutputPath, "service", TplGenService, genInfo); err != nil {
 		return err
 	}
 
 	// Generate Controller
-	return g.generateFile("controller", TplGenController, genInfo)
-}
-
-func (g *ServiceGenerator) generateFile(fileType, tplContent string, data *GenerationInfo) error {
-	var tpl *template.Template
-	var err error
-
-	// Custom functions for templates
-	funcMap := template.FuncMap{
-		"ToLower": strings.ToLower,
-		"ToCamel": strcase.ToCamel,
-		"ToKebab": strcase.ToKebab,
-		"ToSnake": strcase.ToSnake,
-		"FirstLower": func(s string) string {
-			if len(s) == 0 {
-				return ""
-			}
-			return strings.ToLower(string(s[0])) + s[1:]
-		},
-	}
-
-	tpl, err = template.New(fileType).Funcs(funcMap).Parse(tplContent)
-	if err != nil {
-		return fmt.Errorf("failed to parse template: %w", err)
-	}
-
-	var buffer bytes.Buffer
-	if err := tpl.Execute(&buffer, data); err != nil {
-		return fmt.Errorf("failed to execute template: %w", err)
-	}
-
-	// Determine output path
-	outputPath := filepath.Join(g.DstPath, fileType, data.Module)
-	if err := os.MkdirAll(outputPath, os.ModePerm); err != nil {
-		return err
-	}
-	outputFile := filepath.Join(outputPath, data.FileName)
-
-	// Write the generated file
-	return os.WriteFile(outputFile, buffer.Bytes(), 0644)
+	controllerOutputPath := filepath.Join(g.DstPath, "controller", genInfo.Module, genInfo.FileName)
+	return generateFile(controllerOutputPath, "controller", TplGenController, genInfo)
 }
 
 type Parser struct {
@@ -118,32 +79,19 @@ type Parser struct {
 	moduleRoot string
 }
 
-type GenerationInfo struct {
-	Module     string
-	Service    string
-	Controller string
-	SvcName    string
-	ApiModule  string
-	SvcModule  string
-	ApiPkg     string
-	FileName   string
-	Interface  bool
-	Functions  []Function
-}
-
 type Function struct {
 	Name    string
 	ReqName string
 	ResName string
 }
 
-func (p *Parser) Parse() (*GenerationInfo, error) {
+func (p *Parser) Parse() (*ServiceTplData, error) {
 	var functions []Function
 	var currentReq, currentRes string
 
 	fileName := strings.TrimSuffix(filepath.Base(p.file.Name.Name), ".go")
 
-	info := &GenerationInfo{
+	info := &ServiceTplData{
 		Module:     fileName,
 		Service:    strcase.ToCamel(fileName),
 		Controller: strcase.ToCamel(fileName),

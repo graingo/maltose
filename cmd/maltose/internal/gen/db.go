@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -20,21 +21,27 @@ type DBInfo struct {
 // TableInfo holds information about a database table.
 type TableInfo struct {
 	Name    string
-	Columns []*gorm.ColumnType
+	Columns []gorm.ColumnType
 }
 
 // GetDBConnection creates and returns a GORM DB instance.
 func GetDBConnection(info DBInfo) (*gorm.DB, error) {
-	var dsn string
+	var dialector gorm.Dialector
+
 	switch info.DBType {
 	case "mysql":
-		dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
+		dsn := fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
 			info.User, info.Pass, info.Host, info.Port, info.Name)
+		dialector = mysql.Open(dsn)
+	case "pg", "postgres":
+		dsn := fmt.Sprintf("host=%s user=%s password=%s dbname=%s port=%s sslmode=disable TimeZone=Asia/Shanghai",
+			info.Host, info.User, info.Pass, info.Name, info.Port)
+		dialector = postgres.Open(dsn)
 	default:
 		return nil, fmt.Errorf("unsupported database type: %s", info.DBType)
 	}
 
-	db, err := gorm.Open(mysql.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(dialector, &gorm.Config{})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}
@@ -55,14 +62,9 @@ func GetTables(db *gorm.DB) ([]TableInfo, error) {
 			return nil, fmt.Errorf("failed to get columns for table %s: %w", name, err)
 		}
 
-		var colTypes []*gorm.ColumnType
-		for _, c := range columns {
-			colTypes = append(colTypes, &c)
-		}
-
 		tables = append(tables, TableInfo{
 			Name:    name,
-			Columns: colTypes,
+			Columns: columns,
 		})
 	}
 

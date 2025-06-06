@@ -2,13 +2,11 @@
 package gen
 
 import (
-	"bytes"
 	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
-	"text/template"
 
 	"github.com/iancoleman/strcase"
 	"github.com/jinzhu/inflection"
@@ -21,47 +19,6 @@ var (
 	db     *gorm.DB
 	tables []TableInfo
 )
-
-type templateData struct {
-	TableName         string
-	StructName        string
-	PackageName       string
-	InternalDaoName   string
-	DaoName           string
-	FirstLowerDaoName string
-	Columns           []*gorm.ColumnType
-}
-
-var funcMap = template.FuncMap{
-	"toCamel": toCamel,
-}
-
-func toCamel(s string) string {
-	parts := strings.Split(s, "_")
-	for i, part := range parts {
-		if len(part) > 0 {
-			parts[i] = strings.ToUpper(part[:1]) + part[1:]
-		}
-	}
-	return strings.Join(parts, "")
-}
-
-func generateFile(data templateData, tpl *template.Template, path string) error {
-	dir := filepath.Dir(path)
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		if err := os.MkdirAll(dir, 0755); err != nil {
-			return fmt.Errorf("failed to create directory %s: %w", dir, err)
-		}
-	}
-
-	file, err := os.Create(path)
-	if err != nil {
-		return fmt.Errorf("failed to create file %s: %w", path, err)
-	}
-	defer file.Close()
-
-	return tpl.Execute(file, data)
-}
 
 // initDB loads .env, connects to the database, and gets table schemas.
 // It uses a shared state to avoid reconnecting if called multiple times.
@@ -131,22 +88,18 @@ func GenerateModel() error {
 	}
 
 	fmt.Println("H Generating entity files...")
-	tpl, err := template.New("entity").Funcs(funcMap).Parse(TplGenEntity)
-	if err != nil {
-		return fmt.Errorf("failed to parse entity template: %w", err)
-	}
-
 	for _, table := range tables {
-		data := templateData{
+		structName := strcase.ToCamel(inflection.Singular(table.Name))
+		data := DaoTplData{
 			TableName:  table.Name,
-			StructName: toCamel(inflection.Singular(table.Name)),
+			StructName: structName,
 			Columns:    table.Columns,
 		}
 
 		outputPath := filepath.Join("internal", "model", "entity", fmt.Sprintf("%s.go", table.Name))
 
 		fmt.Printf("  -> Generating %s\n", outputPath)
-		if err := generateFile(data, tpl, outputPath); err != nil {
+		if err := generateFile(outputPath, "entity", TplGenEntity, data); err != nil {
 			return err
 		}
 	}
@@ -165,37 +118,26 @@ func GenerateDao() error {
 		return fmt.Errorf("failed to get go module path: %w", err)
 	}
 
-	internalTpl, err := template.New("daoInternal").Funcs(funcMap).Parse(TplGenDaoInternal)
-	if err != nil {
-		return fmt.Errorf("failed to parse dao internal template: %w", err)
-	}
-	daoTpl, err := template.New("dao").Funcs(funcMap).Parse(TplGenDao)
-	if err != nil {
-		return fmt.Errorf("failed to parse dao template: %w", err)
-	}
-
 	for _, table := range tables {
-		structName := toCamel(inflection.Singular(table.Name))
+		structName := strcase.ToCamel(inflection.Singular(table.Name))
 		daoName := structName + "Dao"
-		data := templateData{
-			TableName:         table.Name,
-			StructName:        structName,
-			PackageName:       modulePath,
-			InternalDaoName:   "s" + daoName,
-			DaoName:           daoName,
-			FirstLowerDaoName: strcase.ToLowerCamel(daoName),
+		data := DaoTplData{
+			TableName:   table.Name,
+			StructName:  structName,
+			PackageName: modulePath,
+			DaoName:     daoName,
 		}
 
 		internalPath := filepath.Join("internal", "dao", "internal", fmt.Sprintf("%s.go", table.Name))
 		fmt.Printf("  -> Generating %s\n", internalPath)
-		if err := generateFile(data, internalTpl, internalPath); err != nil {
+		if err := generateFile(internalPath, "daoInternal", TplGenDaoInternal, data); err != nil {
 			return err
 		}
 
 		daoPath := filepath.Join("internal", "dao", fmt.Sprintf("%s.go", table.Name))
 		if _, err := os.Stat(daoPath); os.IsNotExist(err) {
 			fmt.Printf("  -> Generating %s\n", daoPath)
-			if err := generateFile(data, daoTpl, daoPath); err != nil {
+			if err := generateFile(daoPath, "dao", TplGenDao, data); err != nil {
 				return err
 			}
 		} else {
@@ -207,7 +149,7 @@ func GenerateDao() error {
 
 func getGoModulePath() (string, error) {
 	cmd := exec.Command("go", "list", "-m")
-	var out bytes.Buffer
+	var out strings.Builder
 	cmd.Stdout = &out
 	err := cmd.Run()
 	if err != nil {
