@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -16,26 +17,31 @@ var (
 	tables []TableInfo
 )
 
-// initDB loads .env, connects to the database, and gets table schemas.
-// It uses a shared state to avoid reconnecting if called multiple times.
+// initDB ensures the database connection is initialized.
 func initDB() error {
 	if db != nil {
 		return nil // Already initialized
 	}
 
-	// Check for .env file and create an example if it doesn't exist.
+	// Load .env file if it exists
 	if _, err := os.Stat(".env"); os.IsNotExist(err) {
-		fmt.Println("'.env' file not found. Creating a '.env.example' for you.")
-		err := createEnvExample()
-		if err != nil {
-			return fmt.Errorf("failed to create .env.example: %w", err)
+		// Create a .env.example file
+		exampleContent := `DB_TYPE=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASSWORD=
+DB_NAME=test
+`
+		if writeErr := os.WriteFile(".env.example", []byte(exampleContent), 0644); writeErr != nil {
+			return fmt.Errorf("failed to write .env.example: %w", writeErr)
 		}
-		return fmt.Errorf("please copy '.env.example' to '.env' and fill in your database credentials")
+		utils.PrintInfo("envFileNotFound", nil)
 	}
 
-	fmt.Println("🔎 Loading .env file...")
+	utils.PrintInfo("loadingEnvFile", nil)
 	if err := godotenv.Load(); err != nil {
-		return fmt.Errorf(".env file found but failed to load: %w", err)
+		return fmt.Errorf("error loading .env file: %w", err)
 	}
 
 	dbInfo := DBInfo{
@@ -48,18 +54,19 @@ func initDB() error {
 	}
 
 	var err error
-	fmt.Println("⚡ Connecting to the database...")
+	utils.PrintInfo("connectingToDatabase", nil)
 	db, err = GetDBConnection(dbInfo)
 	if err != nil {
 		return err
 	}
 
-	fmt.Println("🔍 Inspecting database schema...")
+	// Inspect the database schema
+	utils.PrintInfo("inspectingDatabase", nil)
 	tables, err = GetTables(db)
 	if err != nil {
 		return err
 	}
-	fmt.Printf("✔ Found %d tables.\n", len(tables))
+	utils.PrintInfo("foundTables", map[string]interface{}{"Count": len(tables)})
 	return nil
 }
 

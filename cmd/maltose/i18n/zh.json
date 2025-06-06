@@ -94,5 +94,53 @@
   {
     "id": "genericError",
     "translation": "{{.Error}}"
+  },
+  {
+    "id": "daoFilesGenerationStart",
+    "translation": "H 正在生成 dao 文件..."
+  },
+  {
+    "id": "generatingFile",
+    "translation": "  -> 正在生成 {{.Path}}"
+  },
+  {
+    "id": "skippingFile",
+    "translation": "  -> 跳过 {{.Path}} (文件已存在)"
+  },
+  {
+    "id": "entityFilesGenerationStart",
+    "translation": "H 正在生成实体文件..."
+  },
+  {
+    "id": "formatSourceFailed",
+    "translation": "格式化源码失败: {{.Path}}, 将写入未格式化的代码。错误: {{.Error}}"
+  },
+  {
+    "id": "envFileNotFound",
+    "translation": "未找到 '.env' 文件。将为您创建一个 '.env.example'。"
+  },
+  {
+    "id": "loadingEnvFile",
+    "translation": "🔎 正在加载 .env 文件..."
+  },
+  {
+    "id": "connectingToDatabase",
+    "translation": "⚡ 正在连接数据库..."
+  },
+  {
+    "id": "inspectingDatabase",
+    "translation": "🔍 正在检查数据库结构..."
+  },
+  {
+    "id": "foundTables",
+    "translation": "✔ 已找到 {{.Count}} 个表。"
+  },
+  {
+    "id": "scanningDirectory",
+    "translation": "正在扫描目录: {{.Path}}"
+  },
+  {
+    "id": "foundAPIDefinitions",
+    "translation": "已找到 {{.Count}} 个 API 端点定义。"
   }
 ]

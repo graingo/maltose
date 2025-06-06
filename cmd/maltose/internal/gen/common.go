@@ -5,12 +5,12 @@ import (
 	"bytes"
 	"fmt"
 	"go/format"
-	"log"
 	"os"
 	"path/filepath"
 	"strings"
 	"text/template"
 
+	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/iancoleman/strcase"
 	"github.com/jinzhu/inflection"
 	"golang.org/x/text/cases"
@@ -41,7 +41,7 @@ func generateFile(path, tplName, tplContent string, data interface{}) error {
 	// Format the generated code
 	formatted, err := format.Source(buf.Bytes())
 	if err != nil {
-		log.Printf("failed to format source for %s, writing unformatted code. Error: %v\n", path, err)
+		utils.PrintWarn("formatSourceFailed", map[string]interface{}{"Path": path, "Error": err})
 		formatted = buf.Bytes() // Write unformatted code on error
 	}
 

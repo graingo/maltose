@@ -94,5 +94,53 @@
   {
     "id": "genericError",
     "translation": "{{.Error}}"
+  },
+  {
+    "id": "daoFilesGenerationStart",
+    "translation": "H Generating dao files..."
+  },
+  {
+    "id": "generatingFile",
+    "translation": "  -> Generating {{.Path}}"
+  },
+  {
+    "id": "skippingFile",
+    "translation": "  -> Skipping {{.Path}} (already exists)"
+  },
+  {
+    "id": "entityFilesGenerationStart",
+    "translation": "H Generating entity files..."
+  },
+  {
+    "id": "formatSourceFailed",
+    "translation": "failed to format source for {{.Path}}, writing unformatted code. Error: {{.Error}}"
+  },
+  {
+    "id": "envFileNotFound",
+    "translation": "'.env' file not found. Creating a '.env.example' for you."
+  },
+  {
+    "id": "loadingEnvFile",
+    "translation": "🔎 Loading .env file..."
+  },
+  {
+    "id": "connectingToDatabase",
+    "translation": "⚡ Connecting to the database..."
+  },
+  {
+    "id": "inspectingDatabase",
+    "translation": "🔍 Inspecting database schema..."
+  },
+  {
+    "id": "foundTables",
+    "translation": "✔ Found {{.Count}} tables."
+  },
+  {
+    "id": "scanningDirectory",
+    "translation": "Scanning directory: {{.Path}}"
+  },
+  {
+    "id": "foundAPIDefinitions",
+    "translation": "Found {{.Count}} API endpoint definitions."
   }
 ]

@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/graingo/maltose/cmd/maltose/utils"
 	"gopkg.in/yaml.v3"
 )
 
 // Generate scans the given directory for Go files, parses them,
 // builds an OpenAPI specification, and writes it to the output file.
 func Generate(srcDir, outputFile string) error {
-	fmt.Printf("Scanning directory: %s\n", srcDir)
+	utils.PrintInfo("scanningDirectory", map[string]interface{}{"Path": srcDir})
 
 	// Step 1: Parse the source code in the directory.
 	// The parser will return a structured representation of the API definitions.
@@ -24,7 +25,7 @@ func Generate(srcDir, outputFile string) error {
 		return fmt.Errorf("no API definitions (structs with m.Meta) found in %s", srcDir)
 	}
 
-	fmt.Printf("Found %d API endpoint definitions.\n", len(apiDefs))
+	utils.PrintInfo("foundAPIDefinitions", map[string]interface{}{"Count": len(apiDefs)})
 
 	// Step 2: Build the OpenAPI specification from the parsed definitions.
 	spec, err := BuildSpec(apiDefs)

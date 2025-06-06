@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"path/filepath"
 
+	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/iancoleman/strcase"
 	"github.com/jinzhu/inflection"
 )
@@ -14,7 +15,7 @@ func GenerateModel() error {
 		return err
 	}
 
-	fmt.Println("H Generating entity files...")
+	utils.PrintInfo("entityFilesGenerationStart", nil)
 	for _, table := range tables {
 		structName := strcase.ToCamel(inflection.Singular(table.Name))
 		data := daoTplData{
@@ -25,7 +26,7 @@ func GenerateModel() error {
 
 		outputPath := filepath.Join("internal", "model", "entity", fmt.Sprintf("%s.go", table.Name))
 
-		fmt.Printf("  -> Generating %s\n", outputPath)
+		utils.PrintInfo("generatingFile", map[string]interface{}{"Path": outputPath})
 		if err := generateFile(outputPath, "entity", TplGenEntity, data); err != nil {
 			return err
 		}

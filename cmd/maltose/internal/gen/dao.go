@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/iancoleman/strcase"
 	"github.com/jinzhu/inflection"
 	"gorm.io/gorm"
@@ -28,7 +29,7 @@ func GenerateDao() error {
 		return err
 	}
 
-	fmt.Println("H Generating dao files...")
+	utils.PrintInfo("daoFilesGenerationStart", nil)
 	modulePath, err := getGoModulePath()
 	if err != nil {
 		return fmt.Errorf("failed to get go module path: %w", err)
@@ -45,19 +46,19 @@ func GenerateDao() error {
 		}
 
 		internalPath := filepath.Join("internal", "dao", "internal", fmt.Sprintf("%s.go", table.Name))
-		fmt.Printf("  -> Generating %s\n", internalPath)
+		utils.PrintInfo("generatingFile", map[string]interface{}{"Path": internalPath})
 		if err := generateFile(internalPath, "daoInternal", TplGenDaoInternal, data); err != nil {
 			return err
 		}
 
 		daoPath := filepath.Join("internal", "dao", fmt.Sprintf("%s.go", table.Name))
 		if _, err := os.Stat(daoPath); os.IsNotExist(err) {
-			fmt.Printf("  -> Generating %s\n", daoPath)
+			utils.PrintInfo("generatingFile", map[string]interface{}{"Path": daoPath})
 			if err := generateFile(daoPath, "dao", TplGenDao, data); err != nil {
 				return err
 			}
 		} else {
-			fmt.Printf("  -> Skipping %s (already exists)\n", daoPath)
+			utils.PrintInfo("skippingFile", map[string]interface{}{"Path": daoPath})
 		}
 	}
 	return nil
