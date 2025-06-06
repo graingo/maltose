@@ -30,3 +30,13 @@ func PrintInfo(messageID string, templateData TplData) {
 	message := i18n.T(messageID, templateData)
 	color.White(message)
 }
+
+// Print returns a localized message.
+func Print(messageID string) string {
+	return i18n.T(messageID, nil)
+}
+
+// Printf returns a formatted, localized message.
+func Printf(messageID string, templateData TplData) string {
+	return i18n.T(messageID, templateData)
+}

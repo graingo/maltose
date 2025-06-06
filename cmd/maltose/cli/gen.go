@@ -1,14 +1,15 @@
 package cli
 
 import (
+	"github.com/graingo/maltose/cmd/maltose/i18n"
 	"github.com/spf13/cobra"
 )
 
 // genCmd represents the gen command which is a parent for other generation commands.
 var genCmd = &cobra.Command{
 	Use:   "gen",
-	Short: "A collection of code generation commands",
-	Long:  `A collection of code generation commands for Maltose projects, such as generating models, daos, services, controllers, etc.`,
+	Short: i18n.T("gen_cmd_short", nil),
+	Long:  i18n.T("gen_cmd_long", nil),
 }
 
 func init() {

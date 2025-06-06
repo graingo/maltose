@@ -10,16 +10,14 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var versionFlag bool
+var (
+	versionFlag bool
+)
 
 var rootCmd = &cobra.Command{
 	Use:   "maltose",
-	Short: "Maltose CLI application",
-	Long: `Maltose CLI is a powerful tool for the Maltose framework.
-
-It provides a collection of commands to boost your development efficiency,
-including creating new projects, generating code (models, DAO), 
-and generating OpenAPI documentation.`,
+	Short: i18n.T("root_cmd_short", nil),
+	Long:  i18n.T("root_cmd_long", nil),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if versionFlag {
 			fmt.Printf("Maltose CLI version: %s\n", maltose.VERSION)
@@ -57,16 +55,6 @@ func getSystemLang() string {
 }
 
 func init() {
-	// Here you will define your flags and configuration settings.
-	// cobra.OnInitialize(initConfig) // Example: if you have a config file
-
 	rootCmd.PersistentFlags().BoolVarP(&versionFlag, "version", "v", false, "Print the version number of Maltose")
 	rootCmd.PersistentFlags().StringVar(&i18n.Lang, "lang", getSystemLang(), "Language for CLI output (e.g., 'en', 'zh'). Defaults to system language.")
-	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.maltose.yaml)")
-	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
-}
-
-// AddCommand allows adding subcommands from other files.
-func AddCommand(cmd *cobra.Command) {
-	rootCmd.AddCommand(cmd)
 }

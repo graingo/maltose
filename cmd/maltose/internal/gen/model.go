@@ -24,7 +24,7 @@ func (g *ModelGenerator) Gen() error {
 		return err
 	}
 
-	utils.PrintInfo("entityFilesGenerationStart", nil)
+	utils.PrintInfo("entity_files_generation_start", nil)
 	for _, table := range tables {
 		structName := strcase.ToCamel(inflection.Singular(table.Name))
 		data := daoTplData{
@@ -35,7 +35,7 @@ func (g *ModelGenerator) Gen() error {
 
 		outputPath := filepath.Join("internal", "model", "entity", fmt.Sprintf("%s.go", table.Name))
 
-		utils.PrintInfo("generatingFile", utils.TplData{"Path": outputPath})
+		utils.PrintInfo("generating_file", utils.TplData{"Path": outputPath})
 		if err := generateFile(outputPath, "entity", TplGenEntity, data); err != nil {
 			return err
 		}

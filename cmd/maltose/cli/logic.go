@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 
+	"github.com/graingo/maltose/cmd/maltose/i18n"
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
@@ -12,8 +13,8 @@ import (
 // logicCmd represents the logic command
 var logicCmd = &cobra.Command{
 	Use:   "logic [path]",
-	Short: "Generate logic file from service definitions",
-	Long:  `Generate logic file based on Go files containing service interface definitions.`,
+	Short: i18n.T("logic_cmd_short", nil),
+	Long:  i18n.T("logic_cmd_long", nil),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Priority: argument > flag
 		if len(args) > 0 {
@@ -22,13 +23,13 @@ var logicCmd = &cobra.Command{
 
 		absSrc, err := filepath.Abs(srcPath)
 		if err != nil {
-			utils.PrintError("failedToGetAbsPath", utils.TplData{"Error": err})
+			utils.PrintError("failed_to_get_abs_path", utils.TplData{"Error": err})
 			os.Exit(1)
 		}
 
 		moduleName, moduleRoot, err := utils.GetModuleInfo(absSrc)
 		if err != nil {
-			utils.PrintError("goModNotFound", utils.TplData{"Error": err})
+			utils.PrintError("go_mod_not_found", utils.TplData{"Error": err})
 			os.Exit(1)
 		}
 
@@ -39,11 +40,11 @@ var logicCmd = &cobra.Command{
 		}
 
 		if err := generator.Gen(); err != nil {
-			utils.PrintError("logicGenerationFailed", utils.TplData{"Error": err})
+			utils.PrintError("logic_generation_failed", utils.TplData{"Error": err})
 			os.Exit(1)
 		}
 
-		utils.PrintSuccess("logicGenerationSuccess", nil)
+		utils.PrintSuccess("logic_generation_success", nil)
 	},
 }
 

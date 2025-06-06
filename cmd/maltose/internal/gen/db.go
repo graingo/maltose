@@ -28,10 +28,10 @@ func initDB() error {
 		if err := createEnvExample(); err != nil {
 			return err
 		}
-		utils.PrintInfo("envFileNotFound", nil)
+		utils.PrintInfo("env_file_not_found", nil)
 	}
 
-	utils.PrintInfo("loadingEnvFile", nil)
+	utils.PrintInfo("loading_env_file", nil)
 	if err := godotenv.Load(); err != nil {
 		return fmt.Errorf("error loading .env file: %w", err)
 	}
@@ -46,19 +46,19 @@ func initDB() error {
 	}
 
 	var err error
-	utils.PrintInfo("connectingToDatabase", nil)
+	utils.PrintInfo("connecting_to_database", nil)
 	db, err = GetDBConnection(dbInfo)
 	if err != nil {
 		return err
 	}
 
 	// Inspect the database schema
-	utils.PrintInfo("inspectingDatabase", nil)
+	utils.PrintInfo("inspecting_database", nil)
 	tables, err = GetTables(db)
 	if err != nil {
 		return err
 	}
-	utils.PrintInfo("foundTables", utils.TplData{"Count": len(tables)})
+	utils.PrintInfo("found_tables", utils.TplData{"Count": len(tables)})
 	return nil
 }
 
