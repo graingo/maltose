@@ -1,0 +1,98 @@
+[
+  {
+    "id": "failedToGetAbsPath",
+    "translation": "获取绝对源码路径失败: {{.Error}}"
+  },
+  {
+    "id": "goModNotFound",
+    "translation": "无法找到 go.mod 来确定模块信息: {{.Error}}。请在有效的 Go 模块中运行此命令。"
+  },
+  {
+    "id": "serviceGenerationSuccess",
+    "translation": "Service 和 controller 文件生成成功"
+  },
+  {
+    "id": "gormModelGenerationStart",
+    "translation": "开始生成 GORM 模型..."
+  },
+  {
+    "id": "gormModelGenerationSuccess",
+    "translation": "✅ GORM 模型生成成功。"
+  },
+  {
+    "id": "openAPIGenerationStart",
+    "translation": "从以下位置生成 OpenAPI 规范: {{.Source}}"
+  },
+  {
+    "id": "openAPIGenerationSuccess",
+    "translation": "成功生成 OpenAPI 规范到 {{.Output}}"
+  },
+  {
+    "id": "logicGenerationFailed",
+    "translation": "生成 logic 文件失败: {{.Error}}"
+  },
+  {
+    "id": "logicGenerationSuccess",
+    "translation": "Logic 文件生成成功。"
+  },
+  {
+    "id": "newProjectCreationStart",
+    "translation": "正在 './{{.ProjectName}}' 中创建新的 Maltose 项目..."
+  },
+  {
+    "id": "newProjectTemplate",
+    "translation": "使用模板: {{.RepoURL}}"
+  },
+  {
+    "id": "newProjectCloneFailed",
+    "translation": "克隆模板仓库失败: {{.Error}}"
+  },
+  {
+    "id": "newProjectGitRemoveFailed",
+    "translation": "移除 .git 目录失败: {{.Error}}"
+  },
+  {
+    "id": "newProjectGoModReadFailed",
+    "translation": "读取 go.mod 失败: {{.Error}}"
+  },
+  {
+    "id": "newProjectGoModWriteFailed",
+    "translation": "写入更新后的 go.mod 失败: {{.Error}}"
+  },
+  {
+    "id": "newProjectSuccess",
+    "translation": "项目 '{{.ProjectName}}' 创建成功"
+  },
+  {
+    "id": "newProjectModulePathSet",
+    "translation": "模块路径已设置为 '{{.ModulePath}}'"
+  },
+  {
+    "id": "newProjectGetStarted",
+    "translation": "\n开始使用:"
+  },
+  {
+    "id": "newProjectGetStartedCD",
+    "translation": "  cd {{.ProjectName}}"
+  },
+  {
+    "id": "newProjectGetStartedTidy",
+    "translation": "  go mod tidy"
+  },
+  {
+    "id": "newProjectGetStartedRun",
+    "translation": "  go run ."
+  },
+  {
+    "id": "daoGenerationStart",
+    "translation": "开始生成 DAO 层..."
+  },
+  {
+    "id": "daoGenerationSuccess",
+    "translation": "✅ DAO 层生成成功"
+  },
+  {
+    "id": "genericError",
+    "translation": "{{.Error}}"
+  }
+]

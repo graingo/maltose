@@ -5,13 +5,15 @@ import (
 	"path/filepath"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
+	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
 )
 
+// logicCmd represents the logic command
 var logicCmd = &cobra.Command{
 	Use:   "logic [path]",
-	Short: "Generate logic files from service interfaces",
-	Long:  `Generate logic file implementations from service interface files.`,
+	Short: "Generate logic file from service definitions",
+	Long:  `Generate logic file based on Go files containing service interface definitions.`,
 	Run: func(cmd *cobra.Command, args []string) {
 		// Priority: argument > flag
 		if len(args) > 0 {
@@ -20,35 +22,33 @@ var logicCmd = &cobra.Command{
 
 		absSrc, err := filepath.Abs(srcPath)
 		if err != nil {
-			PrintError("Failed to get absolute source path: %v\n", err)
+			utils.PrintError("failedToGetAbsPath", map[string]interface{}{"Error": err})
 			os.Exit(1)
 		}
 
 		moduleName, moduleRoot, err := findModuleInfo(absSrc)
 		if err != nil {
-			PrintError("Could not find go.mod to determine module info: %v. Please run this command in a valid Go module.\n", err)
+			utils.PrintError("goModNotFound", map[string]interface{}{"Error": err})
 			os.Exit(1)
 		}
 
 		generator := &gen.LogicGenerator{
-			SrcPath:    srcPath,
-			DstPath:    dstPath,
+			SrcPath:    absSrc,
 			Module:     moduleName,
 			ModuleRoot: moduleRoot,
 		}
 
 		if err := generator.Gen(); err != nil {
-			PrintError("Failed to generate logic file: %v\n", err)
+			utils.PrintError("logicGenerationFailed", map[string]interface{}{"Error": err})
 			os.Exit(1)
 		}
 
-		PrintSuccess("Logic file generated successfully.\n")
+		utils.PrintSuccess("logicGenerationSuccess", nil)
 	},
 }
 
 func init() {
 	genCmd.AddCommand(logicCmd)
 
-	logicCmd.Flags().StringVarP(&srcPath, "src", "s", "internal/service", "Source directory for service interface files")
-	logicCmd.Flags().StringVarP(&dstPath, "dst", "d", "internal", "Destination root directory for generated files")
+	logicCmd.Flags().StringVarP(&srcPath, "src", "s", "internal/service", "Source path for service definition files")
 }

@@ -4,7 +4,9 @@ import (
 	"fmt"
 	"os"
 
+	"github.com/Xuanwo/go-locale"
 	"github.com/graingo/maltose"
+	"github.com/graingo/maltose/cmd/maltose/i18n"
 	"github.com/spf13/cobra"
 )
 
@@ -31,10 +33,27 @@ and generating OpenAPI documentation.`,
 // Execute adds all child commands to the root command and sets flags appropriately.
 // This is called by main.main(). It only needs to happen once to the rootCmd.
 func Execute() {
+	// Initialize i18n after flags are parsed but before command execution
+	cobra.OnInitialize(i18n.Init)
+
 	if err := rootCmd.Execute(); err != nil {
 		fmt.Fprintf(os.Stderr, "Error: %s\n", err)
 		os.Exit(1)
 	}
+}
+
+// getSystemLang detects the OS language and returns 'zh' for Chinese, otherwise 'en'.
+func getSystemLang() string {
+	lang, err := locale.Detect()
+	if err != nil {
+		return "en" // Default to English on error
+	}
+	// We only care about the primary language tag (e.g., "zh" from "zh-CN").
+	base, _ := lang.Base()
+	if base.String() == "zh" {
+		return "zh"
+	}
+	return "en"
 }
 
 func init() {
@@ -42,33 +61,10 @@ func init() {
 	// cobra.OnInitialize(initConfig) // Example: if you have a config file
 
 	rootCmd.PersistentFlags().BoolVarP(&versionFlag, "version", "v", false, "Print the version number of Maltose")
+	rootCmd.PersistentFlags().StringVar(&i18n.Lang, "lang", getSystemLang(), "Language for CLI output (e.g., 'en', 'zh'). Defaults to system language.")
 	// rootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.maltose.yaml)")
 	// rootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
-
-// initConfig reads in config file and ENV variables if set.
-// func initConfig() {
-// 	if cfgFile != "" {
-// 		// Use config file from the flag.
-// 		viper.SetConfigFile(cfgFile)
-// 	} else {
-// 		// Find home directory.
-// 		home, err := os.UserHomeDir()
-// 		cobra.CheckErr(err)
-
-// 		// Search config in home directory with name ".maltose" (without extension).
-// 		viper.AddConfigPath(home)
-// 		viper.SetConfigType("yaml")
-// 		viper.SetConfigName(".maltose")
-// 	}
-
-// 	viper.AutomaticEnv() // read in environment variables that match
-
-// 	// If a config file is found, read it in.
-// 	if err := viper.ReadInConfig(); err == nil {
-// 		fmt.Fprintln(os.Stderr, "Using config file:", viper.ConfigFileUsed())
-// 	}
-// }
 
 // AddCommand allows adding subcommands from other files.
 func AddCommand(cmd *cobra.Command) {

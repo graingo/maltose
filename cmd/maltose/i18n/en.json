@@ -1,0 +1,98 @@
+[
+  {
+    "id": "failedToGetAbsPath",
+    "translation": "Failed to get absolute source path: {{.Error}}"
+  },
+  {
+    "id": "goModNotFound",
+    "translation": "Could not find go.mod to determine module info: {{.Error}}. Please run this command in a valid Go module."
+  },
+  {
+    "id": "serviceGenerationSuccess",
+    "translation": "Service and controller files generated successfully."
+  },
+  {
+    "id": "gormModelGenerationStart",
+    "translation": "Starting GORM model generation..."
+  },
+  {
+    "id": "gormModelGenerationSuccess",
+    "translation": "✅ GORM models generated successfully."
+  },
+  {
+    "id": "openAPIGenerationStart",
+    "translation": "Generating OpenAPI spec from: {{.Source}}"
+  },
+  {
+    "id": "openAPIGenerationSuccess",
+    "translation": "Successfully generated OpenAPI specification to {{.Output}}"
+  },
+  {
+    "id": "logicGenerationFailed",
+    "translation": "Failed to generate logic file: {{.Error}}"
+  },
+  {
+    "id": "logicGenerationSuccess",
+    "translation": "Logic file generated successfully."
+  },
+  {
+    "id": "newProjectCreationStart",
+    "translation": "Creating a new Maltose project in './{{.ProjectName}}'..."
+  },
+  {
+    "id": "newProjectTemplate",
+    "translation": "Using template from: {{.RepoURL}}"
+  },
+  {
+    "id": "newProjectCloneFailed",
+    "translation": "Cloning template repository failed: {{.Error}}"
+  },
+  {
+    "id": "newProjectGitRemoveFailed",
+    "translation": "Failed to remove .git directory: {{.Error}}"
+  },
+  {
+    "id": "newProjectGoModReadFailed",
+    "translation": "Failed to read go.mod: {{.Error}}"
+  },
+  {
+    "id": "newProjectGoModWriteFailed",
+    "translation": "Failed to write updated go.mod: {{.Error}}"
+  },
+  {
+    "id": "newProjectSuccess",
+    "translation": "Project '{{.ProjectName}}' created successfully."
+  },
+  {
+    "id": "newProjectModulePathSet",
+    "translation": "Module path set to '{{.ModulePath}}'."
+  },
+  {
+    "id": "newProjectGetStarted",
+    "translation": "\nTo get started:"
+  },
+  {
+    "id": "newProjectGetStartedCD",
+    "translation": "  cd {{.ProjectName}}"
+  },
+  {
+    "id": "newProjectGetStartedTidy",
+    "translation": "  go mod tidy"
+  },
+  {
+    "id": "newProjectGetStartedRun",
+    "translation": "  go run ."
+  },
+  {
+    "id": "daoGenerationStart",
+    "translation": "Starting DAO layer generation..."
+  },
+  {
+    "id": "daoGenerationSuccess",
+    "translation": "✅ DAO layer generated successfully."
+  },
+  {
+    "id": "genericError",
+    "translation": "{{.Error}}"
+  }
+]

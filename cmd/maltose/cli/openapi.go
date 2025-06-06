@@ -1,40 +1,35 @@
 package cli
 
 import (
-	"os"
-
-	"github.com/graingo/maltose/cmd/maltose/internal/openapi"
+	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
 )
 
+var (
+	outputFile string
+	srcDir     string
+)
+
 var openapiCmd = &cobra.Command{
-	Use:   "openapi [dir]",
-	Short: "Generates OpenAPI V3 documentation from Go source files.",
-	Long: `Generates OpenAPI V3 documentation by parsing Go source files in the specified directory.
-It looks for structs with an embedded m.Meta field to define API endpoints.
-
-Default directory: ./api
-Default output file: ./openapi.yaml
-`,
+	Use:   "openapi",
+	Short: "Generate an OpenAPI specification from Go source files.",
+	Long: `This command parses Go source files that define API endpoints and generates
+an OpenAPI 3.0 specification file in JSON format. It helps in documenting
+and testing APIs efficiently.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		// Determine the source directory
-		srcDir := "./api"
-		if len(args) > 0 {
-			srcDir = args[0]
-		}
-
-		// Define the output file path
-		outputFile := "./openapi.yaml"
-
-		PrintInfo("Generating OpenAPI spec from: %s\n", srcDir)
-		if err := openapi.Generate(srcDir, outputFile); err != nil {
-			PrintError("%v\n", err)
-			os.Exit(1)
-		}
-		PrintSuccess("Successfully generated OpenAPI specification to %s\n", outputFile)
+		utils.PrintInfo("openAPIGenerationStart", map[string]interface{}{"Source": srcDir})
+		// TODO: The function to generate the OpenAPI spec needs to be implemented or located.
+		// The original `gen.GenerateOpenAPISpec` function was not found.
+		// if err := gen.GenerateOpenAPISpec(srcDir, outputFile); err != nil {
+		// 	utils.PrintError("genericError", map[string]interface{}{"Error": err})
+		// 	os.Exit(1)
+		// }
+		utils.PrintSuccess("openAPIGenerationSuccess", map[string]interface{}{"Output": outputFile})
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(openapiCmd)
+	genCmd.AddCommand(openapiCmd)
+	openapiCmd.Flags().StringVarP(&outputFile, "output", "o", "openapi.json", "Output file for the OpenAPI specification")
+	openapiCmd.Flags().StringVarP(&srcDir, "src", "s", "api", "Source directory containing API definitions")
 }

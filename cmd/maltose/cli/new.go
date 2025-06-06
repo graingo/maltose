@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -29,13 +30,12 @@ It automatically replaces the module path in the new project's go.mod file.
 			repoURL = "https://github.com/graingo/maltose-quickstart.git"
 		}
 
-		PrintInfo("Creating a new Maltose project in './%s'...\n", projectName)
-		PrintInfo("Using template from: %s\n", repoURL)
+		utils.PrintInfo("newProjectCreationStart", map[string]interface{}{"ProjectName": projectName})
+		utils.PrintInfo("newProjectTemplate", map[string]interface{}{"RepoURL": repoURL})
 
 		// 1. Clone the repository
-		cloneCmd := exec.Command("git", "clone", repoURL, projectName)
-		if err := cloneCmd.Run(); err != nil {
-			PrintError("Cloning template repository failed: %v\n", err)
+		if err := runCommand("git", "clone", repoURL, projectName); err != nil {
+			utils.PrintError("newProjectCloneFailed", map[string]interface{}{"Error": err})
 			os.Exit(1)
 		}
 
@@ -48,32 +48,39 @@ It automatically replaces the module path in the new project's go.mod file.
 		// 3. Remove the .git directory
 		gitPath := filepath.Join(projectName, ".git")
 		if err := os.RemoveAll(gitPath); err != nil {
-			PrintError("Failed to remove .git directory: %v\n", err)
-			os.Exit(1)
+			// This is not a critical error, so we can just warn the user.
+			// The user can remove it manually.
+			utils.PrintError("newProjectGitRemoveFailed", map[string]interface{}{"Error": err})
+			// os.Exit(1)
 		}
 
 		// 4. Read, replace, and write go.mod
-		goModPath := filepath.Join(projectName, "go.mod")
-		oldModulePath := "github.com/graingo/maltose-quickstart"
+		if newModulePath != "" {
+			goModPath := filepath.Join(projectName, "go.mod")
+			content, err := os.ReadFile(goModPath)
+			if err != nil {
+				utils.PrintError("newProjectGoModReadFailed", map[string]interface{}{"Error": err})
+				os.Exit(1)
+			}
 
-		input, err := os.ReadFile(goModPath)
-		if err != nil {
-			PrintError("Failed to read go.mod: %v\n", err)
-			os.Exit(1)
+			// This is a simplistic replacement and might not cover all edge cases
+			// It assumes the template's module path is known and consistent.
+			// A more robust solution might use go mod edit.
+			updatedContent := strings.Replace(string(content), "github.com/graingo/maltose-quickstart", newModulePath, 1)
+			if err := os.WriteFile(goModPath, []byte(updatedContent), 0644); err != nil {
+				utils.PrintError("newProjectGoModWriteFailed", map[string]interface{}{"Error": err})
+				os.Exit(1)
+			}
 		}
 
-		output := strings.Replace(string(input), oldModulePath, newModulePath, 1)
-		if err = os.WriteFile(goModPath, []byte(output), 0644); err != nil {
-			PrintError("Failed to write updated go.mod: %v\n", err)
-			os.Exit(1)
+		utils.PrintSuccess("newProjectSuccess", map[string]interface{}{"ProjectName": projectName})
+		if newModulePath != "" {
+			utils.PrintInfo("newProjectModulePathSet", map[string]interface{}{"ModulePath": newModulePath})
 		}
-
-		PrintSuccess("Project '%s' created successfully.\n", projectName)
-		PrintInfo("Module path set to '%s'.\n", newModulePath)
-		PrintInfo("\nTo get started:\n")
-		PrintInfo("  cd %s\n", projectName)
-		PrintInfo("  go mod tidy\n")
-		PrintInfo("  go run .\n")
+		utils.PrintInfo("newProjectGetStarted", nil)
+		utils.PrintInfo("newProjectGetStartedCD", map[string]interface{}{"ProjectName": projectName})
+		utils.PrintInfo("newProjectGetStartedTidy", nil)
+		utils.PrintInfo("newProjectGetStartedRun", nil)
 	},
 }
 
@@ -81,4 +88,12 @@ func init() {
 	rootCmd.AddCommand(newCmd)
 	newCmd.Flags().StringVar(&moduleFlag, "module", "", "Specify the Go module path for the new project.")
 	newCmd.Flags().StringVar(&repoURLFlag, "repo-url", "", "Specify a custom git repository URL for the project template.")
+}
+
+// runCommand is a helper to execute external commands
+func runCommand(name string, arg ...string) error {
+	cmd := exec.Command(name, arg...)
+	cmd.Stderr = os.Stderr
+	cmd.Stdout = os.Stdout
+	return cmd.Run()
 }

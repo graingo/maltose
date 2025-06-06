@@ -4,6 +4,7 @@ import (
 	"os"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
+	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -11,16 +12,15 @@ import (
 var daoCmd = &cobra.Command{
 	Use:   "dao",
 	Short: "Generate DAO layer based on existing models.",
-	Long: `Scans for models in 'internal/model/entity' and generates a complete
-DAO layer in 'internal/dao' and 'internal/dao/internal'.
+	Long: `This command scans for GORM models and generates a complete data access object (DAO) layer, including interfaces and implementations.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
-		PrintInfo("Starting DAO layer generation...\n")
+		utils.PrintInfo("daoGenerationStart", nil)
 		if err := gen.GenerateDao(); err != nil {
-			PrintError("%v\n", err)
+			utils.PrintError("genericError", map[string]interface{}{"Error": err})
 			os.Exit(1)
 		}
-		PrintSuccess("✅ DAO layer generated successfully.\n")
+		utils.PrintSuccess("daoGenerationSuccess", nil)
 	},
 }
 

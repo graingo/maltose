@@ -4,23 +4,22 @@ import (
 	"os"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
+	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
 )
 
 // modelCmd represents the model command
 var modelCmd = &cobra.Command{
 	Use:   "model",
-	Short: "Generate GORM model from database schema.",
-	Long: `Connects to the database specified in the .env file in the project root
-and generates GORM models in 'internal/model/entity'.
-`,
+	Short: "Generate GORM models from database schema",
+	Long:  `Connects to a database and generates GORM model files based on the existing table schemas.`,
 	Run: func(cmd *cobra.Command, args []string) {
-		PrintInfo("Starting GORM model generation...\n")
+		utils.PrintInfo("gormModelGenerationStart", nil)
 		if err := gen.GenerateModel(); err != nil {
-			PrintError("%v\n", err)
+			utils.PrintError("genericError", map[string]interface{}{"Error": err})
 			os.Exit(1)
 		}
-		PrintSuccess("✅ GORM models generated successfully.\n")
+		utils.PrintSuccess("gormModelGenerationSuccess", nil)
 	},
 }
 

@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
+	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
 	"golang.org/x/mod/modfile"
 )
@@ -34,13 +35,13 @@ it will recursively find all .go files.`,
 
 		absSrc, err := filepath.Abs(srcPath)
 		if err != nil {
-			PrintError("Failed to get absolute source path: %v\n", err)
+			utils.PrintError("failedToGetAbsPath", map[string]interface{}{"Error": err})
 			os.Exit(1)
 		}
 
 		moduleName, moduleRoot, err := findModuleInfo(absSrc)
 		if err != nil {
-			PrintError("Could not find go.mod to determine module info: %v. Please run this command in a valid Go module.\n", err)
+			utils.PrintError("goModNotFound", map[string]interface{}{"Error": err})
 			os.Exit(1)
 		}
 
@@ -53,11 +54,11 @@ it will recursively find all .go files.`,
 		}
 
 		if err := generator.Gen(); err != nil {
-			PrintError("%v\n", err)
+			utils.PrintError("genericError", map[string]interface{}{"Error": err})
 			os.Exit(1)
 		}
 
-		PrintSuccess("Service and controller files generated successfully.\n")
+		utils.PrintSuccess("serviceGenerationSuccess", nil)
 	},
 }
 
