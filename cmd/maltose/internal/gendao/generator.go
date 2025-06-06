@@ -12,19 +12,26 @@ import (
 
 	"github.com/jinzhu/inflection"
 	"github.com/joho/godotenv"
+	"gorm.io/gorm"
 )
 
-// Generate is the main function that orchestrates the DAO generation process.
-func Generate() error {
-	// The command is run from the project root (e.g. maltose-quickstart),
-	// so it will find the .env file in the current working directory.
-	fmt.Println("🔎 Searching for .env file in the current directory...")
-	if err := godotenv.Load(); err != nil {
-		return fmt.Errorf(".env file not found or failed to load. Please ensure a .env file with DB credentials exists in your project root. Error: %w", err)
-	}
-	fmt.Println("✔ .env file loaded successfully.")
+// shared state for generation
+var (
+	db     *gorm.DB
+	tables []TableInfo
+)
 
-	// Read DB config from environment variables
+// initDB loads .env, connects to the database, and gets table schemas.
+// It uses a shared state to avoid reconnecting if called multiple times.
+func initDB() error {
+	if db != nil {
+		return nil // Already initialized
+	}
+	fmt.Println("🔎 Searching for .env file...")
+	if err := godotenv.Load(); err != nil {
+		return fmt.Errorf(".env file not found or failed to load: %w", err)
+	}
+
 	dbInfo := DBInfo{
 		DBType: os.Getenv("DB_TYPE"),
 		Host:   os.Getenv("DB_HOST"),
@@ -34,29 +41,28 @@ func Generate() error {
 		Name:   os.Getenv("DB_NAME"),
 	}
 
-	if dbInfo.DBType == "" || dbInfo.Host == "" || dbInfo.User == "" || dbInfo.Name == "" {
-		return fmt.Errorf("one or more required database environment variables are not set in .env file (DB_TYPE, DB_HOST, DB_USER, DB_NAME, DB_PORT, DB_PASS)")
-	}
-
-	fmt.Printf("⚙️ Database config: [Type: %s, Host: %s, User: %s, DB: %s]\n", dbInfo.DBType, dbInfo.Host, dbInfo.User, dbInfo.Name)
-
-	// Step 1: Connect to DB
+	var err error
 	fmt.Println("⚡ Connecting to the database...")
-	db, err := GetDBConnection(dbInfo)
+	db, err = GetDBConnection(dbInfo)
 	if err != nil {
 		return err
 	}
-	fmt.Println("✔ Database connection successful.")
 
-	// Step 2: Get all table schemas
 	fmt.Println("🔍 Inspecting database schema...")
-	tables, err := GetTables(db)
+	tables, err = GetTables(db)
 	if err != nil {
 		return err
 	}
 	fmt.Printf("✔ Found %d tables.\n", len(tables))
+	return nil
+}
 
-	// Step 3: Generate files for each table
+// GenerateModel generates only the entity files.
+func GenerateModel() error {
+	if err := initDB(); err != nil {
+		return err
+	}
+
 	fmt.Println(" H Generating entity files...")
 	tpl, err := template.New("entity").Funcs(funcMap).Parse(entityTemplate)
 	if err != nil {
@@ -70,7 +76,6 @@ func Generate() error {
 			Columns:    table.Columns,
 		}
 
-		// Define output path for the entity file
 		outputPath := filepath.Join("internal", "model", "entity", fmt.Sprintf("%s.go", table.Name))
 
 		fmt.Printf("  -> Generating %s\n", outputPath)
@@ -78,18 +83,21 @@ func Generate() error {
 			return err
 		}
 	}
-	fmt.Println("✔ Entity files generated successfully.")
+	return nil
+}
 
-	// Step 4: Generate DAO files
+// GenerateDao generates only the DAO files.
+func GenerateDao() error {
+	if err := initDB(); err != nil {
+		return err
+	}
+
 	fmt.Println(" H Generating dao files...")
-
-	// Get go module path
 	modulePath, err := getGoModulePath()
 	if err != nil {
 		return fmt.Errorf("failed to get go module path: %w", err)
 	}
 
-	// Parse templates
 	internalTpl, err := template.New("daoInternal").Funcs(funcMap).Parse(daoInternalTemplate)
 	if err != nil {
 		return fmt.Errorf("failed to parse dao internal template: %w", err)
@@ -109,14 +117,12 @@ func Generate() error {
 			DaoName:         structName + "Dao",
 		}
 
-		// Generate internal dao file
 		internalPath := filepath.Join("internal", "dao", "internal", fmt.Sprintf("%s.go", table.Name))
 		fmt.Printf("  -> Generating %s\n", internalPath)
 		if err := generateFile(data, internalTpl, internalPath); err != nil {
 			return err
 		}
 
-		// Generate public dao file (if it doesn't exist)
 		daoPath := filepath.Join("internal", "dao", fmt.Sprintf("%s.go", table.Name))
 		if _, err := os.Stat(daoPath); os.IsNotExist(err) {
 			fmt.Printf("  -> Generating %s\n", daoPath)
@@ -127,8 +133,6 @@ func Generate() error {
 			fmt.Printf("  -> Skipping %s (already exists)\n", daoPath)
 		}
 	}
-	fmt.Println("✔ DAO files generated successfully.")
-
 	return nil
 }
 

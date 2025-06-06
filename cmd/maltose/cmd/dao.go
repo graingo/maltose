@@ -11,19 +11,15 @@ import (
 // daoCmd represents the dao command
 var daoCmd = &cobra.Command{
 	Use:   "dao",
-	Short: "Generate GORM model and DAO layer from database schema.",
-	Long: `Connects to the database specified in the .env file in the project root,
-and generates GORM models and a DAO layer based on the GoFrame best practices.
-
-It creates/updates the following directories:
-- internal/model/entity
-- internal/dao/internal
-- internal/dao
+	Short: "Generate DAO layer based on existing models.",
+	Long: `Scans for models in 'internal/model/entity' and generates a complete
+DAO layer in 'internal/dao' and 'internal/dao/internal'.
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		fmt.Println("Starting DAO layer generation...")
 
-		if err := gendao.Generate(); err != nil {
+		// We will create a dedicated GenerateDao function later
+		if err := gendao.GenerateDao(); err != nil {
 			fmt.Fprintf(os.Stderr, "Error: %v\n", err)
 			os.Exit(1)
 		}

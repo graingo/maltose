@@ -154,6 +154,33 @@ func (dao *{{.InternalDaoName}}) GetByID(id interface{}) (*entity.{{.StructName}
 	err := dao.db.First(&result, id).Error
 	return &result, err
 }
+
+// Update updates a record by its primary key.
+// It only updates non-zero fields in the data struct.
+func (dao *{{.InternalDaoName}}) Update(data *entity.{{.StructName}}) error {
+	return dao.db.Model(data).Updates(data).Error
+}
+
+// Delete removes a record by its primary key.
+func (dao *{{.InternalDaoName}}) Delete(id interface{}) error {
+	return dao.db.Delete(&entity.{{.StructName}}{}, id).Error
+}
+
+// FindOne retrieves a single record that matches the given conditions.
+// "condition" can be a struct or a map.
+func (dao *{{.InternalDaoName}}) FindOne(condition ...interface{}) (*entity.{{.StructName}}, error) {
+	var result entity.{{.StructName}}
+	err := dao.db.Where(condition[0], condition[1:]...).First(&result).Error
+	return &result, err
+}
+
+// FindAll retrieves all records that match the given conditions.
+// "condition" can be a struct or a map.
+func (dao *{{.InternalDaoName}}) FindAll(condition ...interface{}) ([]*entity.{{.StructName}}, error) {
+	var results []*entity.{{.StructName}}
+	err := dao.db.Where(condition[0], condition[1:]...).Find(&results).Error
+	return results, err
+}
 `
 
 var daoTemplate = `// ============================================================================
