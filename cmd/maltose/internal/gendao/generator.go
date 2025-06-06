@@ -27,9 +27,20 @@ func initDB() error {
 	if db != nil {
 		return nil // Already initialized
 	}
-	fmt.Println("🔎 Searching for .env file...")
+
+	// Check for .env file and create an example if it doesn't exist.
+	if _, err := os.Stat(".env"); os.IsNotExist(err) {
+		fmt.Println("'.env' file not found. Creating a '.env.example' for you.")
+		err := createEnvExample()
+		if err != nil {
+			return fmt.Errorf("failed to create .env.example: %w", err)
+		}
+		return fmt.Errorf("please copy '.env.example' to '.env' and fill in your database credentials")
+	}
+
+	fmt.Println("🔎 Loading .env file...")
 	if err := godotenv.Load(); err != nil {
-		return fmt.Errorf(".env file not found or failed to load: %w", err)
+		return fmt.Errorf(".env file found but failed to load: %w", err)
 	}
 
 	dbInfo := DBInfo{
@@ -55,6 +66,20 @@ func initDB() error {
 	}
 	fmt.Printf("✔ Found %d tables.\n", len(tables))
 	return nil
+}
+
+func createEnvExample() error {
+	content := `# General Database Settings (数据库通用设置)
+DB_TYPE=mysql
+
+# MySQL Settings (MySQL 配置)
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_USER=root
+DB_PASS=
+DB_NAME=your_database_name
+`
+	return os.WriteFile(".env.example", []byte(content), 0644)
 }
 
 // GenerateModel generates only the entity files.
