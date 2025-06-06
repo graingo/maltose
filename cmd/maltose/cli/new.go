@@ -17,7 +17,7 @@ var repoURLFlag string
 var newCmd = &cobra.Command{
 	Use:   "new <project-name>",
 	Short: "Create a new Maltose project.",
-	Long: `Creates a new Maltose project by cloning the quickstart template repository.
+	Long: `Creates a new Maltose project with a predefined structure, including configuration for gRPC, GORM, and other common libraries.
 It automatically replaces the module path in the new project's go.mod file.
 `,
 	Args: cobra.ExactArgs(1), // Requires exactly one argument: the project name
@@ -30,12 +30,12 @@ It automatically replaces the module path in the new project's go.mod file.
 			repoURL = "https://github.com/graingo/maltose-quickstart.git"
 		}
 
-		utils.PrintInfo("newProjectCreationStart", map[string]interface{}{"ProjectName": projectName})
-		utils.PrintInfo("newProjectTemplate", map[string]interface{}{"RepoURL": repoURL})
+		utils.PrintInfo("newProjectCreationStart", utils.TplData{"ProjectName": projectName})
+		utils.PrintInfo("newProjectTemplate", utils.TplData{"RepoURL": repoURL})
 
 		// 1. Clone the repository
 		if err := runCommand("git", "clone", repoURL, projectName); err != nil {
-			utils.PrintError("newProjectCloneFailed", map[string]interface{}{"Error": err})
+			utils.PrintError("newProjectCloneFailed", utils.TplData{"Error": err})
 			os.Exit(1)
 		}
 
@@ -50,7 +50,7 @@ It automatically replaces the module path in the new project's go.mod file.
 		if err := os.RemoveAll(gitPath); err != nil {
 			// This is not a critical error, so we can just warn the user.
 			// The user can remove it manually.
-			utils.PrintError("newProjectGitRemoveFailed", map[string]interface{}{"Error": err})
+			utils.PrintError("newProjectGitRemoveFailed", utils.TplData{"Error": err})
 			// os.Exit(1)
 		}
 
@@ -59,7 +59,7 @@ It automatically replaces the module path in the new project's go.mod file.
 			goModPath := filepath.Join(projectName, "go.mod")
 			content, err := os.ReadFile(goModPath)
 			if err != nil {
-				utils.PrintError("newProjectGoModReadFailed", map[string]interface{}{"Error": err})
+				utils.PrintError("newProjectGoModReadFailed", utils.TplData{"Error": err})
 				os.Exit(1)
 			}
 
@@ -68,17 +68,17 @@ It automatically replaces the module path in the new project's go.mod file.
 			// A more robust solution might use go mod edit.
 			updatedContent := strings.Replace(string(content), "github.com/graingo/maltose-quickstart", newModulePath, 1)
 			if err := os.WriteFile(goModPath, []byte(updatedContent), 0644); err != nil {
-				utils.PrintError("newProjectGoModWriteFailed", map[string]interface{}{"Error": err})
+				utils.PrintError("newProjectGoModWriteFailed", utils.TplData{"Error": err})
 				os.Exit(1)
 			}
 		}
 
-		utils.PrintSuccess("newProjectSuccess", map[string]interface{}{"ProjectName": projectName})
+		utils.PrintSuccess("newProjectSuccess", utils.TplData{"ProjectName": projectName})
 		if newModulePath != "" {
-			utils.PrintInfo("newProjectModulePathSet", map[string]interface{}{"ModulePath": newModulePath})
+			utils.PrintInfo("newProjectModulePathSet", utils.TplData{"ModulePath": newModulePath})
 		}
 		utils.PrintInfo("newProjectGetStarted", nil)
-		utils.PrintInfo("newProjectGetStartedCD", map[string]interface{}{"ProjectName": projectName})
+		utils.PrintInfo("newProjectGetStartedCD", utils.TplData{"ProjectName": projectName})
 		utils.PrintInfo("newProjectGetStartedTidy", nil)
 		utils.PrintInfo("newProjectGetStartedRun", nil)
 	},

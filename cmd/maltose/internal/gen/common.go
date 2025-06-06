@@ -41,7 +41,7 @@ func generateFile(path, tplName, tplContent string, data interface{}) error {
 	// Format the generated code
 	formatted, err := format.Source(buf.Bytes())
 	if err != nil {
-		utils.PrintWarn("formatSourceFailed", map[string]interface{}{"Path": path, "Error": err})
+		utils.PrintWarn("formatSourceFailed", utils.TplData{"Path": path, "Error": err})
 		formatted = buf.Bytes() // Write unformatted code on error
 	}
 

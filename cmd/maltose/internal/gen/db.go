@@ -25,16 +25,8 @@ func initDB() error {
 
 	// Load .env file if it exists
 	if _, err := os.Stat(".env"); os.IsNotExist(err) {
-		// Create a .env.example file
-		exampleContent := `DB_TYPE=mysql
-DB_HOST=127.0.0.1
-DB_PORT=3306
-DB_USER=root
-DB_PASSWORD=
-DB_NAME=test
-`
-		if writeErr := os.WriteFile(".env.example", []byte(exampleContent), 0644); writeErr != nil {
-			return fmt.Errorf("failed to write .env.example: %w", writeErr)
+		if err := createEnvExample(); err != nil {
+			return err
 		}
 		utils.PrintInfo("envFileNotFound", nil)
 	}
@@ -66,7 +58,7 @@ DB_NAME=test
 	if err != nil {
 		return err
 	}
-	utils.PrintInfo("foundTables", map[string]interface{}{"Count": len(tables)})
+	utils.PrintInfo("foundTables", utils.TplData{"Count": len(tables)})
 	return nil
 }
 

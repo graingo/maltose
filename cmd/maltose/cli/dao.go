@@ -16,10 +16,19 @@ var daoCmd = &cobra.Command{
 `,
 	Run: func(cmd *cobra.Command, args []string) {
 		utils.PrintInfo("daoGenerationStart", nil)
-		if err := gen.GenerateDao(); err != nil {
-			utils.PrintError("genericError", map[string]interface{}{"Error": err})
+
+		modulePath, _, err := utils.GetModuleInfo(".")
+		if err != nil {
+			utils.PrintError("genericError", utils.TplData{"Error": err})
 			os.Exit(1)
 		}
+
+		generator := gen.NewDaoGenerator(modulePath)
+		if err := generator.Gen(); err != nil {
+			utils.PrintError("genericError", utils.TplData{"Error": err})
+			os.Exit(1)
+		}
+
 		utils.PrintSuccess("daoGenerationSuccess", nil)
 	},
 }

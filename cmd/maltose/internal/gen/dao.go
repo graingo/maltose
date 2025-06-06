@@ -3,15 +3,25 @@ package gen
 import (
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"strings"
 
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/iancoleman/strcase"
 	"github.com/jinzhu/inflection"
 	"gorm.io/gorm"
 )
+
+// DaoGenerator holds the configuration for generating DAO files.
+type DaoGenerator struct {
+	ModulePath string
+}
+
+// NewDaoGenerator creates a new DaoGenerator.
+func NewDaoGenerator(modulePath string) *DaoGenerator {
+	return &DaoGenerator{
+		ModulePath: modulePath,
+	}
+}
 
 // daoTplData holds all the template variables for generating DAO and entity files.
 type daoTplData struct {
@@ -23,17 +33,13 @@ type daoTplData struct {
 	Columns         []gorm.ColumnType
 }
 
-// GenerateDao generates only the DAO files.
-func GenerateDao() error {
+// Gen generates only the DAO files.
+func (g *DaoGenerator) Gen() error {
 	if err := initDB(); err != nil {
 		return err
 	}
 
 	utils.PrintInfo("daoFilesGenerationStart", nil)
-	modulePath, err := getGoModulePath()
-	if err != nil {
-		return fmt.Errorf("failed to get go module path: %w", err)
-	}
 
 	for _, table := range tables {
 		structName := strcase.ToCamel(inflection.Singular(table.Name))
@@ -41,36 +47,25 @@ func GenerateDao() error {
 		data := daoTplData{
 			TableName:   table.Name,
 			StructName:  structName,
-			PackageName: modulePath,
+			PackageName: g.ModulePath,
 			DaoName:     daoName,
 		}
 
 		internalPath := filepath.Join("internal", "dao", "internal", fmt.Sprintf("%s.go", table.Name))
-		utils.PrintInfo("generatingFile", map[string]interface{}{"Path": internalPath})
+		utils.PrintInfo("generatingFile", utils.TplData{"Path": internalPath})
 		if err := generateFile(internalPath, "daoInternal", TplGenDaoInternal, data); err != nil {
 			return err
 		}
 
 		daoPath := filepath.Join("internal", "dao", fmt.Sprintf("%s.go", table.Name))
 		if _, err := os.Stat(daoPath); os.IsNotExist(err) {
-			utils.PrintInfo("generatingFile", map[string]interface{}{"Path": daoPath})
+			utils.PrintInfo("generatingFile", utils.TplData{"Path": daoPath})
 			if err := generateFile(daoPath, "dao", TplGenDao, data); err != nil {
 				return err
 			}
 		} else {
-			utils.PrintInfo("skippingFile", map[string]interface{}{"Path": daoPath})
+			utils.PrintInfo("skippingFile", utils.TplData{"Path": daoPath})
 		}
 	}
 	return nil
-}
-
-func getGoModulePath() (string, error) {
-	cmd := exec.Command("go", "list", "-m")
-	var out strings.Builder
-	cmd.Stdout = &out
-	err := cmd.Run()
-	if err != nil {
-		return "", err
-	}
-	return strings.TrimSpace(out.String()), nil
 }

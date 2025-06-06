@@ -22,13 +22,13 @@ var logicCmd = &cobra.Command{
 
 		absSrc, err := filepath.Abs(srcPath)
 		if err != nil {
-			utils.PrintError("failedToGetAbsPath", map[string]interface{}{"Error": err})
+			utils.PrintError("failedToGetAbsPath", utils.TplData{"Error": err})
 			os.Exit(1)
 		}
 
-		moduleName, moduleRoot, err := findModuleInfo(absSrc)
+		moduleName, moduleRoot, err := utils.GetModuleInfo(absSrc)
 		if err != nil {
-			utils.PrintError("goModNotFound", map[string]interface{}{"Error": err})
+			utils.PrintError("goModNotFound", utils.TplData{"Error": err})
 			os.Exit(1)
 		}
 
@@ -39,7 +39,7 @@ var logicCmd = &cobra.Command{
 		}
 
 		if err := generator.Gen(); err != nil {
-			utils.PrintError("logicGenerationFailed", map[string]interface{}{"Error": err})
+			utils.PrintError("logicGenerationFailed", utils.TplData{"Error": err})
 			os.Exit(1)
 		}
 

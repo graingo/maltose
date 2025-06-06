@@ -9,8 +9,17 @@ import (
 	"github.com/jinzhu/inflection"
 )
 
-// GenerateModel generates only the entity files.
-func GenerateModel() error {
+// ModelGenerator holds the configuration for generating model files.
+type ModelGenerator struct {
+}
+
+// NewModelGenerator creates a new ModelGenerator.
+func NewModelGenerator() *ModelGenerator {
+	return &ModelGenerator{}
+}
+
+// Gen generates only the entity files.
+func (g *ModelGenerator) Gen() error {
 	if err := initDB(); err != nil {
 		return err
 	}
@@ -26,7 +35,7 @@ func GenerateModel() error {
 
 		outputPath := filepath.Join("internal", "model", "entity", fmt.Sprintf("%s.go", table.Name))
 
-		utils.PrintInfo("generatingFile", map[string]interface{}{"Path": outputPath})
+		utils.PrintInfo("generatingFile", utils.TplData{"Path": outputPath})
 		if err := generateFile(outputPath, "entity", TplGenEntity, data); err != nil {
 			return err
 		}

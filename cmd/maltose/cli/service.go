@@ -1,14 +1,12 @@
 package cli
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
-	"golang.org/x/mod/modfile"
 )
 
 var (
@@ -35,13 +33,13 @@ it will recursively find all .go files.`,
 
 		absSrc, err := filepath.Abs(srcPath)
 		if err != nil {
-			utils.PrintError("failedToGetAbsPath", map[string]interface{}{"Error": err})
+			utils.PrintError("failedToGetAbsPath", utils.TplData{"Error": err})
 			os.Exit(1)
 		}
 
-		moduleName, moduleRoot, err := findModuleInfo(absSrc)
+		moduleName, moduleRoot, err := utils.GetModuleInfo(absSrc)
 		if err != nil {
-			utils.PrintError("goModNotFound", map[string]interface{}{"Error": err})
+			utils.PrintError("goModNotFound", utils.TplData{"Error": err})
 			os.Exit(1)
 		}
 
@@ -54,29 +52,12 @@ it will recursively find all .go files.`,
 		}
 
 		if err := generator.Gen(); err != nil {
-			utils.PrintError("genericError", map[string]interface{}{"Error": err})
+			utils.PrintError("genericError", utils.TplData{"Error": err})
 			os.Exit(1)
 		}
 
 		utils.PrintSuccess("serviceGenerationSuccess", nil)
 	},
-}
-
-func findModuleInfo(fromPath string) (name, rootPath string, err error) {
-	currentPath := fromPath
-	for {
-		goModPath := filepath.Join(currentPath, "go.mod")
-		content, err := os.ReadFile(goModPath)
-		if err == nil {
-			return modfile.ModulePath(content), currentPath, nil
-		}
-
-		parent := filepath.Dir(currentPath)
-		if parent == currentPath { // Reached the root
-			return "", "", fmt.Errorf("go.mod not found")
-		}
-		currentPath = parent
-	}
 }
 
 func init() {
