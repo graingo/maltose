@@ -10,6 +10,7 @@ import (
 	"strings"
 	"text/template"
 
+	"github.com/iancoleman/strcase"
 	"github.com/jinzhu/inflection"
 	"github.com/joho/godotenv"
 	"gorm.io/gorm"
@@ -20,6 +21,47 @@ var (
 	db     *gorm.DB
 	tables []TableInfo
 )
+
+type templateData struct {
+	TableName         string
+	StructName        string
+	PackageName       string
+	InternalDaoName   string
+	DaoName           string
+	FirstLowerDaoName string
+	Columns           []*gorm.ColumnType
+}
+
+var funcMap = template.FuncMap{
+	"toCamel": toCamel,
+}
+
+func toCamel(s string) string {
+	parts := strings.Split(s, "_")
+	for i, part := range parts {
+		if len(part) > 0 {
+			parts[i] = strings.ToUpper(part[:1]) + part[1:]
+		}
+	}
+	return strings.Join(parts, "")
+}
+
+func generateFile(data templateData, tpl *template.Template, path string) error {
+	dir := filepath.Dir(path)
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		if err := os.MkdirAll(dir, 0755); err != nil {
+			return fmt.Errorf("failed to create directory %s: %w", dir, err)
+		}
+	}
+
+	file, err := os.Create(path)
+	if err != nil {
+		return fmt.Errorf("failed to create file %s: %w", path, err)
+	}
+	defer file.Close()
+
+	return tpl.Execute(file, data)
+}
 
 // initDB loads .env, connects to the database, and gets table schemas.
 // It uses a shared state to avoid reconnecting if called multiple times.
@@ -88,8 +130,8 @@ func GenerateModel() error {
 		return err
 	}
 
-	fmt.Println(" H Generating entity files...")
-	tpl, err := template.New("entity").Funcs(funcMap).Parse(entityTemplate)
+	fmt.Println("H Generating entity files...")
+	tpl, err := template.New("entity").Funcs(funcMap).Parse(TplGenEntity)
 	if err != nil {
 		return fmt.Errorf("failed to parse entity template: %w", err)
 	}
@@ -117,29 +159,31 @@ func GenerateDao() error {
 		return err
 	}
 
-	fmt.Println(" H Generating dao files...")
+	fmt.Println("H Generating dao files...")
 	modulePath, err := getGoModulePath()
 	if err != nil {
 		return fmt.Errorf("failed to get go module path: %w", err)
 	}
 
-	internalTpl, err := template.New("daoInternal").Funcs(funcMap).Parse(daoInternalTemplate)
+	internalTpl, err := template.New("daoInternal").Funcs(funcMap).Parse(TplGenDaoInternal)
 	if err != nil {
 		return fmt.Errorf("failed to parse dao internal template: %w", err)
 	}
-	daoTpl, err := template.New("dao").Funcs(funcMap).Parse(daoTemplate)
+	daoTpl, err := template.New("dao").Funcs(funcMap).Parse(TplGenDao)
 	if err != nil {
 		return fmt.Errorf("failed to parse dao template: %w", err)
 	}
 
 	for _, table := range tables {
 		structName := toCamel(inflection.Singular(table.Name))
+		daoName := structName + "Dao"
 		data := templateData{
-			TableName:       table.Name,
-			StructName:      structName,
-			PackageName:     modulePath,
-			InternalDaoName: "s" + structName + "Dao",
-			DaoName:         structName + "Dao",
+			TableName:         table.Name,
+			StructName:        structName,
+			PackageName:       modulePath,
+			InternalDaoName:   "s" + daoName,
+			DaoName:           daoName,
+			FirstLowerDaoName: strcase.ToLowerCamel(daoName),
 		}
 
 		internalPath := filepath.Join("internal", "dao", "internal", fmt.Sprintf("%s.go", table.Name))

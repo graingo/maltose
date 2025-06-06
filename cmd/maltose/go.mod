@@ -1,13 +1,17 @@
 module github.com/graingo/maltose/cmd/maltose
 
-go 1.22.5
+go 1.23.0
+
+toolchain go1.23.9
 
 require (
 	github.com/getkin/kin-openapi v0.132.0
 	github.com/graingo/maltose v0.0.0-00010101000000-000000000000
+	github.com/iancoleman/strcase v0.3.0
 	github.com/jinzhu/inflection v1.0.0
 	github.com/joho/godotenv v1.5.1
 	github.com/spf13/cobra v1.8.0
+	golang.org/x/mod v0.25.0
 	golang.org/x/text v0.21.0
 	gopkg.in/yaml.v3 v3.0.1
 	gorm.io/driver/mysql v1.6.0
