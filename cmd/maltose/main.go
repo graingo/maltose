@@ -1,9 +1,9 @@
 package main
 
 import (
-	"github.com/graingo/maltose/cmd/maltose/cmd"
+	"github.com/graingo/maltose/cmd/maltose/cli"
 )
 
 func main() {
-	cmd.Execute()
+	cli.Execute()
 }
