@@ -2,7 +2,7 @@
 package gen
 
 import (
-	"errors"
+	"bytes"
 	"fmt"
 	"go/ast"
 	"go/parser"
@@ -10,11 +10,10 @@ import (
 	"os"
 	"path/filepath"
 	"strings"
+	"text/template"
 
 	"github.com/graingo/maltose/cmd/maltose/utils"
 )
-
-var ErrSimpleMode = errors.New("service is in simple mode")
 
 // LogicGenerator holds the configuration for generating logic files.
 type LogicGenerator struct {
@@ -22,6 +21,7 @@ type LogicGenerator struct {
 	DstPath    string
 	Module     string
 	ModuleRoot string
+	Overwrite  bool
 }
 
 type logicFunction struct {
@@ -45,7 +45,7 @@ type logicTplData struct {
 
 // Gen generates the logic file from a service interface file.
 func (g *LogicGenerator) Gen() error {
-	utils.PrintInfo("scanning_directory", utils.TplData{"Path": filepath.Base(g.SrcPath)})
+	utils.PrintInfo("scanning_directory", utils.TplData{"Path": g.SrcPath})
 	return filepath.Walk(g.SrcPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -76,12 +76,100 @@ func (g *LogicGenerator) genFromFile(file string) error {
 
 	// Logic file goes into internal/logic/<module>/<file>.go
 	logicDir := filepath.Join(g.ModuleRoot, g.DstPath, "logic", genInfo.Module)
+	logicOutputPath := filepath.Join(logicDir, genInfo.FileName)
+
+	// Check if file exists
+	if _, err := os.Stat(logicOutputPath); err == nil && !g.Overwrite {
+		// File exists and we are in append mode (default)
+		return g.appendToFile(logicOutputPath, genInfo)
+	}
+
+	// If we are here, it means file doesn't exist, OR it exists and we want to overwrite.
 	if err := os.MkdirAll(logicDir, os.ModePerm); err != nil {
 		return fmt.Errorf("failed to create logic directory %s: %w", logicDir, err)
 	}
-	logicOutputPath := filepath.Join(logicDir, genInfo.FileName)
 
 	return generateFile(logicOutputPath, "serviceLogic", TplGenServiceLogic, genInfo)
+}
+
+func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) error {
+	existingMethods, err := parseExistingLogicMethods(path)
+	if err != nil {
+		return err // Or maybe just warn and skip? Better to return error.
+	}
+
+	var methodsToAppend []logicFunction
+	for _, f := range genInfo.Functions {
+		if _, ok := existingMethods[f.Name]; !ok {
+			methodsToAppend = append(methodsToAppend, f)
+		}
+	}
+
+	displayPath := path
+	if relPath, err := filepath.Rel(g.ModuleRoot, path); err == nil {
+		displayPath = relPath
+	}
+
+	if len(methodsToAppend) == 0 {
+		utils.PrintNotice("logic_file_uptodate", utils.TplData{"File": displayPath})
+		return nil
+	}
+
+	// We have methods to append.
+	appendData := *genInfo // copy
+	appendData.Functions = methodsToAppend
+
+	// Generate the code snippet to append
+	var buffer bytes.Buffer
+	tpl, err := template.New("serviceLogicAppend").Parse(TplGenServiceLogicAppend)
+	if err != nil {
+		return fmt.Errorf("failed to parse append template: %w", err)
+	}
+	if err = tpl.Execute(&buffer, appendData); err != nil {
+		return fmt.Errorf("failed to execute append template: %w", err)
+	}
+
+	// Append to file
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
+	if err != nil {
+		return fmt.Errorf("failed to open logic file for appending: %w", err)
+	}
+	defer f.Close()
+
+	if _, err = f.WriteString("\n"); err != nil {
+		return fmt.Errorf("failed to write newline before appending: %w", err)
+	}
+
+	if _, err = f.Write(buffer.Bytes()); err != nil {
+		return fmt.Errorf("failed to append new methods to logic file: %w", err)
+	}
+
+	utils.PrintSuccess("logic_methods_appended", utils.TplData{
+		"Count": len(methodsToAppend),
+		"File":  displayPath,
+	})
+
+	return nil
+}
+
+func parseExistingLogicMethods(filePath string) (map[string]struct{}, error) {
+	methods := make(map[string]struct{})
+	fset := token.NewFileSet()
+	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse existing logic file %s: %w", filePath, err)
+	}
+
+	ast.Inspect(node, func(n ast.Node) bool {
+		fn, ok := n.(*ast.FuncDecl)
+		if !ok || fn.Recv == nil || len(fn.Recv.List) == 0 {
+			return true
+		}
+		methods[fn.Name.Name] = struct{}{}
+		return true
+	})
+
+	return methods, nil
 }
 
 // LogicParser parses a service interface file.

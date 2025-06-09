@@ -53,5 +53,7 @@
   "found_tables": "✔ Found {{.Count}} tables.",
   "scanning_directory": "Scanning directory: {{.Path}}",
   "found_api_definitions": "Found {{.Count}} API endpoint definitions.",
-  "not_have_service_interface": "The file does not contain a service interface, skipping logic generation."
+  "not_have_service_interface": "The file does not contain a service interface, skipping logic generation.",
+  "logic_file_uptodate": "⏩ Logic file {{.File}} is up to date, skipping.",
+  "logic_methods_appended": "✅ Appended {{.Count}} new methods to {{.File}}."
 }

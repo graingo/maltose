@@ -19,6 +19,12 @@ func PrintError(messageID string, templateData TplData) {
 	color.Red("Error: " + message)
 }
 
+// PrintNotice prints a formatted, localized notice message to the console in cyan.
+func PrintNotice(messageID string, templateData TplData) {
+	message := i18n.T(messageID, templateData)
+	color.Cyan(message)
+}
+
 // PrintWarn prints a formatted, localized warning message to the console in yellow.
 func PrintWarn(messageID string, templateData TplData) {
 	message := i18n.T(messageID, templateData)

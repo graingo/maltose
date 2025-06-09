@@ -52,6 +52,8 @@
   "inspecting_database": "🔍 正在检查数据库模式...",
   "found_tables": "✔ 已找到 {{.Count}} 个表。",
   "scanning_directory": "正在扫描目录: {{.Path}}",
-  "found_api_definitions": "已找到 {{.Count}} 个 API 端点定义",
-  "not_have_service_interface": "该文件不包含服务接口，跳过逻辑生成"
+  "found_api_definitions": "发现 {{.Count}} 个 API 接口定义。",
+  "not_have_service_interface": "当前文件没有 service 接口, 跳过 logic 生成。",
+  "logic_file_uptodate": "⏩ Logic 文件 {{.File}} 已是最新, 无需改动。",
+  "logic_methods_appended": "✅ 已向 {{.File}} 追加 {{.Count}} 个新方法。"
 }

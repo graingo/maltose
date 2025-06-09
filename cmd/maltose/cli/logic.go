@@ -10,8 +10,9 @@ import (
 )
 
 var (
-	logicSrcPath string
-	logicDstPath string
+	logicSrcPath   string
+	logicDstPath   string
+	logicOverwrite bool
 )
 
 // logicCmd represents the logic command
@@ -37,6 +38,7 @@ var logicCmd = &cobra.Command{
 			DstPath:    logicDstPath,
 			Module:     moduleName,
 			ModuleRoot: moduleRoot,
+			Overwrite:  logicOverwrite,
 		}
 
 		if err := generator.Gen(); err != nil {
@@ -53,4 +55,5 @@ func init() {
 
 	logicCmd.Flags().StringVarP(&logicSrcPath, "src", "s", "internal/service", "Source path for service definition files")
 	logicCmd.Flags().StringVarP(&logicDstPath, "dst", "d", "internal", "Destination path for generated files")
+	logicCmd.Flags().BoolVar(&logicOverwrite, "overwrite", false, "Overwrite existing logic file if it exists")
 }

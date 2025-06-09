@@ -157,6 +157,17 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 	{{end}}
 `
 
+	// TplGenServiceLogicAppend is the template for appending new methods to a service logic file.
+	TplGenServiceLogicAppend = `
+{{range .Functions}}
+func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req {{if .ReqIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ReqName}}) (res {{if .ResIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ResName}}, err error) {
+	// TODO: Implement the business logic of {{.Name}}.
+	{{if .ResIsPointer}}res = new({{$.ApiPkg}}.{{.ResName}}){{end}}
+	return
+}
+{{end}}
+`
+
 	// TplGenEntity is the template for generating model entity files.
 	TplGenEntity = `// =================================================================================
 // Code generated and maintained by Maltose tool. DO NOT EDIT.
