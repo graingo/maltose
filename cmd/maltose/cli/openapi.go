@@ -1,8 +1,6 @@
 package cli
 
 import (
-	"os"
-
 	"github.com/graingo/maltose/cmd/maltose/internal/openapi"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
@@ -17,18 +15,18 @@ var openapiCmd = &cobra.Command{
 	Use:   "openapi",
 	Short: utils.Print("openapi_cmd_short"),
 	Long:  utils.Print("openapi_cmd_long"),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
+		utils.PrintInfo("openapi_generation_start", utils.TplData{"Source": openapiSrcPath})
 		if err := openapi.Generate(openapiSrcPath, openapiOutputFile); err != nil {
-			utils.PrintError("generic_error", utils.TplData{"Error": err})
-			os.Exit(1)
+			return err
 		}
-
 		utils.PrintSuccess("openapi_generation_success", utils.TplData{"Output": openapiOutputFile})
+		return nil
 	},
 }
 
 func init() {
-	rootCmd.AddCommand(openapiCmd)
+	genCmd.AddCommand(openapiCmd)
 
 	openapiCmd.Flags().StringVarP(&openapiSrcPath, "src", "s", "api", "Source directory to parse for OpenAPI specs")
 	openapiCmd.Flags().StringVarP(&openapiOutputFile, "output", "o", "openapi.yaml", "Output file for OpenAPI spec")

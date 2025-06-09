@@ -1,11 +1,15 @@
 package cli
 
 import (
-	"os"
+	"fmt"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
+)
+
+var (
+	daoSrc string
 )
 
 // daoCmd represents the dao command
@@ -13,25 +17,26 @@ var daoCmd = &cobra.Command{
 	Use:   "dao",
 	Short: utils.Print("dao_cmd_short"),
 	Long:  utils.Print("dao_cmd_long"),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		utils.PrintInfo("dao_generation_start", nil)
 
 		modulePath, _, err := utils.GetModuleInfo(".")
 		if err != nil {
-			utils.PrintError("generic_error", utils.TplData{"Error": err})
-			os.Exit(1)
+			return fmt.Errorf("could not find go.mod: %w", err)
 		}
 
 		generator := gen.NewDaoGenerator(modulePath)
 		if err := generator.Gen(); err != nil {
-			utils.PrintError("generic_error", utils.TplData{"Error": err})
-			os.Exit(1)
+			return err
 		}
 
 		utils.PrintSuccess("dao_generation_success", nil)
+		return nil
 	},
 }
 
 func init() {
 	genCmd.AddCommand(daoCmd)
+
+	daoCmd.Flags().StringVarP(&daoSrc, "src", "s", "internal/model/entity", "Source path for model entity files")
 }

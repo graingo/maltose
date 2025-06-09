@@ -55,5 +55,8 @@
   "found_api_definitions": "Found {{.Count}} API endpoint definitions.",
   "not_have_service_interface": "The file does not contain a service interface, skipping logic generation.",
   "logic_file_uptodate": "⏩ Logic file {{.File}} is up to date, skipping.",
-  "logic_methods_appended": "✅ Appended {{.Count}} new methods to {{.File}}."
+  "logic_methods_appended": "✅ Appended {{.Count}} new methods to {{.File}}.",
+  "logic_gen_skip_method_not_func": "⚠️ Skipping method '{{.Method}}' in service '{{.Service}}' because it's not a function.",
+  "logic_gen_skip_method_bad_params": "⚠️ Skipping method '{{.Method}}' in service '{{.Service}}' due to invalid parameters. Expecting '(ctx context.Context, req *YourReq)'.",
+  "logic_gen_skip_method_bad_results": "⚠️ Skipping method '{{.Method}}' in service '{{.Service}}' due to invalid results. Expecting '(*YourRes, error)'."
 }

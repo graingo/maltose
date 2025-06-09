@@ -1,7 +1,7 @@
 package cli
 
 import (
-	"os"
+	"fmt"
 	"path/filepath"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
@@ -20,17 +20,15 @@ var serviceCmd = &cobra.Command{
 	Use:   "service [path]",
 	Short: utils.Print("service_cmd_short"),
 	Long:  utils.Print("service_cmd_long"),
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		absSrc, err := filepath.Abs(serviceSrcPath)
 		if err != nil {
-			utils.PrintError("failed_to_get_abs_path", utils.TplData{"Error": err})
-			os.Exit(1)
+			return fmt.Errorf("failed to get absolute source path: %w", err)
 		}
 
 		moduleName, moduleRoot, err := utils.GetModuleInfo(absSrc)
 		if err != nil {
-			utils.PrintError("go_mod_not_found", utils.TplData{"Error": err})
-			os.Exit(1)
+			return fmt.Errorf("could not find go.mod: %w", err)
 		}
 
 		generator := &gen.ServiceGenerator{
@@ -42,11 +40,11 @@ var serviceCmd = &cobra.Command{
 		}
 
 		if err := generator.Gen(); err != nil {
-			utils.PrintError("generic_error", utils.TplData{"Error": err})
-			os.Exit(1)
+			return fmt.Errorf("failed to generate service file: %w", err)
 		}
 
 		utils.PrintSuccess("service_generation_success", nil)
+		return nil
 	},
 }
 
