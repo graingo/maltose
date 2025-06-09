@@ -1,6 +1,7 @@
 package gen
 
 import (
+	"errors"
 	"fmt"
 	"os"
 
@@ -10,6 +11,8 @@ import (
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
+
+var ErrEnvFileNeedUpdate = errors.New("env file need update")
 
 // shared state for generation
 var (
@@ -28,7 +31,8 @@ func initDB() error {
 		if err := createEnvExample(); err != nil {
 			return err
 		}
-		utils.PrintInfo("env_file_not_found", nil)
+		utils.PrintNotice("env_file_not_found", nil)
+		return ErrEnvFileNeedUpdate
 	}
 
 	utils.PrintInfo("loading_env_file", nil)

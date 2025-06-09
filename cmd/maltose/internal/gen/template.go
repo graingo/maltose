@@ -177,12 +177,12 @@ package entity
 // {{.StructName}} is the golang structure for table {{.TableName}}.
 type {{.StructName}} struct {
 {{- range .Columns}}
-    {{toCamel .Name}} {{dbTypeToGo .}} ` + "`{{makeTags .}}`" + ` + {{makeRemarks .}}
+    {{toCamel .Name}} {{dbTypeToGo .}} ` + "`{{makeTags .}}`" + ` {{makeRemarks .}}
 {{- end}}
 }
 
 	// TableName returns the name of the table.
-	func (e *{{.StructName}}) TableName() string {
+	func (*{{.StructName}}) TableName() string {
     return "{{.TableName}}"
 }
 `

@@ -1,15 +1,12 @@
 package cli
 
 import (
+	"errors"
 	"fmt"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
-)
-
-var (
-	daoSrc string
 )
 
 // daoCmd represents the dao command
@@ -27,6 +24,9 @@ var daoCmd = &cobra.Command{
 
 		generator := gen.NewDaoGenerator(modulePath)
 		if err := generator.Gen(); err != nil {
+			if errors.Is(err, gen.ErrEnvFileNeedUpdate) {
+				return nil
+			}
 			return err
 		}
 
@@ -37,6 +37,4 @@ var daoCmd = &cobra.Command{
 
 func init() {
 	genCmd.AddCommand(daoCmd)
-
-	daoCmd.Flags().StringVarP(&daoSrc, "src", "s", "internal/model/entity", "Source path for model entity files")
 }
