@@ -9,18 +9,18 @@ import (
 	"github.com/spf13/cobra"
 )
 
+var (
+	logicSrcPath string
+	logicDstPath string
+)
+
 // logicCmd represents the logic command
 var logicCmd = &cobra.Command{
 	Use:   "logic [path]",
 	Short: utils.Print("logic_cmd_short"),
 	Long:  utils.Print("logic_cmd_long"),
 	Run: func(cmd *cobra.Command, args []string) {
-		// Priority: argument > flag
-		if len(args) > 0 {
-			srcPath = args[0]
-		}
-
-		absSrc, err := filepath.Abs(srcPath)
+		absSrc, err := filepath.Abs(logicSrcPath)
 		if err != nil {
 			utils.PrintError("failed_to_get_abs_path", utils.TplData{"Error": err})
 			os.Exit(1)
@@ -34,6 +34,7 @@ var logicCmd = &cobra.Command{
 
 		generator := &gen.LogicGenerator{
 			SrcPath:    absSrc,
+			DstPath:    logicDstPath,
 			Module:     moduleName,
 			ModuleRoot: moduleRoot,
 		}
@@ -50,5 +51,6 @@ var logicCmd = &cobra.Command{
 func init() {
 	genCmd.AddCommand(logicCmd)
 
-	logicCmd.Flags().StringVarP(&srcPath, "src", "s", "internal/service", "Source path for service definition files")
+	logicCmd.Flags().StringVarP(&logicSrcPath, "src", "s", "internal/service", "Source path for service definition files")
+	logicCmd.Flags().StringVarP(&logicDstPath, "dst", "d", "internal", "Destination path for generated files")
 }

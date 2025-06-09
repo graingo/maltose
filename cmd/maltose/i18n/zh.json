@@ -46,11 +46,12 @@
   "skipping_file": "  -> 正在跳过 {{.Path}} (已存在)",
   "entity_files_generation_start": "H 正在生成实体文件...",
   "format_source_failed": "格式化 {{.Path}} 的源码失败，正在写入未格式化的代码。错误：{{.Error}}",
-  "env_file_not_found": "未找到 '.env' 文件。正在为您创建一个 '.env.example'。",
+  "env_file_not_found": "未找到 '.env' 文件。正在为您创建一个 '.env.example'",
   "loading_env_file": "🔎 正在加载 .env 文件...",
   "connecting_to_database": "⚡ 正在连接到数据库...",
   "inspecting_database": "🔍 正在检查数据库模式...",
   "found_tables": "✔ 已找到 {{.Count}} 个表。",
   "scanning_directory": "正在扫描目录: {{.Path}}",
-  "found_api_definitions": "已找到 {{.Count}} 个 API 端点定义。"
+  "found_api_definitions": "已找到 {{.Count}} 个 API 端点定义",
+  "not_have_service_interface": "该文件不包含服务接口，跳过逻辑生成"
 }

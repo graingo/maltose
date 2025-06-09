@@ -99,7 +99,7 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 
 	// TplGenServiceInterface is the template for the service interface.
 	TplGenServiceInterface = `// =================================================================================
-	// Code generated and maintained by Maltose tool. DO NOT EDIT.
+	// Code generated and maintained by Maltose tool. You can edit this file as you like.
 	// =================================================================================
 	package service
 
@@ -149,9 +149,9 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 	}
 
 	{{range .Functions}}
-	func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.ReqName}}) (res *{{$.ApiPkg}}.{{.ResName}}, err error) {
+	func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req {{if .ReqIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ReqName}}) (res {{if .ResIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ResName}}, err error) {
 		// TODO: Implement the business logic of {{.Name}}.
-		res = new({{$.ApiPkg}}.{{.ResName}})
+		{{if .ResIsPointer}}res = new({{$.ApiPkg}}.{{.ResName}}){{end}}
 		return
 	}
 	{{end}}

@@ -2,13 +2,19 @@
 package gen
 
 import (
+	"errors"
+	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"github.com/graingo/maltose/cmd/maltose/utils"
 )
+
+var ErrSimpleMode = errors.New("service is in simple mode")
 
 // LogicGenerator holds the configuration for generating logic files.
 type LogicGenerator struct {
@@ -28,21 +34,18 @@ type logicFunction struct {
 
 // logicTplData is the data structure for the logic template.
 type logicTplData struct {
-	Module       string
-	Service      string
-	Controller   string
-	SvcName      string
-	ApiModule    string
-	ApiPkg       string
-	FileName     string
-	Version      string
-	VersionLower string
-	Functions    []logicFunction
-	SvcPackage   string
+	Module     string
+	Service    string
+	ApiModule  string
+	ApiPkg     string
+	FileName   string
+	Functions  []logicFunction
+	SvcPackage string
 }
 
 // Gen generates the logic file from a service interface file.
 func (g *LogicGenerator) Gen() error {
+	utils.PrintInfo("scanning_directory", utils.TplData{"Path": filepath.Base(g.SrcPath)})
 	return filepath.Walk(g.SrcPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -62,8 +65,8 @@ func (g *LogicGenerator) genFromFile(file string) error {
 
 	genInfo, err := p.Parse(file)
 	if err != nil {
-		// This can happen if the file is not a service interface, which is fine.
-		// We just skip it.
+		// Log other errors for debugging, but don't fail the whole process.
+		// log.Printf("failed to parse file %s: %v", file, err)
 		return nil
 	}
 	if genInfo == nil || len(genInfo.Functions) == 0 {
@@ -72,7 +75,12 @@ func (g *LogicGenerator) genFromFile(file string) error {
 	}
 
 	// Logic file goes into internal/logic/<module>/<file>.go
-	logicOutputPath := filepath.Join(g.DstPath, "logic", genInfo.Module, genInfo.FileName)
+	logicDir := filepath.Join(g.ModuleRoot, g.DstPath, "logic", genInfo.Module)
+	if err := os.MkdirAll(logicDir, os.ModePerm); err != nil {
+		return fmt.Errorf("failed to create logic directory %s: %w", logicDir, err)
+	}
+	logicOutputPath := filepath.Join(logicDir, genInfo.FileName)
+
 	return generateFile(logicOutputPath, "serviceLogic", TplGenServiceLogic, genInfo)
 }
 
@@ -92,6 +100,7 @@ func (p *LogicParser) Parse(filePath string) (*logicTplData, error) {
 	var serviceName string
 	var functions []logicFunction
 	imports := make(map[string]string) // alias -> full path
+	var foundInterface bool
 
 	// 1. Get imports
 	for _, i := range node.Imports {
@@ -111,85 +120,80 @@ func (p *LogicParser) Parse(filePath string) (*logicTplData, error) {
 		if !ok {
 			return true
 		}
-		iface, ok := typeSpec.Type.(*ast.InterfaceType)
-		if !ok {
-			return true
-		}
 
-		serviceName = strings.TrimPrefix(typeSpec.Name.Name, "I")
+		// Check for interface
+		if iface, ok := typeSpec.Type.(*ast.InterfaceType); ok {
+			if strings.HasPrefix(typeSpec.Name.Name, "I") {
+				foundInterface = true
+				serviceName = strings.TrimPrefix(typeSpec.Name.Name, "I")
 
-		for _, method := range iface.Methods.List {
-			if len(method.Names) == 0 {
-				continue
-			}
-			funcType, ok := method.Type.(*ast.FuncType)
-			if !ok || funcType.Params.NumFields() != 2 || funcType.Results.NumFields() != 2 {
-				continue
-			}
+				for _, method := range iface.Methods.List {
+					if len(method.Names) == 0 {
+						continue
+					}
+					funcType, ok := method.Type.(*ast.FuncType)
+					if !ok {
+						continue
+					}
 
-			// --- Relaxed Request Parsing ---
-			reqField := funcType.Params.List[1]
-			var reqPkg, reqName string
+					// --- Method signature validation ---
+					// Must have at least 2 params: (context.Context, *req)
+					if funcType.Params == nil || funcType.Params.NumFields() < 2 {
+						continue
+					}
+					// Must have at least 2 results: (*res, error)
+					if funcType.Results == nil || funcType.Results.NumFields() < 2 {
+						continue
+					}
 
-			// Handle both pointer (*pkg.Type) and non-pointer (pkg.Type)
-			var reqSelector *ast.SelectorExpr
-			reqIsPointer := false
-			if starExpr, isStar := reqField.Type.(*ast.StarExpr); isStar {
-				reqIsPointer = true
-				if selector, isSelector := starExpr.X.(*ast.SelectorExpr); isSelector {
-					reqSelector = selector
+					// Check for context.Context
+					if !isContextContext(funcType.Params.List[0]) {
+						continue
+					}
+
+					// Check for error return type
+					if !isError(funcType.Results.List[funcType.Results.NumFields()-1]) {
+						continue
+					}
+
+					// --- Request Parsing ---
+					reqField := funcType.Params.List[1]
+					reqPkg, reqName, reqIsPointer := parseType(reqField.Type)
+					if reqName == "" {
+						continue
+					}
+
+					// --- Response Parsing ---
+					resField := funcType.Results.List[0] // We only care about the first return value
+					_, resName, resIsPointer := parseType(resField.Type)
+					if resName == "" {
+						continue
+					}
+
+					functions = append(functions, logicFunction{
+						Name:         method.Names[0].Name,
+						ReqName:      reqName,
+						ResName:      resName,
+						ReqIsPointer: reqIsPointer,
+						ResIsPointer: resIsPointer,
+					})
+
+					if apiPkg == "" {
+						apiPkg = reqPkg
+						apiModule = imports[apiPkg]
+					}
 				}
-			} else if selector, isSelector := reqField.Type.(*ast.SelectorExpr); isSelector {
-				reqSelector = selector
-			}
-			if reqSelector == nil {
-				continue
-			}
-
-			if reqPkgIdent, ok := reqSelector.X.(*ast.Ident); ok {
-				reqPkg = reqPkgIdent.Name
-				reqName = reqSelector.Sel.Name
-			} else {
-				continue
-			}
-
-			// --- Relaxed Response Parsing ---
-			resField := funcType.Results.List[0] // We only care about the first return value
-			var resName string
-			var resSelector *ast.SelectorExpr
-			resIsPointer := false
-
-			if starExpr, isStar := resField.Type.(*ast.StarExpr); isStar {
-				resIsPointer = true
-				if selector, isSelector := starExpr.X.(*ast.SelectorExpr); isSelector {
-					resSelector = selector
-				}
-			} else if selector, isSelector := resField.Type.(*ast.SelectorExpr); isSelector {
-				resSelector = selector
-			}
-			if resSelector == nil {
-				continue
-			}
-
-			// We don't need to validate the package part of the response, just get the type name.
-			resName = resSelector.Sel.Name
-
-			functions = append(functions, logicFunction{
-				Name:         method.Names[0].Name,
-				ReqName:      reqName,
-				ResName:      resName,
-				ReqIsPointer: reqIsPointer,
-				ResIsPointer: resIsPointer,
-			})
-
-			if apiPkg == "" {
-				apiPkg = reqPkg
-				apiModule = imports[apiPkg]
+				return false // Stop after finding the first interface
 			}
 		}
 
-		return false // Stop after finding the first interface
+		return true
 	})
+
+	if !foundInterface {
+		utils.PrintWarn("not_have_service_interface", nil)
+		return nil, nil // Not a service file we can process.
+	}
 
 	if serviceName == "" {
 		return nil, nil // Not a service interface file, just skip.
@@ -210,4 +214,38 @@ func (p *LogicParser) Parse(filePath string) (*logicTplData, error) {
 	}
 
 	return info, nil
+}
+
+func isContextContext(field *ast.Field) bool {
+	if selExpr, ok := field.Type.(*ast.SelectorExpr); ok {
+		if pkg, ok := selExpr.X.(*ast.Ident); ok {
+			return pkg.Name == "context" && selExpr.Sel.Name == "Context"
+		}
+	}
+	return false
+}
+
+func isError(field *ast.Field) bool {
+	if ident, ok := field.Type.(*ast.Ident); ok {
+		return ident.Name == "error"
+	}
+	return false
+}
+
+func parseType(expr ast.Expr) (pkg, name string, isPointer bool) {
+	if starExpr, ok := expr.(*ast.StarExpr); ok {
+		isPointer = true
+		expr = starExpr.X
+	}
+
+	selector, ok := expr.(*ast.SelectorExpr)
+	if !ok {
+		return
+	}
+
+	if pkgIdent, ok := selector.X.(*ast.Ident); ok {
+		pkg = pkgIdent.Name
+		name = selector.Sel.Name
+	}
+	return
 }

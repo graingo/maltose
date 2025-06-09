@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	srcPath string
-	dstPath string
-	genMode string
+	serviceSrcPath string
+	serviceDstPath string
+	serviceGenMode string
 )
 
 // serviceCmd represents the service command
@@ -21,12 +21,7 @@ var serviceCmd = &cobra.Command{
 	Short: utils.Print("service_cmd_short"),
 	Long:  utils.Print("service_cmd_long"),
 	Run: func(cmd *cobra.Command, args []string) {
-		// Priority: argument > flag
-		if len(args) > 0 {
-			srcPath = args[0]
-		}
-
-		absSrc, err := filepath.Abs(srcPath)
+		absSrc, err := filepath.Abs(serviceSrcPath)
 		if err != nil {
 			utils.PrintError("failed_to_get_abs_path", utils.TplData{"Error": err})
 			os.Exit(1)
@@ -40,10 +35,10 @@ var serviceCmd = &cobra.Command{
 
 		generator := &gen.ServiceGenerator{
 			SrcPath:       absSrc,
-			DstPath:       dstPath,
+			DstPath:       serviceDstPath,
 			Module:        moduleName,
 			ModuleRoot:    moduleRoot,
-			InterfaceMode: genMode == "interface",
+			InterfaceMode: serviceGenMode == "interface",
 		}
 
 		if err := generator.Gen(); err != nil {
@@ -58,7 +53,7 @@ var serviceCmd = &cobra.Command{
 func init() {
 	genCmd.AddCommand(serviceCmd)
 
-	serviceCmd.Flags().StringVarP(&srcPath, "src", "s", "api", "Source path for API definition files (directory or file)")
-	serviceCmd.Flags().StringVarP(&dstPath, "dst", "d", "internal", "Destination path for generated files")
-	serviceCmd.Flags().StringVarP(&genMode, "mode", "m", "interface", "Generation mode: 'interface' or 'struct'")
+	serviceCmd.Flags().StringVarP(&serviceSrcPath, "src", "s", "api", "Source path for API definition files (directory or file)")
+	serviceCmd.Flags().StringVarP(&serviceDstPath, "dst", "d", "internal", "Destination path for generated files")
+	serviceCmd.Flags().StringVarP(&serviceGenMode, "mode", "m", "interface", "Generation mode: 'interface' or 'struct'")
 }

@@ -13,6 +13,7 @@ import (
 	"text/template"
 
 	"github.com/fatih/color"
+	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/iancoleman/strcase"
 )
 
@@ -51,6 +52,7 @@ type serviceTplData struct {
 
 // Gen generates the service and controller files.
 func (g *ServiceGenerator) Gen() error {
+	utils.PrintInfo("scanning_directory", utils.TplData{"Path": filepath.Base(g.SrcPath)})
 	return filepath.Walk(g.SrcPath, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
