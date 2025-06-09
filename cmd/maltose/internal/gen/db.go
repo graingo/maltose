@@ -10,6 +10,7 @@ import (
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var ErrEnvFileNeedUpdate = errors.New("env file need update")
@@ -113,7 +114,9 @@ func GetDBConnection(info DBInfo) (*gorm.DB, error) {
 		return nil, fmt.Errorf("unsupported database type: %s", info.DBType)
 	}
 
-	db, err := gorm.Open(dialector, &gorm.Config{})
+	db, err := gorm.Open(dialector, &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
 	if err != nil {
 		return nil, fmt.Errorf("failed to connect to database: %w", err)
 	}

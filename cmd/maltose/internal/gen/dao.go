@@ -31,6 +31,7 @@ type daoTplData struct {
 	InternalDaoName string
 	DaoName         string
 	Columns         []gorm.ColumnType
+	HasTime         bool
 }
 
 // Gen generates only the DAO files.

@@ -27,10 +27,20 @@ func (g *ModelGenerator) Gen() error {
 	utils.PrintInfo("entity_files_generation_start", nil)
 	for _, table := range tables {
 		structName := strcase.ToCamel(inflection.Singular(table.Name))
+
+		hasTime := false
+		for _, column := range table.Columns {
+			if dbTypeToGo(column) == "time.Time" {
+				hasTime = true
+				break
+			}
+		}
+
 		data := daoTplData{
 			TableName:  table.Name,
 			StructName: structName,
 			Columns:    table.Columns,
+			HasTime:    hasTime,
 		}
 
 		outputPath := filepath.Join("internal", "model", "entity", fmt.Sprintf("%s.go", table.Name))

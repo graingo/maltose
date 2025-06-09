@@ -173,6 +173,9 @@ func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req {{if .ReqIsPointer}}
 // Code generated and maintained by Maltose tool. DO NOT EDIT.
 	// =================================================================================
 package entity
+{{if .HasTime}}
+import "time"
+{{end}}
 
 // {{.StructName}} is the golang structure for table {{.TableName}}.
 type {{.StructName}} struct {
