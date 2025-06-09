@@ -6,6 +6,7 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path/filepath"
 	"reflect"
 	"strings"
 )
@@ -37,28 +38,48 @@ type FieldInfo struct {
 	Required    bool
 }
 
-// ParseDir parses all .go files in a directory and extracts API definitions.
+// ParseDir parses all .go files in a directory and its subdirectories,
+// and extracts API definitions from files containing "m.Meta".
 func ParseDir(dir string) ([]APIDefinition, error) {
 	fset := token.NewFileSet()
-	pkgs, err := parser.ParseDir(fset, dir, func(fi os.FileInfo) bool {
-		return !fi.IsDir() && strings.HasSuffix(fi.Name(), ".go")
-	}, parser.ParseComments)
+	goFiles := make([]string, 0)
+
+	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return err
+		}
+		if !info.IsDir() && strings.HasSuffix(info.Name(), ".go") {
+			goFiles = append(goFiles, path)
+		}
+		return nil
+	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse directory %s: %w", dir, err)
+		return nil, fmt.Errorf("failed to walk directory %s: %w", dir, err)
 	}
 
 	var apiDefs []APIDefinition
 	allStructs := make(map[string]*ast.StructType)
-	// First pass: collect all struct type specs
-	for _, pkg := range pkgs {
-		for _, file := range pkg.Files {
-			for _, decl := range file.Decls {
-				if genDecl, ok := decl.(*ast.GenDecl); ok && genDecl.Tok == token.TYPE {
-					for _, spec := range genDecl.Specs {
-						if typeSpec, ok := spec.(*ast.TypeSpec); ok {
-							if structType, ok := typeSpec.Type.(*ast.StructType); ok {
-								allStructs[typeSpec.Name.Name] = structType
-							}
+
+	// First pass: Parse files and collect all structs from files containing m.Meta
+	for _, path := range goFiles {
+		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
+		if err != nil {
+			// In case of parsing errors, we can choose to log them and continue,
+			// or stop the process. For now, let's continue.
+			fmt.Fprintf(os.Stderr, "warn: could not parse %s: %v\n", path, err)
+			continue
+		}
+
+		if !containsMeta(file) {
+			continue
+		}
+
+		for _, decl := range file.Decls {
+			if genDecl, ok := decl.(*ast.GenDecl); ok && genDecl.Tok == token.TYPE {
+				for _, spec := range genDecl.Specs {
+					if typeSpec, ok := spec.(*ast.TypeSpec); ok {
+						if structType, ok := typeSpec.Type.(*ast.StructType); ok {
+							allStructs[typeSpec.Name.Name] = structType
 						}
 					}
 				}
@@ -115,10 +136,24 @@ func ParseDir(dir string) ([]APIDefinition, error) {
 	return apiDefs, nil
 }
 
+func containsMeta(file *ast.File) bool {
+	hasMeta := false
+	ast.Inspect(file, func(n ast.Node) bool {
+		if selExpr, ok := n.(*ast.SelectorExpr); ok {
+			if x, ok := selExpr.X.(*ast.Ident); ok && x.Name == "m" && selExpr.Sel.Name == "Meta" {
+				hasMeta = true
+				return false // stop inspecting
+			}
+		}
+		return !hasMeta // continue inspecting if meta not found
+	})
+	return hasMeta
+}
+
 func parseStructInfo(name string, structType *ast.StructType, method string) StructInfo {
 	info := StructInfo{Name: name}
 	for _, field := range structType.Fields.List {
-		if field.Names == nil || len(field.Names) == 0 { // Skip embedded fields
+		if len(field.Names) == 0 { // Skip embedded fields
 			continue
 		}
 		fieldName := field.Names[0].Name

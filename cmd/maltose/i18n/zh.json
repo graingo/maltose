@@ -15,8 +15,6 @@
   "openapi_cmd_long": "此命令通过解析 Go 源文件来生成 OpenAPI v3 规范文件。\n它有助于以标准格式记录您的 API。",
   "service_cmd_short": "从 api 定义生成控制器和服务文件",
   "service_cmd_long": "根据包含 API 定义（请求和响应的结构体）的 Go 文件生成控制器和服务文件。\n\n该命令默认使用 'api' 作为输入，'internal' 作为输出。\n您可以提供单个文件或目录作为输入。当提供目录时，\n它将递归查找所有 .go 文件。",
-  "version_cmd_short": "打印 Maltose 的版本号",
-  "version_cmd_long": "所有软件都有版本。这是 Maltose 的。",
   "checking_for_updates": "正在检查更新...",
   "confirm_update": "Maltose CLI 有新版本可用：{{.NewVersion}}。您想更新到此版本吗？",
   "dao_generation_start": "正在开始生成 DAO 层...",

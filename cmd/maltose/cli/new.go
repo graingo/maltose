@@ -6,7 +6,6 @@ import (
 	"path/filepath"
 	"strings"
 
-	"github.com/graingo/maltose/cmd/maltose/i18n"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
 )
@@ -17,8 +16,8 @@ var repoURLFlag string
 // newCmd represents the new command
 var newCmd = &cobra.Command{
 	Use:   "new <project-name>",
-	Short: i18n.T("new_cmd_short", nil),
-	Long:  i18n.T("new_cmd_long", nil),
+	Short: utils.Print("new_cmd_short"),
+	Long:  utils.Print("new_cmd_long"),
 	Args:  cobra.ExactArgs(1), // Requires exactly one argument: the project name
 	Run: func(cmd *cobra.Command, args []string) {
 		projectName := args[0]

@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/graingo/maltose/cmd/maltose/i18n"
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
@@ -13,8 +12,8 @@ import (
 // logicCmd represents the logic command
 var logicCmd = &cobra.Command{
 	Use:   "logic [path]",
-	Short: i18n.T("logic_cmd_short", nil),
-	Long:  i18n.T("logic_cmd_long", nil),
+	Short: utils.Print("logic_cmd_short"),
+	Long:  utils.Print("logic_cmd_long"),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Priority: argument > flag
 		if len(args) > 0 {

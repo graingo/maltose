@@ -15,8 +15,6 @@
   "openapi_cmd_long": "This command generates an OpenAPI v3 specification file by parsing Go source files.\nIt helps in documenting your API in a standard format.",
   "service_cmd_short": "Generate controller and service files from api definitions",
   "service_cmd_long": "Generate controller and service files based on Go files containing API\ndefinitions (structs for request and response).\n\nThe command defaults to using 'api' as input and 'internal' as output.\nYou can provide a single file or a directory as input. When a directory is provided,\nit will recursively find all .go files.",
-  "version_cmd_short": "Print the version number of Maltose",
-  "version_cmd_long": "All software has versions. This is Maltose's.",
   "checking_for_updates": "Checking for updates...",
   "confirm_update": "A new version of Maltose CLI is available: {{.NewVersion}}. Do you want to update to this version?",
   "dao_generation_start": "Starting DAO layer generation...",

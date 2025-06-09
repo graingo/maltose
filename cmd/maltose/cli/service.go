@@ -4,7 +4,6 @@ import (
 	"os"
 	"path/filepath"
 
-	"github.com/graingo/maltose/cmd/maltose/i18n"
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
@@ -19,8 +18,8 @@ var (
 // serviceCmd represents the service command
 var serviceCmd = &cobra.Command{
 	Use:   "service [path]",
-	Short: i18n.T("service_cmd_short", nil),
-	Long:  i18n.T("service_cmd_long", nil),
+	Short: utils.Print("service_cmd_short"),
+	Long:  utils.Print("service_cmd_long"),
 	Run: func(cmd *cobra.Command, args []string) {
 		// Priority: argument > flag
 		if len(args) > 0 {

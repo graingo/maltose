@@ -4,6 +4,7 @@ package openapi
 import (
 	"fmt"
 	"os"
+	"path"
 
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"gopkg.in/yaml.v3"
@@ -12,7 +13,7 @@ import (
 // Generate scans the given directory for Go files, parses them,
 // builds an OpenAPI specification, and writes it to the output file.
 func Generate(srcDir, outputFile string) error {
-	utils.PrintInfo("scanningDirectory", map[string]interface{}{"Path": srcDir})
+	utils.PrintInfo("scanning_directory", utils.TplData{"Path": srcDir})
 
 	// Step 1: Parse the source code in the directory.
 	// The parser will return a structured representation of the API definitions.
@@ -25,10 +26,16 @@ func Generate(srcDir, outputFile string) error {
 		return fmt.Errorf("no API definitions (structs with m.Meta) found in %s", srcDir)
 	}
 
-	utils.PrintInfo("foundAPIDefinitions", map[string]interface{}{"Count": len(apiDefs)})
+	utils.PrintInfo("found_api_definitions", utils.TplData{"Count": len(apiDefs)})
+
+	moduleName, _, err := utils.GetModuleInfo(".")
+	if err != nil {
+		return fmt.Errorf("failed to get project name: %w", err)
+	}
+	projectName := path.Base(moduleName)
 
 	// Step 2: Build the OpenAPI specification from the parsed definitions.
-	spec, err := BuildSpec(apiDefs)
+	spec, err := BuildSpec(apiDefs, projectName)
 	if err != nil {
 		return fmt.Errorf("failed to build OpenAPI spec: %w", err)
 	}

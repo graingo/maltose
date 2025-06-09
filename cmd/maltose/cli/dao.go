@@ -3,7 +3,6 @@ package cli
 import (
 	"os"
 
-	"github.com/graingo/maltose/cmd/maltose/i18n"
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
@@ -12,8 +11,8 @@ import (
 // daoCmd represents the dao command
 var daoCmd = &cobra.Command{
 	Use:   "dao",
-	Short: i18n.T("dao_cmd_short", nil),
-	Long:  i18n.T("dao_cmd_long", nil),
+	Short: utils.Print("dao_cmd_short"),
+	Long:  utils.Print("dao_cmd_long"),
 	Run: func(cmd *cobra.Command, args []string) {
 		utils.PrintInfo("dao_generation_start", nil)
 
