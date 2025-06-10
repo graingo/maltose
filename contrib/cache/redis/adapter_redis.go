@@ -11,11 +11,11 @@ import (
 
 // AdapterRedis is the mcache adapter implements using Redis server.
 type AdapterRedis struct {
-	redis mredis.Redis
+	redis *mredis.Redis
 }
 
 // NewAdapterRedis creates and returns a new redis adapter for mcache.
-func NewAdapterRedis(redis mredis.Redis) mcache.Adapter {
+func NewAdapterRedis(redis *mredis.Redis) mcache.Adapter {
 	return &AdapterRedis{
 		redis: redis,
 	}
@@ -30,11 +30,10 @@ func (c *AdapterRedis) Set(ctx context.Context, key string, value interface{}, d
 		return err
 	}
 	if duration == 0 {
-		_, err := c.redis.Set(ctx, key, value)
+		err := c.redis.Set(ctx, key, value)
 		return err
 	}
-	_, err := c.redis.SetEX(ctx, key, value, int64(duration.Seconds()))
-	return err
+	return c.redis.SetEX(ctx, key, value, duration)
 }
 
 // Get retrieves and returns the associated value of given `key`.
@@ -83,7 +82,7 @@ func (c *AdapterRedis) SetIfNotExist(ctx context.Context, key string, value inte
 		return ok, err
 	}
 	if duration > 0 {
-		_, err = c.redis.Expire(ctx, key, int64(duration.Seconds()))
+		_, err = c.redis.Expire(ctx, key, duration)
 	}
 	return
 }
@@ -307,7 +306,7 @@ func (c *AdapterRedis) UpdateExpire(ctx context.Context, key string, duration ti
 		_, err = c.redis.Del(ctx, key)
 		return
 	}
-	_, err = c.redis.Expire(ctx, key, int64(duration.Seconds()))
+	_, err = c.redis.Expire(ctx, key, duration)
 	return
 }
 

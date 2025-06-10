@@ -5,6 +5,8 @@ import (
 	"fmt"
 
 	"github.com/graingo/maltose/database/mdb"
+	"github.com/graingo/maltose/errors/mcode"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/os/mlog"
 )
 
@@ -78,12 +80,15 @@ func DB(name ...string) *mdb.DB {
 						}
 						dbConfig.SetLogger(dbLogger)
 					}
+				} else {
+					panic(merror.NewCode(mcode.CodeMissingConfiguration, `no configuration found for creating database`))
 				}
+			} else {
+				panic(merror.NewCode(mcode.CodeMissingConfiguration, `no configuration found for creating database`))
 			}
 		}
-
 		// create db instance with config
-		db, err := mdb.NewWithConfig(dbConfig)
+		db, err := mdb.New(dbConfig)
 		if err != nil {
 			panic(err)
 		}

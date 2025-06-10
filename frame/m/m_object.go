@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/graingo/maltose/database/mdb"
+	"github.com/graingo/maltose/database/mredis"
 	"github.com/graingo/maltose/frame/mins"
 	"github.com/graingo/maltose/net/mhttp"
 	"github.com/graingo/maltose/os/mcfg"
@@ -33,4 +34,9 @@ func DB(name ...string) *mdb.DB {
 // DBContext returns the instance of the database with the specified name and context.
 func DBContext(ctx context.Context, name ...string) *mdb.DB {
 	return mins.DB(name...).WithContext(ctx)
+}
+
+// Redis returns the instance of the redis with the specified name.
+func Redis(name ...string) *mredis.Redis {
+	return mins.Redis(name...)
 }

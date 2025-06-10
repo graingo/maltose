@@ -10,16 +10,14 @@ import (
 
 type DB struct {
 	*gorm.DB
+	config *Config
 }
 
-func New() (*DB, error) {
-	return NewWithConfig(nil)
-}
-
-func NewWithConfig(cfg *Config) (*DB, error) {
+func New(config ...*Config) (*DB, error) {
+	cfg := DefaultConfig()
 	// Validate config
-	if cfg == nil {
-		cfg = DefaultConfig()
+	if len(config) > 0 && config[0] != nil {
+		cfg = config[0]
 	}
 
 	// Create GORM config
@@ -63,7 +61,7 @@ func NewWithConfig(cfg *Config) (*DB, error) {
 		}
 	}
 
-	return &DB{DB: db}, nil
+	return &DB{DB: db, config: cfg}, nil
 }
 
 // WithContext returns a new DB with the given context.
