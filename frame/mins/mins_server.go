@@ -22,8 +22,10 @@ func Server(name ...string) *mhttp.Server {
 	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameServer, instanceName)
 
 	instance := globalInstances.GetOrSetFunc(instanceKey, func() any {
+		// initialize server
 		server := mhttp.New()
 
+		// if config is available, read server config from config
 		if Config().Available(ctx) {
 			var (
 				loggerConfigMap map[string]any
@@ -46,30 +48,28 @@ func Server(name ...string) *mhttp.Server {
 				} else if defaultConfig, ok := globalConfigMap["default"]; ok {
 					// try to get default instance config
 					serverConfigMap = defaultConfig.(map[string]any)
-				} else {
+				} else if len(globalConfigMap) > 0 {
 					// use flat structure config
-					serverConfigMap = configMap[configNodeNameServer].(map[string]any)
+					serverConfigMap = globalConfigMap
 				}
 
 				// apply server config
 				if len(serverConfigMap) > 0 {
 					// basic config
 					server.SetConfigWithMap(serverConfigMap)
-					// logger config processing
-					loggerConfigMap = make(map[string]any)
 
 					// check current config for logger node
 					if cfg, ok := serverConfigMap[configNodeNameLogger].(map[string]any); ok {
 						loggerConfigMap = cfg
-					} else {
+					} else if globalLoggerConfig, ok := configMap[configNodeNameLogger]; ok {
 						// try to get global logger config
-						if cfg, ok := configMap["logger"].(map[string]any); ok {
-							loggerConfigMap = cfg
-						}
+						loggerConfigMap = globalLoggerConfig.(map[string]any)
 					}
+
+					// apply logger config
 					if len(loggerConfigMap) > 0 {
 						if err := server.Logger().SetConfigWithMap(loggerConfigMap); err != nil {
-							panic(err)
+							panic(fmt.Errorf("set server logger config failed: %+v", err))
 						}
 					}
 				}

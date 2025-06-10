@@ -9,6 +9,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// GormLogger is a custom GORM logger that integrates with mlog.
 type GormLogger struct {
 	logger                *mlog.Logger
 	gormLogLevel          logger.LogLevel
@@ -16,26 +17,31 @@ type GormLogger struct {
 	skipErrRecordNotFound bool
 }
 
+// Option is a functional option for configuring the GormLogger.
 type Option func(*GormLogger)
 
+// WithSlowThreshold sets the slow query threshold.
 func WithSlowThreshold(threshold time.Duration) Option {
 	return func(l *GormLogger) {
 		l.slowThreshold = threshold
 	}
 }
 
+// WithSkipErrRecordNotFound sets whether to skip ErrRecordNotFound errors.
 func WithSkipErrRecordNotFound(skip bool) Option {
 	return func(l *GormLogger) {
 		l.skipErrRecordNotFound = skip
 	}
 }
 
+// WithLogLevel sets the GORM log level.
 func WithLogLevel(level logger.LogLevel) Option {
 	return func(l *GormLogger) {
 		l.gormLogLevel = level
 	}
 }
 
+// NewGormLogger creates a new GormLogger.
 func NewGormLogger(mlogger *mlog.Logger, opts ...Option) *GormLogger {
 	l := &GormLogger{
 		logger:                mlogger,
@@ -49,30 +55,35 @@ func NewGormLogger(mlogger *mlog.Logger, opts ...Option) *GormLogger {
 	return l
 }
 
+// LogMode returns a new logger with a different log level.
 func (l *GormLogger) LogMode(level logger.LogLevel) logger.Interface {
 	newLogger := *l
 	newLogger.gormLogLevel = level
 	return &newLogger
 }
 
+// Info logs an info message.
 func (l *GormLogger) Info(ctx context.Context, msg string, args ...interface{}) {
 	if l.gormLogLevel >= logger.Info {
 		l.logger.Infof(ctx, msg, args...)
 	}
 }
 
+// Warn logs a warning message.
 func (l *GormLogger) Warn(ctx context.Context, msg string, args ...interface{}) {
 	if l.gormLogLevel >= logger.Warn {
 		l.logger.Warnf(ctx, msg, args...)
 	}
 }
 
+// Error logs an error message.
 func (l *GormLogger) Error(ctx context.Context, msg string, args ...interface{}) {
 	if l.gormLogLevel >= logger.Error {
 		l.logger.Errorf(ctx, msg, args...)
 	}
 }
 
+// Trace logs a SQL query.
 func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql string, rowsAffected int64), err error) {
 	if l.gormLogLevel <= logger.Silent {
 		return

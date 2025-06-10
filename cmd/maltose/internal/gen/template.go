@@ -201,9 +201,9 @@ package internal
 
 import (
 	"context"
-		"github.com/graingo/maltose/errors"
-		"gorm.io/gorm"
+		"errors"
 
+	"gorm.io/gorm"
 	"{{.PackageName}}/internal/model/entity"
 	)
 
@@ -259,8 +259,28 @@ import (
 		return &result, nil
 	}
 
-	// Find retrieves a list of records based on conditions, with pagination and ordering.
-	func (d *{{.DaoName}}) Find(ctx context.Context, condition map[string]any, page, pageSize int, orderBy string) ([]*entity.{{.StructName}}, int64, error) {
+	// FindList retrieves a list of records based on conditions, with ordering.
+	func (d *{{.DaoName}}) FindList(ctx context.Context, condition map[string]any, orderBy string) ([]*entity.{{.StructName}}, error) {
+		var list  []*entity.{{.StructName}}
+		
+		db := d.DB.WithContext(ctx).Model(&entity.{{.StructName}}{}).Where(condition)
+
+		// Apply ordering and pagination
+		if orderBy != "" {
+			db = db.Order(orderBy)
+		}
+
+		// Execute the query
+		err := db.Find(&list).Error
+		if err != nil {
+			return nil, err
+		}
+
+		return list, nil
+	}
+
+	// FindPageList retrieves a list of records based on conditions, with pagination and ordering.
+	func (d *{{.DaoName}}) FindPageList(ctx context.Context, condition map[string]any, page, pageSize int, orderBy string) ([]*entity.{{.StructName}}, int64, error) {
 		var (
 			list  []*entity.{{.StructName}}
 			total int64
@@ -299,8 +319,8 @@ import (
 package dao
 
 import (
+	"github.com/graingo/maltose/database/mdb"
 	"{{.PackageName}}/internal/dao/internal"
-		"{{.PackageName}}/internal/db"
 )
 
 type {{.DaoName}} struct {
@@ -312,9 +332,9 @@ var (
 		{{firstLower .DaoName}} = New{{.DaoName}}()
 	)
 
-	func New{{.DaoName}}() *{{.DaoName}} {
+	func New{{.DaoName}}(db *mdb.DB) *{{.DaoName}} {
 		return &{{.DaoName}}{
-			internal.New{{.DaoName}}(db.Instance()),
+			internal.New{{.DaoName}}(db),
 		}
 	}
 	`

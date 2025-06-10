@@ -4,16 +4,10 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
-	"time"
 
+	"github.com/graingo/maltose/database/mdb/config"
 	"github.com/graingo/maltose/database/mdb/internal"
-	"github.com/graingo/maltose/os/mlog"
-	"gorm.io/driver/mysql"
-	"gorm.io/driver/postgres"
-	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
-	"gorm.io/gorm/logger"
-	"gorm.io/gorm/schema"
 )
 
 type DB struct {
@@ -24,45 +18,20 @@ func New() (*DB, error) {
 	return NewWithConfig(nil)
 }
 
-func NewWithConfig(cfg *Config) (*DB, error) {
+func NewWithConfig(cfg *config.Config) (*DB, error) {
 	// Validate config
 	if cfg == nil {
-		cfg = DefaultConfig()
-	}
-
-	// Handle DSN
-	dsn := cfg.DSN
-	if dsn == "" && cfg.Host != "" {
-		// Build DSN from connection parameters if DSN is not provided
-		switch cfg.Type {
-		case "mysql":
-			dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-				cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBName)
-		case "postgres":
-			dsn = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-				cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName)
-		}
-	}
-
-	if dsn == "" {
-		return nil, fmt.Errorf("DSN is not set, please configure DSN or complete connection parameters")
-	}
-
-	// Create database driver
-	var driver gorm.Dialector
-	switch cfg.Type {
-	case "mysql":
-		driver = mysql.Open(dsn)
-	case "postgres":
-		driver = postgres.Open(dsn)
-	case "sqlite":
-		driver = sqlite.Open(dsn)
-	default:
-		return nil, fmt.Errorf("unsupported database type: " + cfg.Type)
+		cfg = config.DefaultConfig()
 	}
 
 	// Create GORM config
-	gormConfig := createGormConfig(cfg)
+	gormConfig := internal.CreateGormConfig(cfg)
+
+	// Create database driver
+	driver, err := internal.CreateDriver(cfg)
+	if err != nil {
+		return nil, err
+	}
 
 	// Open database connection
 	db, err := gorm.Open(driver, gormConfig)
@@ -74,85 +43,29 @@ func NewWithConfig(cfg *Config) (*DB, error) {
 	}
 
 	// Configure connection pool
-	if err := configureConnectionPool(db, cfg); err != nil {
+	if err := internal.ConfigureConnectionPool(db, cfg); err != nil {
 		if cfg.Logger != nil {
 			cfg.Logger.Errorf(context.Background(), "failed to configure database connection pool: %v", err)
 		}
 		return nil, fmt.Errorf("failed to configure database connection pool: %w", err)
 	}
 
-	// Load tracing features
-	if err := internal.LoadTracing(db); err != nil {
+	// Configure replicas
+	if err := internal.ConfigureReplicas(db, cfg); err != nil {
 		if cfg.Logger != nil {
-			cfg.Logger.Errorf(context.Background(), "failed to load database tracing: %v", err)
+			cfg.Logger.Errorf(context.Background(), "failed to configure database replicas: %v", err)
 		}
-		return nil, fmt.Errorf("failed to load database tracing: %w", err)
+		return nil, fmt.Errorf("failed to configure database replicas: %w", err)
+	}
+
+	// Load plugins
+	for _, plugin := range cfg.Plugins {
+		if err := db.Use(plugin); err != nil {
+			return nil, fmt.Errorf("failed to load database plugin: %w", err)
+		}
 	}
 
 	return &DB{DB: db}, nil
-}
-
-// createGormConfig creates GORM configuration
-func createGormConfig(cfg *Config) *gorm.Config {
-	gormConfig := &gorm.Config{
-		NamingStrategy: schema.NamingStrategy{
-			SingularTable: true, // Use singular table name
-		},
-	}
-
-	// Configure logger
-	if cfg.Logger != nil {
-		// Set log level
-		logLevel := logger.Warn
-		switch cfg.Logger.GetLevel() {
-		case mlog.ErrorLevel:
-			logLevel = logger.Error
-		case mlog.WarnLevel:
-			logLevel = logger.Warn
-		case mlog.InfoLevel, mlog.DebugLevel:
-			logLevel = logger.Info
-		}
-
-		// Set slow query threshold
-		slowThreshold := cfg.SlowThreshold
-		if slowThreshold == 0 {
-			slowThreshold = 300 * time.Millisecond
-		}
-
-		// Create GORM logger
-		gormLogger := internal.NewGormLogger(
-			cfg.Logger,
-			internal.WithLogLevel(logLevel),
-			internal.WithSlowThreshold(slowThreshold),
-			internal.WithSkipErrRecordNotFound(true),
-		)
-		gormConfig.Logger = gormLogger
-	}
-
-	return gormConfig
-}
-
-// configureConnectionPool sets up database connection pool
-func configureConnectionPool(db *gorm.DB, cfg *Config) error {
-	sqlDB, err := db.DB()
-	if err != nil {
-		return err
-	}
-
-	// Set maximum number of idle connections
-	sqlDB.SetMaxIdleConns(cfg.MaxIdleConnection)
-
-	// Set maximum number of open connections
-	sqlDB.SetMaxOpenConns(cfg.MaxOpenConnection)
-
-	// Set maximum idle time for connections
-	maxIdleTime := cfg.MaxIdleTime
-	if maxIdleTime <= 0 {
-		maxIdleTime = time.Hour // Default 1 hour
-	}
-	sqlDB.SetConnMaxIdleTime(maxIdleTime)
-
-	return nil
 }
 
 // WithContext returns a new DB with the given context.
@@ -170,4 +83,13 @@ func (db *DB) TransactWithOptions(ctx context.Context, opts *sql.TxOptions, fn f
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
 		return fn(&DB{DB: tx})
 	}, opts)
+}
+
+// Ping checks if the database is reachable.
+func (db *DB) Ping(ctx context.Context) error {
+	sqlDB, err := db.DB.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.PingContext(ctx)
 }

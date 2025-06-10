@@ -76,7 +76,7 @@ func (g *DaoGenerator) Gen() error {
 				return err
 			}
 		} else {
-			utils.PrintInfo("skipping_file", utils.TplData{"Path": daoPath})
+			utils.PrintWarn("skipping_file", utils.TplData{"Path": daoPath})
 		}
 	}
 	return nil

@@ -2,6 +2,7 @@ package mdb
 
 import (
 	"github.com/graingo/maltose/container/minstance"
+	"github.com/graingo/maltose/database/mdb/config"
 )
 
 const (
@@ -35,13 +36,13 @@ func Instance(name ...string) (*DB, error) {
 	return v.(*DB), nil
 }
 
-func SetConfig(name string, config *Config) {
-	configs.Set(name, config)
+func SetConfig(name string, cfg *config.Config) {
+	configs.Set(name, cfg)
 }
 
-func GetConfig(name string) *Config {
+func GetConfig(name string) *config.Config {
 	if v := configs.Get(name); v != nil {
-		return v.(*Config)
+		return v.(*config.Config)
 	}
 	return nil
 }

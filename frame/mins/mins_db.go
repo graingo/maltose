@@ -5,11 +5,12 @@ import (
 	"fmt"
 
 	"github.com/graingo/maltose/database/mdb"
+	"github.com/graingo/maltose/database/mdb/config"
 	"github.com/graingo/maltose/os/mlog"
 )
 
 const (
-	configNodeNameDB = "database"
+	configNodeNameDB = "database" // config node name for database
 )
 
 func DB(name ...string) *mdb.DB {
@@ -25,7 +26,7 @@ func DB(name ...string) *mdb.DB {
 	// get or create db instance
 	instance := globalInstances.GetOrSetFunc(instanceKey, func() any {
 		// use default config
-		dbConfig := mdb.DefaultConfig()
+		dbConfig := config.DefaultConfig()
 
 		// if config is available, read db config from config
 		if Config().Available(ctx) {
@@ -58,24 +59,25 @@ func DB(name ...string) *mdb.DB {
 
 				// apply db config
 				if len(databaseConfigMap) > 0 {
+					// basic config
 					dbConfig.SetConfigWithMap(databaseConfigMap)
 
-					// set logger config
-					if loggerConfig, ok := databaseConfigMap["logger"]; ok {
+					// check current config for logger node
+					if loggerConfig, ok := databaseConfigMap[configNodeNameLogger]; ok {
 						// specific instance logger config
 						loggerConfigMap = loggerConfig.(map[string]any)
-					} else if globalLoggerConfig, ok := configMap["logger"]; ok {
+					} else if globalLoggerConfig, ok := configMap[configNodeNameLogger]; ok {
 						// global logger config
 						loggerConfigMap = globalLoggerConfig.(map[string]any)
 					}
 
+					// apply logger config
 					if len(loggerConfigMap) > 0 {
-						// create logger instance
 						dbLogger := mlog.New()
 						if err := dbLogger.SetConfigWithMap(loggerConfigMap); err != nil {
 							panic(fmt.Errorf("set db logger config failed: %+v", err))
 						}
-						dbConfig.Logger = dbLogger
+						dbConfig.SetLogger(dbLogger)
 					}
 				}
 			}
