@@ -2,43 +2,28 @@ package cli
 
 import (
 	"fmt"
-	"path/filepath"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
 )
 
-var (
-	serviceSrcPath string
-	serviceDstPath string
-	serviceGenMode string
-)
-
 // serviceCmd represents the service command
 var serviceCmd = &cobra.Command{
-	Use:   "service [path]",
+	Use:   "service",
 	Short: utils.Print("service_cmd_short"),
 	Long:  utils.Print("service_cmd_long"),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		absSrc, err := filepath.Abs(serviceSrcPath)
+		src, _ := cmd.Flags().GetString("src")
+		dst, _ := cmd.Flags().GetString("dst")
+		mode, _ := cmd.Flags().GetString("mode")
+
+		utils.PrintInfo("service_generation_start", nil)
+
+		generator, err := gen.NewServiceGenerator(src, dst, mode == "interface")
 		if err != nil {
-			return fmt.Errorf("failed to get absolute source path: %w", err)
+			return err
 		}
-
-		moduleName, moduleRoot, err := utils.GetModuleInfo(absSrc)
-		if err != nil {
-			return fmt.Errorf("could not find go.mod: %w", err)
-		}
-
-		generator := &gen.ServiceGenerator{
-			SrcPath:       absSrc,
-			DstPath:       serviceDstPath,
-			Module:        moduleName,
-			ModuleRoot:    moduleRoot,
-			InterfaceMode: serviceGenMode == "interface",
-		}
-
 		if err := generator.Gen(); err != nil {
 			return fmt.Errorf("failed to generate service file: %w", err)
 		}
@@ -51,7 +36,7 @@ var serviceCmd = &cobra.Command{
 func init() {
 	genCmd.AddCommand(serviceCmd)
 
-	serviceCmd.Flags().StringVarP(&serviceSrcPath, "src", "s", "api", "Source path for API definition files (directory or file)")
-	serviceCmd.Flags().StringVarP(&serviceDstPath, "dst", "d", "internal", "Destination path for generated files")
-	serviceCmd.Flags().StringVarP(&serviceGenMode, "mode", "m", "interface", "Generation mode: 'interface' or 'struct'")
+	serviceCmd.Flags().StringP("src", "s", "api", "Source path for API definition files (directory or file)")
+	serviceCmd.Flags().StringP("dst", "d", "internal", "Destination path for generated files")
+	serviceCmd.Flags().StringP("mode", "m", "interface", "Generation mode: 'interface' or 'struct'")
 }

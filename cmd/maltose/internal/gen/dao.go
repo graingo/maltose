@@ -13,14 +13,23 @@ import (
 
 // DaoGenerator holds the configuration for generating DAO files.
 type DaoGenerator struct {
+	Dst        string
 	ModulePath string
+	ModuleRoot string
 }
 
 // NewDaoGenerator creates a new DaoGenerator.
-func NewDaoGenerator(modulePath string) *DaoGenerator {
-	return &DaoGenerator{
-		ModulePath: modulePath,
+func NewDaoGenerator(dst string) (*DaoGenerator, error) {
+	moduleName, moduleRoot, err := utils.GetModuleInfo(dst)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get module info: %w", err)
 	}
+
+	return &DaoGenerator{
+		Dst:        dst,
+		ModulePath: moduleName,
+		ModuleRoot: moduleRoot,
+	}, nil
 }
 
 // daoTplData holds all the template variables for generating DAO and entity files.
@@ -32,6 +41,7 @@ type daoTplData struct {
 	DaoName         string
 	Columns         []gorm.ColumnType
 	HasTime         bool
+	HasDecimal      bool
 }
 
 // Gen generates only the DAO files.
@@ -52,13 +62,14 @@ func (g *DaoGenerator) Gen() error {
 			DaoName:     daoName,
 		}
 
-		internalPath := filepath.Join("internal", "dao", "internal", fmt.Sprintf("%s.go", table.Name))
+		internalPath := filepath.Join(g.Dst, "internal", fmt.Sprintf("%s.go", table.Name))
 		utils.PrintInfo("generating_file", utils.TplData{"Path": internalPath})
 		if err := generateFile(internalPath, "daoInternal", TplGenDaoInternal, data); err != nil {
 			return err
 		}
 
-		daoPath := filepath.Join("internal", "dao", fmt.Sprintf("%s.go", table.Name))
+		daoPath := filepath.Join(g.Dst, fmt.Sprintf("%s.go", table.Name))
+
 		if _, err := os.Stat(daoPath); os.IsNotExist(err) {
 			utils.PrintInfo("generating_file", utils.TplData{"Path": daoPath})
 			if err := generateFile(daoPath, "dao", TplGenDao, data); err != nil {

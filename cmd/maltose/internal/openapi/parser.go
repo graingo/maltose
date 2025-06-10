@@ -9,6 +9,8 @@ import (
 	"path/filepath"
 	"reflect"
 	"strings"
+
+	"github.com/graingo/maltose/cmd/maltose/utils"
 )
 
 // APIDefinition holds the extracted information for a single API endpoint.
@@ -44,6 +46,7 @@ func ParseDir(dir string) ([]APIDefinition, error) {
 	fset := token.NewFileSet()
 	goFiles := make([]string, 0)
 
+	utils.PrintInfo("scanning_directory", utils.TplData{"Path": filepath.Base(dir)})
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err

@@ -2,7 +2,6 @@ package cli
 
 import (
 	"errors"
-	"fmt"
 
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
 	"github.com/graingo/maltose/cmd/maltose/utils"
@@ -17,12 +16,12 @@ var daoCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		utils.PrintInfo("dao_generation_start", nil)
 
-		modulePath, _, err := utils.GetModuleInfo(".")
-		if err != nil {
-			return fmt.Errorf("could not find go.mod: %w", err)
-		}
+		dst, _ := cmd.Flags().GetString("dst")
 
-		generator := gen.NewDaoGenerator(modulePath)
+		generator, err := gen.NewDaoGenerator(dst)
+		if err != nil {
+			return err
+		}
 		if err := generator.Gen(); err != nil {
 			if errors.Is(err, gen.ErrEnvFileNeedUpdate) {
 				return nil
@@ -37,4 +36,6 @@ var daoCmd = &cobra.Command{
 
 func init() {
 	genCmd.AddCommand(daoCmd)
+
+	daoCmd.Flags().StringP("dst", "d", "internal/dao", "Destination path for generated files")
 }

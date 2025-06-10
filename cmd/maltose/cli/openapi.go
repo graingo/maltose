@@ -6,21 +6,21 @@ import (
 	"github.com/spf13/cobra"
 )
 
-var (
-	openapiOutputFile string
-	openapiSrcPath    string
-)
-
 var openapiCmd = &cobra.Command{
 	Use:   "openapi",
 	Short: utils.Print("openapi_cmd_short"),
 	Long:  utils.Print("openapi_cmd_long"),
 	RunE: func(cmd *cobra.Command, args []string) error {
-		utils.PrintInfo("openapi_generation_start", utils.TplData{"Source": openapiSrcPath})
-		if err := openapi.Generate(openapiSrcPath, openapiOutputFile); err != nil {
+		utils.PrintInfo("openapi_generation_start", nil)
+
+		src, _ := cmd.Flags().GetString("src")
+		outputFile, _ := cmd.Flags().GetString("output")
+
+		if err := openapi.Generate(src, outputFile); err != nil {
 			return err
 		}
-		utils.PrintSuccess("openapi_generation_success", utils.TplData{"Output": openapiOutputFile})
+
+		utils.PrintSuccess("openapi_generation_success", utils.TplData{"Output": outputFile})
 		return nil
 	},
 }
@@ -28,6 +28,6 @@ var openapiCmd = &cobra.Command{
 func init() {
 	genCmd.AddCommand(openapiCmd)
 
-	openapiCmd.Flags().StringVarP(&openapiSrcPath, "src", "s", "api", "Source directory to parse for OpenAPI specs")
-	openapiCmd.Flags().StringVarP(&openapiOutputFile, "output", "o", "openapi.yaml", "Output file for OpenAPI spec")
+	openapiCmd.Flags().StringP("src", "s", "api", "Source directory to parse for OpenAPI specs")
+	openapiCmd.Flags().StringP("output", "o", "openapi.yaml", "Output file for OpenAPI spec")
 }

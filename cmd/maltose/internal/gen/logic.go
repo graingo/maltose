@@ -17,9 +17,9 @@ import (
 
 // LogicGenerator holds the configuration for generating logic files.
 type LogicGenerator struct {
-	SrcPath    string
-	DstPath    string
-	Module     string
+	Src        string
+	Dst        string
+	ModuleName string
 	ModuleRoot string
 	Overwrite  bool
 }
@@ -43,10 +43,30 @@ type logicTplData struct {
 	SvcPackage string
 }
 
+func NewLogicGenerator(src, dst string, overwrite bool) (*LogicGenerator, error) {
+	absSrc, err := filepath.Abs(src)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute source path: %w", err)
+	}
+
+	moduleName, moduleRoot, err := utils.GetModuleInfo(absSrc)
+	if err != nil {
+		return nil, fmt.Errorf("could not find go.mod: %w", err)
+	}
+
+	return &LogicGenerator{
+		Src:        absSrc,
+		Dst:        dst,
+		ModuleName: moduleName,
+		ModuleRoot: moduleRoot,
+		Overwrite:  overwrite,
+	}, nil
+}
+
 // Gen generates the logic file from a service interface file.
 func (g *LogicGenerator) Gen() error {
-	utils.PrintInfo("scanning_directory", utils.TplData{"Path": g.SrcPath})
-	return filepath.Walk(g.SrcPath, func(path string, info os.FileInfo, err error) error {
+	utils.PrintInfo("scanning_directory", utils.TplData{"Path": g.Src})
+	return filepath.Walk(g.Src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -60,7 +80,7 @@ func (g *LogicGenerator) Gen() error {
 func (g *LogicGenerator) genFromFile(file string) error {
 	p := &LogicParser{
 		fset:   token.NewFileSet(),
-		module: g.Module,
+		module: g.ModuleName,
 	}
 
 	genInfo, err := p.Parse(file)
@@ -75,7 +95,7 @@ func (g *LogicGenerator) genFromFile(file string) error {
 	}
 
 	// Logic file goes into internal/logic/<module>/<file>.go
-	logicDir := filepath.Join(g.ModuleRoot, g.DstPath, "logic", genInfo.Module)
+	logicDir := filepath.Join(g.ModuleRoot, g.Dst, "logic", genInfo.Module)
 	logicOutputPath := filepath.Join(logicDir, genInfo.FileName)
 
 	// Check if file exists

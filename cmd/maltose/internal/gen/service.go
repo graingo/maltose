@@ -19,9 +19,9 @@ import (
 
 // ServiceGenerator holds the configuration for generating services.
 type ServiceGenerator struct {
-	SrcPath       string // Source path for API definition files
-	DstPath       string // Destination path for generated files
-	Module        string // Go module name
+	Src           string // Source path for API definition files
+	Dst           string // Destination path for generated files
+	ModuleName    string // Go module name
 	ModuleRoot    string // File system path to the module root
 	InterfaceMode bool   // Whether to generate service with interface
 }
@@ -50,10 +50,30 @@ type serviceTplData struct {
 	SvcPackage   string
 }
 
+func NewServiceGenerator(src, dst string, interfaceMode bool) (*ServiceGenerator, error) {
+	absSrc, err := filepath.Abs(src)
+	if err != nil {
+		return nil, fmt.Errorf("failed to get absolute source path: %w", err)
+	}
+
+	moduleName, moduleRoot, err := utils.GetModuleInfo(absSrc)
+	if err != nil {
+		return nil, fmt.Errorf("could not find go.mod: %w", err)
+	}
+
+	return &ServiceGenerator{
+		Src:           src,
+		Dst:           dst,
+		ModuleName:    moduleName,
+		ModuleRoot:    moduleRoot,
+		InterfaceMode: interfaceMode,
+	}, nil
+}
+
 // Gen generates the service and controller files.
 func (g *ServiceGenerator) Gen() error {
-	utils.PrintInfo("scanning_directory", utils.TplData{"Path": filepath.Base(g.SrcPath)})
-	return filepath.Walk(g.SrcPath, func(path string, info os.FileInfo, err error) error {
+	utils.PrintInfo("scanning_directory", utils.TplData{"Path": filepath.Base(g.Src)})
+	return filepath.Walk(g.Src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
@@ -74,7 +94,7 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	parser := &Parser{
 		file:       node,
 		fset:       fset,
-		module:     g.Module,
+		module:     g.ModuleName,
 		moduleRoot: g.ModuleRoot,
 	}
 
@@ -84,10 +104,10 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	}
 
 	// The package for the controller to import is always ".../internal/service".
-	genInfo.SvcPackage = strings.ReplaceAll(filepath.Join(g.Module, "internal", "service"), "\\", "/")
+	genInfo.SvcPackage = strings.ReplaceAll(filepath.Join(g.ModuleName, "internal", "service"), "\\", "/")
 
 	// --- Service File Generation (Create if not exist, skip if exist) ---
-	svcOutputPath := filepath.Join(g.DstPath, "service", genInfo.FileName)
+	svcOutputPath := filepath.Join(g.Dst, "service", genInfo.FileName)
 	if _, err := os.Stat(svcOutputPath); os.IsNotExist(err) {
 		// File does not exist, generate skeleton.
 		templateName := TplGenService
@@ -106,7 +126,7 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	// Case 1: Professional layout like api/<module>/<version>/...
 	if genInfo.Version != "" && !strings.EqualFold(genInfo.Module, genInfo.Version) {
 		// Handle controller struct file (create if not exist, otherwise skip)
-		controllerStructPath := filepath.Join(g.DstPath, "controller", genInfo.Module, genInfo.Module+".go")
+		controllerStructPath := filepath.Join(g.Dst, "controller", genInfo.Module, genInfo.Module+".go")
 		if _, err := os.Stat(controllerStructPath); os.IsNotExist(err) {
 			if err := generateFile(controllerStructPath, "controllerStruct", TplGenControllerStruct, genInfo); err != nil {
 				return fmt.Errorf("failed to generate controller struct: %w", err)
@@ -115,12 +135,12 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 
 		// Handle controller method file (create or append)
 		methodFileName := fmt.Sprintf("%s_%s.go", genInfo.Module, strings.ToLower(genInfo.Version))
-		controllerMethodPath := filepath.Join(g.DstPath, "controller", genInfo.Module, methodFileName)
+		controllerMethodPath := filepath.Join(g.Dst, "controller", genInfo.Module, methodFileName)
 		return g.generateOrAppend(controllerMethodPath, TplGenControllerMethod, TplGenControllerMethodOnly, genInfo)
 	}
 
 	// Case 2: Simple layout like api/<version>/...
-	controllerPath := filepath.Join(g.DstPath, "controller", genInfo.VersionLower, genInfo.FileName)
+	controllerPath := filepath.Join(g.Dst, "controller", genInfo.VersionLower, genInfo.FileName)
 	return g.generateOrAppend(controllerPath, TplGenController, TplGenControllerMethodOnly, genInfo)
 }
 

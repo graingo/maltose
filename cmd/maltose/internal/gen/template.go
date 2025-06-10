@@ -170,11 +170,14 @@ func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req {{if .ReqIsPointer}}
 
 	// TplGenEntity is the template for generating model entity files.
 	TplGenEntity = `// =================================================================================
-// Code generated and maintained by Maltose tool. DO NOT EDIT.
+	// Code generated and maintained by Maltose tool. DO NOT EDIT.
 	// =================================================================================
 package entity
 {{if .HasTime}}
 import "time"
+{{end}}
+{{if .HasDecimal}}
+import "github.com/shopspring/decimal"
 {{end}}
 
 // {{.StructName}} is the golang structure for table {{.TableName}}.
@@ -192,7 +195,7 @@ type {{.StructName}} struct {
 
 	// TplGenDaoInternal is the template for generating internal DAO files.
 	TplGenDaoInternal = `// =================================================================================
-// Code generated and maintained by Maltose tool. DO NOT EDIT.
+	// Code generated and maintained by Maltose tool. DO NOT EDIT.
 	// =================================================================================
 package internal
 

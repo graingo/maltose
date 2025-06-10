@@ -99,8 +99,10 @@ func dbTypeToGo(column gorm.ColumnType) string {
 		return "string"
 	case "TIMESTAMP", "DATETIME", "DATE", "TIME":
 		return "time.Time"
-	case "FLOAT", "DOUBLE", "DECIMAL":
+	case "FLOAT", "DOUBLE":
 		return "float64"
+	case "DECIMAL", "NUMERIC":
+		return "decimal.Decimal"
 	case "BOOL", "BOOLEAN":
 		return "bool"
 	case "BLOB", "LONGBLOB", "BINARY", "VARBINARY":
