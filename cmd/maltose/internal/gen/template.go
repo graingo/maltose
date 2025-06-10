@@ -203,15 +203,16 @@ import (
 	"context"
 		"errors"
 
+	"github.com/graingo/maltose/database/mdb"
 	"gorm.io/gorm"
 	"{{.PackageName}}/internal/model/entity"
 	)
 
 	type {{.DaoName}} struct {
-		DB *gorm.DB
+		DB *mdb.DB
 	}
 
-	func New{{.DaoName}}(db *gorm.DB) *{{.DaoName}} {
+	func New{{.DaoName}}(db *mdb.DB) *{{.DaoName}} {
 		return &{{.DaoName}}{DB: db}
 	}
 
@@ -326,11 +327,6 @@ import (
 type {{.DaoName}} struct {
 		*internal.{{.DaoName}}
 }
-
-var (
-		// {{firstLower .DaoName}} is the instance of {{.DaoName}}.
-		{{firstLower .DaoName}} = New{{.DaoName}}()
-	)
 
 	func New{{.DaoName}}(db *mdb.DB) *{{.DaoName}} {
 		return &{{.DaoName}}{
