@@ -1,11 +1,10 @@
-package internal
+package mdb
 
 import (
 	"context"
 	"fmt"
 	"time"
 
-	"github.com/graingo/maltose/database/mdb/config"
 	"github.com/graingo/maltose/os/mlog"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -17,7 +16,7 @@ import (
 )
 
 // CreateDriver creates a database driver based on the configuration.
-func CreateDriver(cfg *config.Config) (gorm.Dialector, error) {
+func createDriver(cfg *Config) (gorm.Dialector, error) {
 	// Handle DSN
 	dsn := cfg.DSN
 	if dsn == "" && cfg.Host != "" {
@@ -52,8 +51,8 @@ func CreateDriver(cfg *config.Config) (gorm.Dialector, error) {
 	return driver, nil
 }
 
-// CreateGormConfig creates GORM configuration.
-func CreateGormConfig(cfg *config.Config) *gorm.Config {
+// createGormConfig creates GORM configuration.
+func createGormConfig(cfg *Config) *gorm.Config {
 	gormConfig := &gorm.Config{
 		NamingStrategy: schema.NamingStrategy{
 			SingularTable: true, // Use singular table name
@@ -92,8 +91,8 @@ func CreateGormConfig(cfg *config.Config) *gorm.Config {
 	return gormConfig
 }
 
-// ConfigureConnectionPool sets up database connection pool.
-func ConfigureConnectionPool(db *gorm.DB, cfg *config.Config) error {
+// configureConnectionPool sets up database connection pool.
+func configureConnectionPool(db *gorm.DB, cfg *Config) error {
 	sqlDB, err := db.DB()
 	if err != nil {
 		return err
@@ -115,8 +114,8 @@ func ConfigureConnectionPool(db *gorm.DB, cfg *config.Config) error {
 	return nil
 }
 
-// ConfigureReplicas sets up database replicas.
-func ConfigureReplicas(db *gorm.DB, cfg *config.Config) error {
+// configureReplicas sets up database replicas.
+func configureReplicas(db *gorm.DB, cfg *Config) error {
 	if len(cfg.Replicas) == 0 {
 		return nil
 	}
@@ -124,7 +123,7 @@ func ConfigureReplicas(db *gorm.DB, cfg *config.Config) error {
 	replicas := make([]gorm.Dialector, len(cfg.Replicas))
 	for i, replicaCfg := range cfg.Replicas {
 		// Note: we need to pass the address of the replica config
-		driver, err := CreateDriver(&replicaCfg)
+		driver, err := createDriver(&replicaCfg)
 		if err != nil {
 			return err
 		}

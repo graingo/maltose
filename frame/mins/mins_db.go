@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/graingo/maltose/database/mdb"
-	"github.com/graingo/maltose/database/mdb/config"
 	"github.com/graingo/maltose/os/mlog"
 )
 
@@ -26,7 +25,7 @@ func DB(name ...string) *mdb.DB {
 	// get or create db instance
 	instance := globalInstances.GetOrSetFunc(instanceKey, func() any {
 		// use default config
-		dbConfig := config.DefaultConfig()
+		dbConfig := mdb.DefaultConfig()
 
 		// if config is available, read db config from config
 		if Config().Available(ctx) {

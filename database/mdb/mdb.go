@@ -5,8 +5,6 @@ import (
 	"database/sql"
 	"fmt"
 
-	"github.com/graingo/maltose/database/mdb/config"
-	"github.com/graingo/maltose/database/mdb/internal"
 	"gorm.io/gorm"
 )
 
@@ -18,17 +16,17 @@ func New() (*DB, error) {
 	return NewWithConfig(nil)
 }
 
-func NewWithConfig(cfg *config.Config) (*DB, error) {
+func NewWithConfig(cfg *Config) (*DB, error) {
 	// Validate config
 	if cfg == nil {
-		cfg = config.DefaultConfig()
+		cfg = DefaultConfig()
 	}
 
 	// Create GORM config
-	gormConfig := internal.CreateGormConfig(cfg)
+	gormConfig := createGormConfig(cfg)
 
 	// Create database driver
-	driver, err := internal.CreateDriver(cfg)
+	driver, err := createDriver(cfg)
 	if err != nil {
 		return nil, err
 	}
@@ -43,7 +41,7 @@ func NewWithConfig(cfg *config.Config) (*DB, error) {
 	}
 
 	// Configure connection pool
-	if err := internal.ConfigureConnectionPool(db, cfg); err != nil {
+	if err := configureConnectionPool(db, cfg); err != nil {
 		if cfg.Logger != nil {
 			cfg.Logger.Errorf(context.Background(), "failed to configure database connection pool: %v", err)
 		}
@@ -51,7 +49,7 @@ func NewWithConfig(cfg *config.Config) (*DB, error) {
 	}
 
 	// Configure replicas
-	if err := internal.ConfigureReplicas(db, cfg); err != nil {
+	if err := configureReplicas(db, cfg); err != nil {
 		if cfg.Logger != nil {
 			cfg.Logger.Errorf(context.Background(), "failed to configure database replicas: %v", err)
 		}

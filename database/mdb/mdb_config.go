@@ -1,4 +1,4 @@
-package config
+package mdb
 
 import (
 	"time"
