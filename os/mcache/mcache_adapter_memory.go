@@ -100,46 +100,36 @@ func (c *AdapterMemory) Close(ctx context.Context) error {
 func (c *AdapterMemory) Set(ctx context.Context, key string, value interface{}, duration time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
+	c.set(key, value, duration)
+	return nil
+}
 
+// set is the internal implementation of Set.
+// It is not thread-safe and must be called within a lock.
+func (c *AdapterMemory) set(key string, value interface{}, duration time.Duration) {
 	var expire time.Time
 	if duration > 0 {
 		expire = time.Now().Add(duration)
 	}
-
 	if item := c.data.Get(key); item != nil {
 		item.v = value
 		item.e = expire
-		c.lru.Push(item.elem)
+		if item.elem != nil {
+			c.lru.Push(item.elem)
+		}
 	} else {
+		c.evict()
 		elem := c.lru.NewElement(key)
 		c.data.Set(key, &memoryDataItem{v: value, e: expire, elem: elem})
 	}
-	c.evict()
-	return nil
 }
 
 // SetMap batch sets cache with key-value pairs by `data` map.
 func (c *AdapterMemory) SetMap(ctx context.Context, data map[string]interface{}, duration time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
-
-	var expire time.Time
-	if duration > 0 {
-		expire = time.Now().Add(duration)
-	}
-
 	for key, value := range data {
-		if item := c.data.Get(key); item != nil {
-			item.v = value
-			item.e = expire
-			c.lru.Push(item.elem)
-		} else {
-			elem := c.lru.NewElement(key)
-			c.data.Set(key, &memoryDataItem{v: value, e: expire, elem: elem})
-		}
-	}
-	for i := 0; i < len(data); i++ {
-		c.evict()
+		c.set(key, value, duration)
 	}
 	return nil
 }
@@ -153,17 +143,8 @@ func (c *AdapterMemory) SetIfNotExist(ctx context.Context, key string, value int
 		if item.e.IsZero() || time.Now().Before(item.e) {
 			return false, nil
 		}
-		c.remove(key, item)
 	}
-
-	var expire time.Time
-	if duration > 0 {
-		expire = time.Now().Add(duration)
-	}
-
-	elem := c.lru.NewElement(key)
-	c.data.Set(key, &memoryDataItem{v: value, e: expire, elem: elem})
-	c.evict()
+	c.set(key, value, duration)
 	return true, nil
 }
 

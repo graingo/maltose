@@ -22,9 +22,6 @@ func newMemoryLru(capacity int) *memoryLru {
 // Push pushes a new element to the front of the LRU list.
 // If the element already exists, it moves it to the front.
 func (lru *memoryLru) Push(elem *list.Element) {
-	if lru.cap <= 0 {
-		return
-	}
 	lru.list.MoveToFront(elem)
 }
 
@@ -41,9 +38,6 @@ func (lru *memoryLru) Pop() (key string, ok bool) {
 
 // Remove removes a specific element from the LRU list.
 func (lru *memoryLru) Remove(elem *list.Element) {
-	if lru.cap <= 0 {
-		return
-	}
 	lru.list.Remove(elem)
 }
 
@@ -62,9 +56,6 @@ func (lru *memoryLru) IsFull() bool {
 
 // NewElement creates a new element for the LRU list.
 func (lru *memoryLru) NewElement(key string) *list.Element {
-	if lru.cap <= 0 {
-		return nil
-	}
 	return lru.list.PushFront(key)
 }
 
