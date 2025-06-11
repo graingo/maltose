@@ -6,8 +6,10 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+type Z = redis.Z
+
 // ZAdd adds all the specified members with the specified scores to the sorted set stored at key.
-func (r *Redis) ZAdd(ctx context.Context, key string, members ...redis.Z) (int64, error) {
+func (r *Redis) ZAdd(ctx context.Context, key string, members ...Z) (int64, error) {
 	return r.client.ZAdd(ctx, key, members...).Result()
 }
 
