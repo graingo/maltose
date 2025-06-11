@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/graingo/maltose/container/mvar"
+	"github.com/redis/go-redis/v9"
 )
 
 // Set sets key to hold the string value.
@@ -25,6 +26,9 @@ func (r *Redis) SetEX(ctx context.Context, key string, value interface{}, durati
 func (r *Redis) Get(ctx context.Context, key string) (*mvar.Var, error) {
 	val, err := r.client.Get(ctx, key).Result()
 	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
 		return nil, err
 	}
 	return mvar.New(val), nil
@@ -48,7 +52,9 @@ func (r *Redis) MGet(ctx context.Context, keys ...string) ([]*mvar.Var, error) {
 	return vars, nil
 }
 
-// SetNX is a redis SETNX command.
-func (r *Redis) SetNX(ctx context.Context, key string, value interface{}) (bool, error) {
-	return r.client.SetNX(ctx, key, value, 0).Result()
+// SetNX sets key to hold string value if key does not exist.
+// In that case, it is equal to SET. When key already holds a value, no operation is performed.
+// SETNX is a an atomic operation.
+func (r *Redis) SetNX(ctx context.Context, key string, value interface{}, duration time.Duration) (bool, error) {
+	return r.client.SetNX(ctx, key, value, duration).Result()
 }

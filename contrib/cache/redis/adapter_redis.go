@@ -7,6 +7,7 @@ import (
 	"github.com/graingo/maltose/container/mvar"
 	"github.com/graingo/maltose/database/mredis"
 	"github.com/graingo/maltose/os/mcache"
+	"github.com/redis/go-redis/v9"
 )
 
 // AdapterRedis is the mcache adapter implements using Redis server.
@@ -39,7 +40,14 @@ func (c *AdapterRedis) Set(ctx context.Context, key string, value interface{}, d
 // Get retrieves and returns the associated value of given `key`.
 // It returns nil if it does not exist, or its value is nil, or it's expired.
 func (c *AdapterRedis) Get(ctx context.Context, key string) (*mvar.Var, error) {
-	return c.redis.Get(ctx, key)
+	v, err := c.redis.Get(ctx, key)
+	if err != nil {
+		if err == redis.Nil {
+			return nil, nil
+		}
+		return nil, err
+	}
+	return v, nil
 }
 
 // SetMap batch sets cache with key-value pairs by `data` map, which is expired after `duration`.
@@ -71,20 +79,14 @@ func (c *AdapterRedis) SetMap(ctx context.Context, data map[string]interface{}, 
 }
 
 // SetIfNotExist sets cache with `key`-`value` pair if `key` does not exist in the cache.
+// It is an atomic operation.
 func (c *AdapterRedis) SetIfNotExist(ctx context.Context, key string, value interface{}, duration time.Duration) (ok bool, err error) {
 	if value == nil || duration < 0 {
 		var n int64
 		n, err = c.redis.Del(ctx, key)
 		return n > 0, err
 	}
-	ok, err = c.redis.SetNX(ctx, key, value)
-	if err != nil || !ok {
-		return ok, err
-	}
-	if duration > 0 {
-		_, err = c.redis.Expire(ctx, key, duration)
-	}
-	return
+	return c.redis.SetNX(ctx, key, value, duration)
 }
 
 // SetIfNotExistFunc sets `key` with result of function `f` if `key` does not exist in the cache.
@@ -111,7 +113,8 @@ func (c *AdapterRedis) SetIfNotExistFuncLock(ctx context.Context, key string, f 
 	// Use redis lock to ensure atomicity.
 	// This is a simplified lock, a more robust implementation should use a distributed lock library.
 	lockKey := key + "_lock"
-	locked, err := c.redis.SetNX(ctx, lockKey, 1)
+	// The lock TTL is 10 seconds.
+	locked, err := c.redis.SetNX(ctx, lockKey, 1, 10*time.Second)
 	if err != nil {
 		return false, err
 	}
@@ -141,14 +144,14 @@ func (c *AdapterRedis) GetOrSet(ctx context.Context, key string, value interface
 	if err != nil {
 		return nil, err
 	}
-	if result.IsNil() {
-		err = c.Set(ctx, key, value, duration)
-		if err != nil {
-			return nil, err
-		}
-		return mvar.New(value), nil
+	if result != nil {
+		return result, nil
 	}
-	return result, nil
+	err = c.Set(ctx, key, value, duration)
+	if err != nil {
+		return nil, err
+	}
+	return mvar.New(value), nil
 }
 
 // GetOrSetFunc retrieves and returns the value of `key`, or sets `key` with result of function `f` and returns its result if `key` does not exist.
@@ -157,7 +160,49 @@ func (c *AdapterRedis) GetOrSetFunc(ctx context.Context, key string, f mcache.Fu
 	if err != nil {
 		return nil, err
 	}
-	if result.IsNil() {
+	if result != nil {
+		return result, nil
+	}
+	var value interface{}
+	value, err = f(ctx)
+	if err != nil {
+		return nil, err
+	}
+	err = c.Set(ctx, key, value, duration)
+	if err != nil {
+		return nil, err
+	}
+	return mvar.New(value), nil
+}
+
+// GetOrSetFuncLock retrieves and returns the value of `key`, or sets `key` with result of function `f` and returns its result if `key` does not exist.
+func (c *AdapterRedis) GetOrSetFuncLock(ctx context.Context, key string, f mcache.Func, duration time.Duration) (result *mvar.Var, err error) {
+	result, err = c.Get(ctx, key)
+	if err != nil {
+		return nil, err
+	}
+	if result != nil {
+		return result, nil
+	}
+
+	// Use redis lock to ensure atomicity.
+	lockKey := key + "_lock"
+	// The lock TTL is 10 seconds.
+	locked, err := c.redis.SetNX(ctx, lockKey, 1, 10*time.Second)
+	if err != nil {
+		return nil, err
+	}
+	if locked {
+		defer c.redis.Del(ctx, lockKey)
+		// Double check inside the lock.
+		result, err = c.Get(ctx, key)
+		if err != nil {
+			return nil, err
+		}
+		if result != nil {
+			return result, nil
+		}
+
 		var value interface{}
 		value, err = f(ctx)
 		if err != nil {
@@ -168,49 +213,12 @@ func (c *AdapterRedis) GetOrSetFunc(ctx context.Context, key string, f mcache.Fu
 			return nil, err
 		}
 		return mvar.New(value), nil
-	}
-	return result, nil
-}
 
-// GetOrSetFuncLock retrieves and returns the value of `key`, or sets `key` with result of function `f` and returns its result if `key` does not exist.
-func (c *AdapterRedis) GetOrSetFuncLock(ctx context.Context, key string, f mcache.Func, duration time.Duration) (result *mvar.Var, err error) {
-	result, err = c.Get(ctx, key)
-	if err != nil {
-		return nil, err
+	} else {
+		// Wait and retry getting the value. A better solution is to use a more sophisticated distributed lock.
+		time.Sleep(50 * time.Millisecond)
+		return c.GetOrSetFuncLock(ctx, key, f, duration)
 	}
-	if result.IsNil() {
-		// Use redis lock to ensure atomicity.
-		lockKey := key + "_lock"
-		locked, err := c.redis.SetNX(ctx, lockKey, 1)
-		if err != nil {
-			return nil, err
-		}
-		if locked {
-			defer c.redis.Del(ctx, lockKey)
-			// Double check inside the lock.
-			result, err = c.Get(ctx, key)
-			if err != nil {
-				return nil, err
-			}
-			if result.IsNil() {
-				var value interface{}
-				value, err = f(ctx)
-				if err != nil {
-					return nil, err
-				}
-				err = c.Set(ctx, key, value, duration)
-				if err != nil {
-					return nil, err
-				}
-				return mvar.New(value), nil
-			}
-		} else {
-			// Wait and retry getting the value.
-			time.Sleep(50 * time.Millisecond)
-			return c.Get(ctx, key)
-		}
-	}
-	return result, nil
 }
 
 // Contains checks and returns true if `key` exists in the cache, or else returns false.
@@ -223,12 +231,15 @@ func (c *AdapterRedis) Contains(ctx context.Context, key string) (bool, error) {
 }
 
 // Size returns the number of items in the cache.
+// Note that this method is not accurate in redis cluster mode and may be slow if the cache size is large.
 func (c *AdapterRedis) Size(ctx context.Context) (size int, err error) {
 	n, err := c.redis.DBSize(ctx)
 	return int(n), err
 }
 
 // Data returns a copy of all key-value pairs in the cache as map type.
+// Note that this method may be slow and memory-consuming if the cache size is large,
+// as it uses `KEYS *` to retrieve all keys. It is not recommended to use this method in production.
 func (c *AdapterRedis) Data(ctx context.Context) (data map[string]interface{}, err error) {
 	keys, err := c.redis.Keys(ctx, "*")
 	if err != nil {
@@ -251,11 +262,15 @@ func (c *AdapterRedis) Data(ctx context.Context) (data map[string]interface{}, e
 }
 
 // Keys returns all keys in the cache as slice.
+// Note that this method may be slow if the cache size is large,
+// as it uses `KEYS *` to retrieve all keys. It is not recommended to use this method in production.
 func (c *AdapterRedis) Keys(ctx context.Context) (keys []string, err error) {
 	return c.redis.Keys(ctx, "*")
 }
 
 // Values returns all values in the cache as slice.
+// Note that this method may be slow and memory-consuming if the cache size is large,
+// as it uses `KEYS *` to retrieve all keys. It is not recommended to use this method in production.
 func (c *AdapterRedis) Values(ctx context.Context) (values []interface{}, err error) {
 	keys, err := c.redis.Keys(ctx, "*")
 	if err != nil {
@@ -281,14 +296,14 @@ func (c *AdapterRedis) Update(ctx context.Context, key string, value interface{}
 	if err != nil {
 		return nil, false, err
 	}
-	if oldValue.IsNil() {
+	if oldValue == nil {
 		return nil, false, nil
 	}
 	ttl, err := c.redis.TTL(ctx, key)
 	if err != nil {
-		return nil, false, err
+		return nil, true, err
 	}
-	err = c.Set(ctx, key, value, time.Duration(ttl)*time.Second)
+	err = c.Set(ctx, key, value, ttl)
 	if err != nil {
 		return nil, true, err
 	}
@@ -298,10 +313,18 @@ func (c *AdapterRedis) Update(ctx context.Context, key string, value interface{}
 // UpdateExpire updates the expiration of `key` and returns the old expiration duration value.
 func (c *AdapterRedis) UpdateExpire(ctx context.Context, key string, duration time.Duration) (oldDuration time.Duration, err error) {
 	ttl, err := c.redis.TTL(ctx, key)
-	if err != nil || ttl <= -2 { // Key does not exist
+	if err != nil {
 		return -1, err
 	}
-	oldDuration = time.Duration(ttl) * time.Second
+	if ttl <= -2 { // Key does not exist
+		return -1, nil
+	}
+	if ttl == -1 { // Key has no expiration.
+		oldDuration = 0
+	} else {
+		oldDuration = ttl
+	}
+
 	if duration < 0 {
 		_, err = c.redis.Del(ctx, key)
 		return
