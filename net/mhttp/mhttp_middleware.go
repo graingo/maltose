@@ -7,3 +7,8 @@ type MiddlewareFunc func(*Request)
 func (s *Server) Use(middlewares ...MiddlewareFunc) {
 	s.RouterGroup.Use(middlewares)
 }
+
+// Middleware alias Use.
+func (s *Server) Middleware(middlewares ...MiddlewareFunc) {
+	s.Use(middlewares...)
+}
