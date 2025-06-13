@@ -8,29 +8,29 @@ import (
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
-// 提供者包装器
+// providerWrapper is a wrapper for a provider.
 type providerWrapper struct {
 	provider *sdkmetric.MeterProvider
 }
 
-// 创建新的提供者包装器
+// newProviderWrapper creates a new provider wrapper.
 func newProviderWrapper(provider *sdkmetric.MeterProvider) *providerWrapper {
 	return &providerWrapper{provider: provider}
 }
 
-// Meter 实现 mmetric.Provider 接口
+// Meter implements the mmetric.Provider interface.
 func (p *providerWrapper) Meter(option mmetric.MeterOption) mmetric.Meter {
-	// 创建 OpenTelemetry Meter
+	// Create an OpenTelemetry Meter.
 	meter := p.provider.Meter(
 		option.Instrument,
 		metric.WithInstrumentationVersion(option.InstrumentVersion),
 	)
 
-	// 包装为我们的 Meter 接口
+	// Wrap it in our Meter interface.
 	return &meterWrapper{meter: meter}
 }
 
-// Shutdown 实现 mmetric.Provider 接口
+// Shutdown implements the mmetric.Provider interface.
 func (p *providerWrapper) Shutdown(ctx context.Context) error {
 	return p.provider.Shutdown(ctx)
 }

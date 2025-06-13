@@ -145,7 +145,3 @@ func main() {
 3. 在生产环境中，建议使用安全连接（设置 WithInsecure(false)）
 4. 为服务设置正确的名称、版本和环境信息，便于区分不同的服务和环境
 5. 使用 Must\* 方法创建指标，简化错误处理
-
-## 兼容性
-
-本包基于 OpenTelemetry Go SDK v1.24.0 开发，兼容 OpenTelemetry Collector v0.96.0 及以上版本。

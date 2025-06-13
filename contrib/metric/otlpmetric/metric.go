@@ -9,70 +9,70 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// 计数器包装器
+// counterWrapper is a wrapper for a counter.
 type counterWrapper struct {
 	counter metric.Float64Counter
 }
 
-// Add 添加值
+// Add adds a value.
 func (c *counterWrapper) Add(ctx context.Context, value float64, opts ...mmetric.Option) {
-	// 使用 metric.WithAttributes 将属性转换为 AddOption
+	// Convert attributes to AddOption using metric.WithAttributes.
 	c.counter.Add(ctx, value, metric.WithAttributes(optionsToAttributes(opts)...))
 }
 
-// Inc 增加 1
+// Inc increments by 1.
 func (c *counterWrapper) Inc(ctx context.Context, opts ...mmetric.Option) {
-	// 使用 metric.WithAttributes 将属性转换为 AddOption
+	// Convert attributes to AddOption using metric.WithAttributes.
 	c.counter.Add(ctx, 1, metric.WithAttributes(optionsToAttributes(opts)...))
 }
 
-// 上下计数器包装器
+// upDownCounterWrapper is a wrapper for an up-down counter.
 type upDownCounterWrapper struct {
 	counter metric.Float64UpDownCounter
 }
 
-// Add 添加值
+// Add adds a value.
 func (c *upDownCounterWrapper) Add(ctx context.Context, value float64, opts ...mmetric.Option) {
-	// 使用 metric.WithAttributes 将属性转换为 AddOption
+	// Convert attributes to AddOption using metric.WithAttributes.
 	c.counter.Add(ctx, value, metric.WithAttributes(optionsToAttributes(opts)...))
 }
 
-// Inc 增加 1
+// Inc increments by 1.
 func (c *upDownCounterWrapper) Inc(ctx context.Context, opts ...mmetric.Option) {
-	// 使用 metric.WithAttributes 将属性转换为 AddOption
+	// Convert attributes to AddOption using metric.WithAttributes.
 	c.counter.Add(ctx, 1, metric.WithAttributes(optionsToAttributes(opts)...))
 }
 
-// Dec 减少 1
+// Dec decrements by 1.
 func (c *upDownCounterWrapper) Dec(ctx context.Context, opts ...mmetric.Option) {
-	// 使用 metric.WithAttributes 将属性转换为 AddOption
+	// Convert attributes to AddOption using metric.WithAttributes.
 	c.counter.Add(ctx, -1, metric.WithAttributes(optionsToAttributes(opts)...))
 }
 
-// 直方图包装器
+// histogramWrapper is a wrapper for a histogram.
 type histogramWrapper struct {
 	histogram metric.Float64Histogram
 }
 
-// Record 记录值
+// Record records a value.
 func (h *histogramWrapper) Record(value float64, opts ...mmetric.Option) {
-	// 使用 metric.WithAttributes 将属性转换为 RecordOption
+	// Convert attributes to RecordOption using metric.WithAttributes.
 	h.histogram.Record(context.Background(), value, metric.WithAttributes(optionsToAttributes(opts)...))
 }
 
-// 将 mmetric.Option 转换为 attribute.KeyValue
+// optionsToAttributes converts mmetric.Option to attribute.KeyValue.
 func optionsToAttributes(opts []mmetric.Option) []attribute.KeyValue {
 	if len(opts) == 0 {
 		return nil
 	}
 
-	// 合并所有属性
+	// Merge all attributes.
 	mergedAttrs := make(mmetric.AttributeMap)
 	for _, opt := range opts {
 		mergedAttrs.Sets(opt.Attributes)
 	}
 
-	// 转换为 attribute.KeyValue
+	// Convert to attribute.KeyValue.
 	attrs := make([]attribute.KeyValue, 0, len(mergedAttrs))
 	for k, v := range mergedAttrs {
 		switch val := v.(type) {

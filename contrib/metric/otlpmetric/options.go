@@ -4,29 +4,29 @@ import (
 	"time"
 )
 
-// Option 配置选项函数类型
+// Option is a function type for configuration options.
 type Option func(*options)
 
-// options 配置选项结构体
+// options is the configuration options struct.
 type options struct {
-	// 服务信息
-	serviceName    string // 服务名称
-	serviceVersion string // 服务版本
-	environment    string // 环境名称
+	// Service information.
+	serviceName    string // Service name.
+	serviceVersion string // Service version.
+	environment    string // Environment name.
 
-	// 导出配置
-	protocol       Protocol      // 使用的协议
-	exportInterval time.Duration // 导出间隔
-	timeout        time.Duration // 超时时间
-	insecure       bool          // 是否使用非安全连接
-	endpoint       string        // 端点地址
-	urlPath        string        // URL 路径（仅用于 HTTP 协议）
+	// Export configuration.
+	protocol       Protocol      // Protocol to use.
+	exportInterval time.Duration // Export interval.
+	timeout        time.Duration // Timeout.
+	insecure       bool          // Whether to use an insecure connection.
+	endpoint       string        // Endpoint address.
+	urlPath        string        // URL path (for HTTP protocol only).
 
-	// 资源属性
-	resourceAttributes map[string]string // 自定义资源属性
+	// Resource attributes.
+	resourceAttributes map[string]string // Custom resource attributes.
 }
 
-// defaultOptions 返回默认选项
+// defaultOptions returns the default options.
 func defaultOptions() options {
 	return options{
 		serviceName:        "maltose-service",
@@ -40,63 +40,63 @@ func defaultOptions() options {
 	}
 }
 
-// WithServiceName 设置服务名称
+// WithServiceName sets the service name.
 func WithServiceName(name string) Option {
 	return func(o *options) {
 		o.serviceName = name
 	}
 }
 
-// WithServiceVersion 设置服务版本
+// WithServiceVersion sets the service version.
 func WithServiceVersion(version string) Option {
 	return func(o *options) {
 		o.serviceVersion = version
 	}
 }
 
-// WithEnvironment 设置环境
+// WithEnvironment sets the environment.
 func WithEnvironment(env string) Option {
 	return func(o *options) {
 		o.environment = env
 	}
 }
 
-// WithProtocol 设置协议
+// WithProtocol sets the protocol.
 func WithProtocol(protocol Protocol) Option {
 	return func(o *options) {
 		o.protocol = protocol
 	}
 }
 
-// WithExportInterval 设置导出间隔
+// WithExportInterval sets the export interval.
 func WithExportInterval(interval time.Duration) Option {
 	return func(o *options) {
 		o.exportInterval = interval
 	}
 }
 
-// WithTimeout 设置超时
+// WithTimeout sets the timeout.
 func WithTimeout(timeout time.Duration) Option {
 	return func(o *options) {
 		o.timeout = timeout
 	}
 }
 
-// WithInsecure 设置是否使用非安全连接
+// WithInsecure sets whether to use an insecure connection.
 func WithInsecure(insecure bool) Option {
 	return func(o *options) {
 		o.insecure = insecure
 	}
 }
 
-// WithURLPath 设置 URL 路径（仅用于 HTTP 协议）
+// WithURLPath sets the URL path (for HTTP protocol only).
 func WithURLPath(path string) Option {
 	return func(o *options) {
 		o.urlPath = path
 	}
 }
 
-// WithResourceAttribute 添加资源属性
+// WithResourceAttribute adds a resource attribute.
 func WithResourceAttribute(key, value string) Option {
 	return func(o *options) {
 		o.resourceAttributes[key] = value

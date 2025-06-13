@@ -1,14 +1,12 @@
 package mclient
 
 import (
-	"context"
 	"fmt"
 	"net/url"
 	"strings"
 	"time"
 
 	"github.com/graingo/maltose/net/mtrace"
-	"github.com/graingo/mconv"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/codes"
@@ -17,13 +15,14 @@ import (
 )
 
 const (
-	instrumentName                        = "github.com/graingo/maltose/net/mclient.client"
+	instrumentName                        = "github.com/graingo/maltose/net/mclient"
 	tracingEventHttpRequest               = "http.request"
-	tracingEventHttpRequestUrl            = "http.request.url"
+	tracingEventHttpRequestUrl            = "http.url"
 	tracingEventHttpHeaders               = "http.headers"
 	tracingEventHttpBaggage               = "http.baggage"
 	tracingEventHttpResponse              = "http.response"
-	tracingMiddlewareHandled   contextKey = "TracingMiddlewareHandled"
+	tracingMiddlewareHandled   contextKey = "tracing-middleware-handled"
+	version                               = "v1.0.0"
 )
 
 type contextKey string
@@ -77,37 +76,22 @@ func internalMiddlewareMetric() MiddlewareFunc {
 func internalMiddlewareTrace() MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(req *Request) (*Response, error) {
-			if req.Request == nil {
-				return next(req)
-			}
-
-			ctx := req.Context()
-
-			// Avoid duplicate processing
-			if ctx.Value(tracingMiddlewareHandled) != nil {
-				return next(req)
-			}
-
-			ctx = context.WithValue(ctx, tracingMiddlewareHandled, 1)
-
-			// If using default provider, skip complex tracing
+			// if using default provider, skip complex tracing
 			if mtrace.IsUsingDefaultProvider() {
+				ctx := req.Request.Context()
 				req.Request = req.Request.WithContext(ctx)
 				return next(req)
 			}
+			ctx := req.Request.Context()
 
-			// Create tracer
+			// create tracer
 			tr := otel.GetTracerProvider().Tracer(
 				instrumentName,
-				trace.WithInstrumentationVersion("v1.0.0"),
+				trace.WithInstrumentationVersion(version),
 			)
 
-			// Normalize operation name: HTTP {method} {url}
-			urlPath := req.Request.URL.Path
-			if urlPath == "" {
-				urlPath = "/"
-			}
-			spanName := fmt.Sprintf("HTTP %s %s", req.Request.Method, urlPath)
+			// build span name
+			spanName := "HTTP " + req.Request.Method
 
 			// Create span
 			ctx, span := tr.Start(
@@ -117,12 +101,16 @@ func internalMiddlewareTrace() MiddlewareFunc {
 			)
 			defer span.End()
 
-			// Add request event
-			span.AddEvent(tracingEventHttpRequest, trace.WithAttributes(
-				attribute.String(tracingEventHttpRequestUrl, req.Request.URL.String()),
-				attribute.String(tracingEventHttpHeaders, mconv.ToString(mconv.ToStringMap(req.Request.Header))),
-				attribute.String(tracingEventHttpBaggage, mconv.ToString(mtrace.GetBaggageMap(ctx))),
-			))
+			// set span attributes
+			span.SetAttributes(
+				attribute.String(mtrace.AttributeHTTPMethod, req.Request.Method),
+				attribute.String(mtrace.AttributeHTTPUrl, req.Request.URL.String()),
+				attribute.String(mtrace.AttributeHTTPHost, getHost(req.Request.URL)),
+				attribute.String(mtrace.AttributeHTTPScheme, getSchema(req.Request.URL)),
+				attribute.String(mtrace.AttributeHTTPFlavor, getProtocolVersion(req.Request.Proto)),
+				attribute.String(mtrace.AttributeHTTPTarget, getPath(req.Request.URL)),
+				attribute.String(mtrace.AttributeHTTPUserAgent, req.Request.UserAgent()),
+			)
 
 			// Inject context into outgoing headers
 			otel.GetTextMapPropagator().Inject(
@@ -136,23 +124,14 @@ func internalMiddlewareTrace() MiddlewareFunc {
 			// Execute next middleware
 			resp, err := next(req)
 
-			// Handle error
+			// handle response and error
 			if err != nil {
+				span.RecordError(err)
 				span.SetStatus(codes.Error, err.Error())
-				return resp, err
-			}
-
-			// Add response event
-			if resp != nil && resp.Response != nil {
-				statusCode := resp.StatusCode
-				span.AddEvent(tracingEventHttpResponse, trace.WithAttributes(
-					attribute.Int("http.status_code", statusCode),
-					attribute.Int("http.response_content_length", int(resp.ContentLength)),
-					attribute.String(tracingEventHttpHeaders, fmt.Sprint(resp.Header)),
-				))
-
-				spanStatus, statusMsg := httpStatusCodeToSpanStatus(statusCode)
-				span.SetStatus(spanStatus, statusMsg)
+			} else if resp != nil {
+				span.SetAttributes(attribute.Int(mtrace.AttributeHTTPStatusCode, resp.StatusCode))
+				statusCode, _ := httpStatusCodeToSpanStatus(resp.StatusCode)
+				span.SetStatus(statusCode, "")
 			}
 
 			return resp, err
@@ -160,7 +139,8 @@ func internalMiddlewareTrace() MiddlewareFunc {
 	}
 }
 
-// httpStatusCodeToSpanStatus converts HTTP status code to span status
+// httpStatusCodeToSpanStatus converts an HTTP status code to a span status code.
+// It returns the span status code and a description.
 func httpStatusCodeToSpanStatus(code int) (codes.Code, string) {
 	if code < 100 || code >= 600 {
 		return codes.Error, fmt.Sprintf("Invalid HTTP status code %d", code)

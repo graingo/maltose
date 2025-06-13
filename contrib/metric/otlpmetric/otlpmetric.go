@@ -15,39 +15,39 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
-// 协议类型
+// Protocol type.
 type Protocol string
 
 const (
-	ProtocolGRPC         Protocol = "grpc" // gRPC 协议
-	ProtocolHTTP         Protocol = "http" // HTTP 协议
+	ProtocolGRPC         Protocol = "grpc" // gRPC protocol.
+	ProtocolHTTP         Protocol = "http" // HTTP protocol.
 	metricHostnameTagKey          = "hostname"
 )
 
-// Init 初始化 OpenTelemetry 指标
+// Init initializes OpenTelemetry metrics.
 //
-// 参数:
-//   - endpoint: 收集器端点地址，例如 "collector:4317"
-//   - opts: 配置选项
+// Parameters:
+//   - endpoint: The collector endpoint, e.g., "collector:4317".
+//   - opts: Configuration options.
 //
-// 返回:
-//   - shutdown: 关闭函数，用于优雅关闭
-//   - err: 错误信息
+// Returns:
+//   - shutdown: A function for graceful shutdown.
+//   - err: An error, if any.
 func Init(endpoint string, opts ...Option) (func(context.Context) error, error) {
-	// 应用选项
+	// Apply options.
 	o := defaultOptions()
 	o.endpoint = endpoint
 	for _, opt := range opts {
 		opt(&o)
 	}
 
-	// 创建资源
+	// Create resource.
 	res, err := createResource(o)
 	if err != nil {
-		return nil, fmt.Errorf("创建资源失败: %w", err)
+		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	// 根据协议创建导出器
+	// Create exporter based on protocol.
 	var exporter sdkmetric.Exporter
 	if o.protocol == ProtocolGRPC {
 		exporter, err = createGRPCExporter(o)
@@ -55,52 +55,52 @@ func Init(endpoint string, opts ...Option) (func(context.Context) error, error) 
 		exporter, err = createHTTPExporter(o)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("创建导出器失败: %w", err)
+		return nil, fmt.Errorf("failed to create exporter: %w", err)
 	}
 
-	// 创建读取器
+	// Create a reader.
 	reader := sdkmetric.NewPeriodicReader(
 		exporter,
-		// 导出间隔配置：设置指标数据导出的时间间隔
-		// WithInterval 控制：
-		// - 指标数据收集和导出的频率
-		// - 较短的间隔提供更实时的数据，但增加系统负载
-		// - 较长的间隔减少系统负载，但数据实时性降低
-		// see: https://pkg.go.dev/go.opentelemetry.io/otel/sdk/metric#WithInterval
+		// Export interval configuration: Set the interval for exporting metric data.
+		// WithInterval controls:
+		// - The frequency of metric data collection and export.
+		// - Shorter intervals provide more real-time data but increase system load.
+		// - Longer intervals reduce system load but decrease data real-time performance.
+		// See: https://pkg.go.dev/go.opentelemetry.io/otel/sdk/metric#WithInterval
 		sdkmetric.WithInterval(o.exportInterval),
 	)
 
-	// 创建指标提供者
+	// Create a meter provider.
 	provider := sdkmetric.NewMeterProvider(
-		// 资源配置：设置与指标关联的资源信息
-		// 资源通常包含：
-		// - 服务名称
-		// - 主机名
-		// - IP地址
-		// - 环境标识
-		// see: https://pkg.go.dev/go.opentelemetry.io/otel/sdk/metric#WithResource
+		// Resource configuration: Set resource information associated with metrics.
+		// Resources usually include:
+		// - Service name
+		// - Hostname
+		// - IP address
+		// - Environment identifier
+		// See: https://pkg.go.dev/go.opentelemetry.io/otel/sdk/metric#WithResource
 		sdkmetric.WithResource(res),
-		// 读取器配置：设置如何读取和导出指标数据
-		// PeriodicReader 会：
-		// - 定期收集指标数据
-		// - 批量发送到后端收集器
-		// - 异步处理，不阻塞应用程序
-		// see: https://pkg.go.dev/go.opentelemetry.io/otel/sdk/metric#WithReader
+		// Reader configuration: Set how to read and export metric data.
+		// PeriodicReader will:
+		// - Periodically collect metric data.
+		// - Batch send to the backend collector.
+		// - Process asynchronously, without blocking the application.
+		// See: https://pkg.go.dev/go.opentelemetry.io/otel/sdk/metric#WithReader
 		sdkmetric.WithReader(reader),
 	)
 
-	// 设置全局提供者
+	// Set the global meter provider.
 	otel.SetMeterProvider(provider)
 
-	// 创建并设置我们的提供者包装器
+	// Create and set our provider wrapper.
 	wrapper := newProviderWrapper(provider)
 	mmetric.SetProvider(wrapper)
 
-	// 返回关闭函数
+	// Return the shutdown function.
 	return provider.Shutdown, nil
 }
 
-// 创建资源
+// createResource creates a resource.
 func createResource(opts options) (*resource.Resource, error) {
 	var (
 		intranetIPArray, err = mipv4.GetIntranetIpArray()
@@ -120,17 +120,17 @@ func createResource(opts options) (*resource.Resource, error) {
 
 	ctx := context.Background()
 
-	// 创建资源
+	// Create a new resource.
 	return resource.New(ctx,
-		// 从环境变量中获取资源信息
+		// Get resource information from environment variables.
 		resource.WithFromEnv(),
-		// 添加进程信息
+		// Add process information.
 		resource.WithProcess(),
-		// 添加 SDK 信息
+		// Add SDK information.
 		resource.WithTelemetrySDK(),
-		// 添加主机信息
+		// Add host information.
 		resource.WithHost(),
-		// 添加自定义属性
+		// Add custom attributes.
 		resource.WithAttributes(
 			semconv.ServiceNameKey.String(opts.serviceName),
 			semconv.HostNameKey.String(hostIP),
@@ -139,82 +139,82 @@ func createResource(opts options) (*resource.Resource, error) {
 	)
 }
 
-// 创建 gRPC 导出器
+// createGRPCExporter creates a gRPC exporter.
 func createGRPCExporter(opts options) (sdkmetric.Exporter, error) {
 	ctx := context.Background()
 
-	// 设置选项
+	// Set options.
 	grpcOpts := []otlpmetricgrpc.Option{
-		// 设置端点地址
-		// WithEndpoint 指定：
-		// - 收集器的主机名和端口
-		// - 不包含协议前缀
-		// see: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc#WithEndpoint
+		// Set the endpoint address.
+		// WithEndpoint specifies:
+		// - The hostname and port of the collector.
+		// - It does not include the protocol prefix.
+		// See: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc#WithEndpoint
 		otlpmetricgrpc.WithEndpoint(opts.endpoint),
-		// 设置超时时间
-		// WithTimeout 控制：
-		// - 导出请求的最大等待时间
-		// - 超过此时间将取消请求
-		// see: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc#WithTimeout
+		// Set the timeout.
+		// WithTimeout controls:
+		// - The maximum waiting time for an export request.
+		// - The request will be canceled if it exceeds this time.
+		// See: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc#WithTimeout
 		otlpmetricgrpc.WithTimeout(opts.timeout),
 	}
 
-	// 设置安全选项
+	// Set security options.
 	if opts.insecure {
-		// 使用非安全连接
-		// WithInsecure 设置：
-		// - 使用非 TLS 连接
-		// - 适用于开发环境或内部网络
-		// - 生产环境建议使用 TLS
-		// see: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc#WithInsecure
+		// Use an insecure connection.
+		// WithInsecure sets:
+		// - The use of a non-TLS connection.
+		// - Suitable for development environments or internal networks.
+		// - It is recommended to use TLS in production environments.
+		// See: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc#WithInsecure
 		grpcOpts = append(grpcOpts, otlpmetricgrpc.WithInsecure())
 	}
 
-	// 创建导出器
+	// Create the exporter.
 	return otlpmetricgrpc.New(ctx, grpcOpts...)
 }
 
-// 创建 HTTP 导出器
+// createHTTPExporter creates an HTTP exporter.
 func createHTTPExporter(opts options) (sdkmetric.Exporter, error) {
 	ctx := context.Background()
 
-	// 设置选项
+	// Set options.
 	httpOpts := []otlpmetrichttp.Option{
-		// 设置端点地址
-		// WithEndpoint 指定：
-		// - 收集器的主机名和端口
-		// - 不包含协议前缀
-		// see: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp#WithEndpoint
+		// Set the endpoint address.
+		// WithEndpoint specifies:
+		// - The hostname and port of the collector.
+		// - It does not include the protocol prefix.
+		// See: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp#WithEndpoint
 		otlpmetrichttp.WithEndpoint(opts.endpoint),
-		// 设置超时时间
-		// WithTimeout 控制：
-		// - 导出请求的最大等待时间
-		// - 超过此时间将取消请求
-		// see: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp#WithTimeout
+		// Set the timeout.
+		// WithTimeout controls:
+		// - The maximum waiting time for an export request.
+		// - The request will be canceled if it exceeds this time.
+		// See: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp#WithTimeout
 		otlpmetrichttp.WithTimeout(opts.timeout),
 	}
 
-	// 设置 URL 路径
+	// Set the URL path.
 	if opts.urlPath != "" {
-		// 自定义 URL 路径
-		// WithURLPath 设置：
-		// - 指标数据发送的目标路径
-		// - 默认为 "/v1/metrics"
-		// see: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp#WithURLPath
+		// Custom URL path.
+		// WithURLPath sets:
+		// - The target path for sending metric data.
+		// - Defaults to "/v1/metrics".
+		// See: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp#WithURLPath
 		httpOpts = append(httpOpts, otlpmetrichttp.WithURLPath(opts.urlPath))
 	}
 
-	// 设置安全选项
+	// Set security options.
 	if opts.insecure {
-		// 使用非安全连接
-		// WithInsecure 设置：
-		// - 使用 HTTP 而非 HTTPS
-		// - 适用于开发环境或内部网络
-		// - 生产环境建议使用 HTTPS
-		// see: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp#WithInsecure
+		// Use an insecure connection.
+		// WithInsecure sets:
+		// - The use of HTTP instead of HTTPS.
+		// - Suitable for development environments or internal networks.
+		// - It is recommended to use HTTPS in production environments.
+		// See: https://pkg.go.dev/go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp#WithInsecure
 		httpOpts = append(httpOpts, otlpmetrichttp.WithInsecure())
 	}
 
-	// 创建导出器
+	// Create the exporter.
 	return otlpmetrichttp.New(ctx, httpOpts...)
 }

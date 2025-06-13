@@ -5,12 +5,12 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-// 计量器包装器
+// meterWrapper is a wrapper for a meter.
 type meterWrapper struct {
 	meter metric.Meter
 }
 
-// Counter 创建计数器
+// Counter creates a counter.
 func (m *meterWrapper) Counter(name string, option mmetric.MetricOption) (mmetric.Counter, error) {
 	counter, err := m.meter.Float64Counter(
 		name,
@@ -23,7 +23,7 @@ func (m *meterWrapper) Counter(name string, option mmetric.MetricOption) (mmetri
 	return &counterWrapper{counter: counter}, nil
 }
 
-// MustCounter 创建计数器，如果出错则 panic
+// MustCounter creates a counter and panics on error.
 func (m *meterWrapper) MustCounter(name string, option mmetric.MetricOption) mmetric.Counter {
 	counter, err := m.Counter(name, option)
 	if err != nil {
@@ -32,7 +32,7 @@ func (m *meterWrapper) MustCounter(name string, option mmetric.MetricOption) mme
 	return counter
 }
 
-// UpDownCounter 创建上下计数器
+// UpDownCounter creates an up-down counter.
 func (m *meterWrapper) UpDownCounter(name string, option mmetric.MetricOption) (mmetric.UpDownCounter, error) {
 	counter, err := m.meter.Float64UpDownCounter(
 		name,
@@ -45,7 +45,7 @@ func (m *meterWrapper) UpDownCounter(name string, option mmetric.MetricOption) (
 	return &upDownCounterWrapper{counter: counter}, nil
 }
 
-// MustUpDownCounter 创建上下计数器，如果出错则 panic
+// MustUpDownCounter creates an up-down counter and panics on error.
 func (m *meterWrapper) MustUpDownCounter(name string, option mmetric.MetricOption) mmetric.UpDownCounter {
 	counter, err := m.UpDownCounter(name, option)
 	if err != nil {
@@ -54,20 +54,20 @@ func (m *meterWrapper) MustUpDownCounter(name string, option mmetric.MetricOptio
 	return counter
 }
 
-// Histogram 创建直方图
+// Histogram creates a histogram.
 func (m *meterWrapper) Histogram(name string, option mmetric.MetricOption) (mmetric.Histogram, error) {
 	var opts []metric.Float64HistogramOption
 
-	// 设置描述和单位
+	// Set description and unit.
 	opts = append(opts,
 		metric.WithDescription(option.Help),
 		metric.WithUnit(option.Unit),
 	)
 
-	// 设置桶（注意：OpenTelemetry v1.34.0 不再支持显式设置桶边界）
-	// 桶配置现在由收集器或后端系统处理
+	// Set buckets (Note: OpenTelemetry v1.34.0 no longer supports explicit bucket boundaries).
+	// Bucket configuration is now handled by the collector or backend system.
 
-	// 创建直方图
+	// Create the histogram.
 	histogram, err := m.meter.Float64Histogram(name, opts...)
 	if err != nil {
 		return nil, err
@@ -76,7 +76,7 @@ func (m *meterWrapper) Histogram(name string, option mmetric.MetricOption) (mmet
 	return &histogramWrapper{histogram: histogram}, nil
 }
 
-// MustHistogram 创建直方图，如果出错则 panic
+// MustHistogram creates a histogram and panics on error.
 func (m *meterWrapper) MustHistogram(name string, option mmetric.MetricOption) mmetric.Histogram {
 	histogram, err := m.Histogram(name, option)
 	if err != nil {

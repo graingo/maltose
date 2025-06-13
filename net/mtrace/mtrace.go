@@ -13,6 +13,23 @@ import (
 	"go.opentelemetry.io/otel/trace"
 )
 
+// Semantic conventions for HTTP.
+const (
+	AttributeHTTPMethod       = "http.method"
+	AttributeHTTPUrl          = "http.url"
+	AttributeHTTPTarget       = "http.target"
+	AttributeHTTPHost         = "http.host"
+	AttributeHTTPScheme       = "http.scheme"
+	AttributeHTTPStatusCode   = "http.status_code"
+	AttributeHTTPStatusText   = "http.status_text"
+	AttributeHTTPFlavor       = "http.flavor"
+	AttributeHTTPUserAgent    = "http.user_agent"
+	AttributeHTTPRequestSize  = "http.request_content_length"
+	AttributeHTTPResponseSize = "http.response_content_length"
+	AttributeHTTPRoute        = "http.route"
+	AttributeHTTPClientIP     = "http.client_ip"
+)
+
 var (
 	defaultTextMapPropagator = propagation.NewCompositeTextMapPropagator(
 		propagation.TraceContext{},
