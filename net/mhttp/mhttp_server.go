@@ -29,7 +29,7 @@ func (s *Server) Run() {
 	// print route information
 	s.printRoute(ctx)
 
-	srv := &http.Server{
+	s.srv = &http.Server{
 		Addr:           s.config.Address,
 		Handler:        s.engine,
 		ReadTimeout:    s.config.ReadTimeout,
@@ -47,9 +47,9 @@ func (s *Server) Run() {
 				errChan <- fmt.Errorf("TLS certificate and key files are required")
 				return
 			}
-			err = srv.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
+			err = s.srv.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
 		} else {
-			err = srv.ListenAndServe()
+			err = s.srv.ListenAndServe()
 		}
 		if err != nil && err != http.ErrServerClosed {
 			errChan <- err
@@ -79,8 +79,53 @@ func (s *Server) Run() {
 			time.Sleep(s.config.GracefulWaitTime)
 		}
 
-		if err := srv.Shutdown(ctx); err != nil {
-			s.Logger().Errorf(ctx, "Server forced to shutdown: %v", err)
+		if err := s.srv.Shutdown(ctx); err != nil {
+			s.Logger().Errorf(ctx, "HTTP server %s forced to shutdown: %v", s.config.ServerName, err)
 		}
 	}
+}
+
+func (s *Server) Start(ctx context.Context) error {
+	// register OpenAPI and Swagger
+	s.registerDoc(ctx)
+
+	// register all routes before starting
+	s.bindRoutes(ctx)
+
+	// print route information
+	s.printRoute(ctx)
+
+	s.srv = &http.Server{
+		Addr:           s.config.Address,
+		Handler:        s.engine,
+		ReadTimeout:    s.config.ReadTimeout,
+		WriteTimeout:   s.config.WriteTimeout,
+		IdleTimeout:    s.config.IdleTimeout,
+		MaxHeaderBytes: s.config.MaxHeaderBytes,
+	}
+
+	var err error
+	if s.config.TLSEnable {
+		if s.config.TLSCertFile == "" || s.config.TLSKeyFile == "" {
+			return fmt.Errorf("TLS certificate and key files are required")
+		}
+		err = s.srv.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
+	} else {
+		err = s.srv.ListenAndServe()
+	}
+
+	if err != nil && err != http.ErrServerClosed {
+		s.Logger().Errorf(ctx, "HTTP server %s start failed: %v", s.config.ServerName, err)
+		return err
+	}
+
+	return nil
+}
+
+func (s *Server) Stop(ctx context.Context) error {
+	s.Logger().Infof(ctx, "HTTP server %s is stopping", s.config.ServerName)
+	if s.srv == nil {
+		return nil
+	}
+	return s.srv.Shutdown(ctx)
 }

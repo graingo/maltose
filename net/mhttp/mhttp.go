@@ -2,6 +2,7 @@ package mhttp
 
 import (
 	"io"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
 	ut "github.com/go-playground/universal-translator"
@@ -23,6 +24,7 @@ type Server struct {
 	openapi      *OpenAPI
 	preBindItems []preBindItem
 	translator   ut.Translator
+	srv          *http.Server
 }
 
 // New creates a new HTTP server.

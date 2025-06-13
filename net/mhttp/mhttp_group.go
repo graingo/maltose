@@ -47,6 +47,16 @@ func (rg *RouterGroup) Use(middlewares []MiddlewareFunc, handlers ...RouterGroup
 	return rg
 }
 
+// Middleware adds middlewares.
+func (rg *RouterGroup) Middleware(middlewares ...MiddlewareFunc) *RouterGroup {
+	if rg.middlewares == nil {
+		rg.middlewares = make([]MiddlewareFunc, 0, len(middlewares))
+	}
+	rg.middlewares = append(rg.middlewares, middlewares...)
+
+	return rg
+}
+
 // GET registers GET request route.
 func (rg *RouterGroup) GET(path string, handler HandlerFunc, middlewares ...MiddlewareFunc) *RouterGroup {
 	rg.addRouteWithMiddlewares("GET", path, handler, middlewares...)
@@ -104,9 +114,12 @@ func (rg *RouterGroup) Handle(method, path string, handler HandlerFunc, middlewa
 	return rg
 }
 
-// BindObject binds the controller object.
-func (rg *RouterGroup) BindObject(object any) *RouterGroup {
-	return rg.bindObject(object)
+// Bind binds the controller object.
+func (rg *RouterGroup) Bind(object ...any) *RouterGroup {
+	for _, o := range object {
+		rg = rg.bindObject(o)
+	}
+	return rg
 }
 
 // addRouteWithMiddlewares is an internal method to add routes with middlewares.
