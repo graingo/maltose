@@ -5,7 +5,7 @@ go 1.23.0
 toolchain go1.23.9
 
 require (
-	github.com/graingo/maltose v0.1.0
+	github.com/graingo/maltose v0.1.1
 	go.opentelemetry.io/otel v1.34.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.34.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.34.0
@@ -91,5 +91,3 @@ require (
 	gorm.io/gorm v1.26.1 // indirect
 	gorm.io/plugin/dbresolver v1.6.0 // indirect
 )
-
-replace github.com/graingo/maltose => ../../..
