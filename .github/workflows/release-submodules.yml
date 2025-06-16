@@ -18,6 +18,9 @@ jobs:
         with:
           # We need to fetch the entire history and all tags.
           fetch-depth: 0
+          # We explicitly check out the master branch to avoid detached HEAD state.
+          # If your main branch is not 'master', please change it accordingly (e.g., 'main').
+          ref: master
 
       - name: Set up Go
         uses: actions/setup-go@v5
@@ -77,21 +80,21 @@ jobs:
 
           # --- Step 2: Commit the dependency changes ---
           echo "===== [2/3] Committing dependency changes ====="
-          # Check if there are any changes to commit.
           if git diff-index --quiet HEAD --; then
               echo "-> No dependency changes to commit."
           else
               echo "-> Committing dependency alignment for $VERSION..."
               git add .
               git commit -m "chore(release): align dependencies for $VERSION"
-              # Push the new commit back to the branch the tag was on.
+              echo "-> Pushing commit..."
               git push
           fi
           echo "=========================================="
           echo ""
 
-          # --- Step 3: Tag all submodules ---
-          echo "===== [3/3] Creating and pushing tags ====="
+          # --- Step 3: Tag submodules that don't exist yet ---
+          echo "===== [3/3] Creating and pushing new tags ====="
+          NEW_TAGS=""
           find . -name go.mod | while read -r mod_file; do
             dir=$(dirname "$mod_file")
             # Skip the root module, as it's already tagged.
@@ -102,13 +105,24 @@ jobs:
             module_path=${dir#./}
             TAG_NAME="${module_path}/${VERSION}"
             
-            echo "   - Creating tag '$TAG_NAME' for module '$module_path'"
-            git tag "$TAG_NAME"
+            if git rev-parse "$TAG_NAME" >/dev/null 2>&1; then
+              echo "   - Tag '$TAG_NAME' already exists, skipping."
+            else
+              echo "   - Creating tag '$TAG_NAME' for module '$module_path'"
+              git tag "$TAG_NAME"
+              NEW_TAGS="$NEW_TAGS $TAG_NAME"
+            fi
           done
 
-          # --- Step 4: Push all the new tags at once ---
-          echo ""
-          echo "-> Pushing all new submodule tags..."
-          git push origin --tags
+          # --- Step 4: Push only the new tags ---
+          if [ -z "$NEW_TAGS" ]; then
+            echo "-> No new submodule tags to push."
+          else
+            echo "-> Pushing new tags: $NEW_TAGS"
+            # Remove leading space
+            NEW_TAGS=$(echo "$NEW_TAGS" | sed 's/^ *//g')
+            git push origin $NEW_TAGS
+          fi
+          echo "=========================================="
 
           echo "✅ Submodule release process completed successfully!"
