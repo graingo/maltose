@@ -80,6 +80,11 @@ func (s *Server) SetServerName(name string) {
 	s.config.ServerName = name
 }
 
+// SetLogger sets the logger instance.
+func (s *Server) SetLogger(logger *mlog.Logger) {
+	s.config.Logger = logger
+}
+
 // Logger gets the logger instance.
 func (s *Server) Logger() *mlog.Logger {
 	return s.config.Logger

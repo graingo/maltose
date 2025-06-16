@@ -79,6 +79,9 @@ func DB(name ...string) *mdb.DB {
 							panic(fmt.Errorf("set db logger config failed: %+v", err))
 						}
 						dbConfig.SetLogger(dbLogger)
+					} else {
+						// if no logger config, use global logger
+						dbConfig.SetLogger(Log())
 					}
 				} else {
 					panic(merror.NewCode(mcode.CodeMissingConfiguration, `no configuration found for creating database`))

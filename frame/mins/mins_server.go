@@ -71,6 +71,9 @@ func Server(name ...string) *mhttp.Server {
 						if err := server.Logger().SetConfigWithMap(loggerConfigMap); err != nil {
 							panic(fmt.Errorf("set server logger config failed: %+v", err))
 						}
+					} else {
+						// if no logger config, use global logger
+						server.SetLogger(Log())
 					}
 				}
 			}
