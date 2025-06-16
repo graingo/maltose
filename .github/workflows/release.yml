@@ -1,60 +1,62 @@
-name: Release Maltose
+name: 手动发布 - 更新依赖并标记所有模块
 
 on:
-  # This allows the workflow to be manually triggered from the GitHub Actions UI.
+  # 允许从 GitHub Actions UI 手动触发此工作流
   workflow_dispatch:
     inputs:
       version:
-        description: "The version to release (e.g., v0.1.0)"
+        description: "要发布的版本 (例如: v0.1.0)"
         required: true
         type: string
 
 jobs:
   release:
     runs-on: ubuntu-latest
+    permissions:
+      contents: write # 需要写权限才能将提交和标签推送回仓库
     steps:
-      - name: Checkout Code
+      - name: 检出代码
         uses: actions/checkout@v4
 
-      - name: Set up Go
+      - name: 设置 Go 环境
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23" # Ensure this matches your project's Go version
+          go-version: "1.23" # 确保此版本与您的项目匹配
 
-      - name: Configure Git User
+      - name: 配置 Git 用户
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Update, Commit, Tag, and Push
+      - name: 更新依赖、提交、打标签并推送
         run: |
-          # Exit immediately if a command exits with a non-zero status.
+          # 如果任何命令失败，立即退出
           set -e
 
           VERSION=${{ github.event.inputs.version }}
 
-          # Validate version format (must be vX.Y.Z)
+          # 验证版本格式 (必须是 vX.Y.Z)
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::Version format is incorrect. Must be in vX.Y.Z format."
+            echo "::error::版本格式不正确，必须为 vX.Y.Z 格式。"
             exit 1
           fi
 
-          # --- [1/3] Update submodule dependencies ---
-          echo "===== [1/3] Updating submodule dependencies ====="
+          # --- [1/3] 更新子模块依赖 ---
+          echo "===== [1/3] 正在更新子模块依赖... ====="
           find . -name go.mod | while read -r mod_file; do
             dir=$(dirname "$mod_file")
             if [ "$dir" == "." ]; then
               continue
             fi
             module_path=${dir#./}
-            echo "-> Processing module: $module_path"
+            echo "-> 正在处理模块: $module_path"
             (
               cd "$dir"
-              # Drop local replace directives to ensure it fetches from the remote repo
+              # 移除本地 replace 指令，确保从远程仓库拉取
               if grep -q "github.com/graingo/maltose =>" go.mod; then
                 go mod edit -dropreplace=github.com/graingo/maltose
               fi
-              # Set the dependency to the new version
+              # 将依赖设置为新版本
               go mod edit -require="github.com/graingo/maltose@$VERSION"
               go mod tidy
             )
@@ -62,25 +64,25 @@ jobs:
           echo "=========================================="
           echo ""
 
-          # --- [2/3] Commit changes ---
-          echo "===== [2/3] Committing changes ====="
-          # Check if there are any changes to commit
+          # --- [2/3] 提交变更 ---
+          echo "===== [2/3] 正在提交变更... ====="
+          # 检查是否有文件变更需要提交
           if [[ -z $(git status -s --untracked-files=no) ]]; then
-            echo "-> No file changes to commit."
+            echo "-> 没有文件变更需要提交。"
           else
-            echo "-> Committing all go.mod and go.sum file changes..."
+            echo "-> 正在提交所有 go.mod 和 go.sum 文件的变更..."
             git add .
-            git commit -m "chore(release): bump dependencies for $VERSION"
+            git commit -m "chore(release): 为 $VERSION 更新依赖"
           fi
           echo "================================"
           echo ""
 
-          # --- [3/3] Create and push tags ---
-          echo "===== [3/3] Creating and pushing tags ====="
-          echo "-> Tagging root module: $VERSION"
+          # --- [3/3] 创建并推送标签 ---
+          echo "===== [3/3] 正在创建并推送标签... ====="
+          echo "-> 正在为根模块打标签: $VERSION"
           git tag "$VERSION"
 
-          # Find all go.mod files in subdirectories and tag them
+          # 查找所有子目录中的 go.mod 文件并为其打标签
           find . -name go.mod | while read -r mod_file; do
             dir=$(dirname "$mod_file")
             if [ "$dir" == "." ]; then
@@ -88,14 +90,14 @@ jobs:
             fi
             module_path=${dir#./}
             TAG_NAME="${module_path}/${VERSION}"
-            echo "-> Tagging submodule '$module_path': $TAG_NAME"
+            echo "-> 正在为子模块 '$module_path' 打标签: $TAG_NAME"
             git tag "$TAG_NAME"
           done
           echo "===================================="
 
           echo ""
-          echo "Pushing commit and all tags to remote repository..."
+          echo "正在将提交和所有标签推送到远程仓库..."
           git push origin HEAD
           git push origin --tags
 
-          echo "✅ Release process completed successfully!"
+          echo "✅ 发布流程成功完成！"
