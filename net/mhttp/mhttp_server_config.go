@@ -64,11 +64,6 @@ func NewConfig() ServerConfig {
 		GracefulTimeout:  time.Second * 30,
 		GracefulWaitTime: time.Second * 5,
 
-		// API doc config
-		OpenapiPath:     defaultOpenapiPath,
-		SwaggerPath:     defaultSwaggerPath,
-		SwaggerTemplate: "",
-
 		// log default config
 		Logger: mlog.New(),
 	}
