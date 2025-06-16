@@ -1,0 +1,101 @@
+name: Release Maltose
+
+on:
+  # This allows the workflow to be manually triggered from the GitHub Actions UI.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "The version to release (e.g., v0.1.0)"
+        required: true
+        type: string
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.23" # Ensure this matches your project's Go version
+
+      - name: Configure Git User
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+      - name: Update, Commit, Tag, and Push
+        run: |
+          # Exit immediately if a command exits with a non-zero status.
+          set -e
+
+          VERSION=${{ github.event.inputs.version }}
+
+          # Validate version format (must be vX.Y.Z)
+          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Version format is incorrect. Must be in vX.Y.Z format."
+            exit 1
+          fi
+
+          # --- [1/3] Update submodule dependencies ---
+          echo "===== [1/3] Updating submodule dependencies ====="
+          find . -name go.mod | while read -r mod_file; do
+            dir=$(dirname "$mod_file")
+            if [ "$dir" == "." ]; then
+              continue
+            fi
+            module_path=${dir#./}
+            echo "-> Processing module: $module_path"
+            (
+              cd "$dir"
+              # Drop local replace directives to ensure it fetches from the remote repo
+              if grep -q "github.com/graingo/maltose =>" go.mod; then
+                go mod edit -dropreplace=github.com/graingo/maltose
+              fi
+              # Set the dependency to the new version
+              go mod edit -require="github.com/graingo/maltose@$VERSION"
+              go mod tidy
+            )
+          done
+          echo "=========================================="
+          echo ""
+
+          # --- [2/3] Commit changes ---
+          echo "===== [2/3] Committing changes ====="
+          # Check if there are any changes to commit
+          if [[ -z $(git status -s --untracked-files=no) ]]; then
+            echo "-> No file changes to commit."
+          else
+            echo "-> Committing all go.mod and go.sum file changes..."
+            git add .
+            git commit -m "chore(release): bump dependencies for $VERSION"
+          fi
+          echo "================================"
+          echo ""
+
+          # --- [3/3] Create and push tags ---
+          echo "===== [3/3] Creating and pushing tags ====="
+          echo "-> Tagging root module: $VERSION"
+          git tag "$VERSION"
+
+          # Find all go.mod files in subdirectories and tag them
+          find . -name go.mod | while read -r mod_file; do
+            dir=$(dirname "$mod_file")
+            if [ "$dir" == "." ]; then
+              continue
+            fi
+            module_path=${dir#./}
+            TAG_NAME="${module_path}/${VERSION}"
+            echo "-> Tagging submodule '$module_path': $TAG_NAME"
+            git tag "$TAG_NAME"
+          done
+          echo "===================================="
+
+          echo ""
+          echo "Pushing commit and all tags to remote repository..."
+          git push origin HEAD
+          git push origin --tags
+
+          echo "✅ Release process completed successfully!"
