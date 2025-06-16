@@ -20,6 +20,9 @@ func (s *Server) SetStaticPath(prefix string, directory string) {
 func (s *Server) Run() {
 	ctx := context.Background()
 
+	// register health check endpoint
+	s.registerHealthCheck(ctx)
+
 	// register OpenAPI and Swagger
 	s.registerDoc(ctx)
 
@@ -86,6 +89,9 @@ func (s *Server) Run() {
 }
 
 func (s *Server) Start(ctx context.Context) error {
+	// register health check endpoint
+	s.registerHealthCheck(ctx)
+
 	// register OpenAPI and Swagger
 	s.registerDoc(ctx)
 

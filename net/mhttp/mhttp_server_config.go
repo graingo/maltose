@@ -19,6 +19,9 @@ type ServerConfig struct {
 	IdleTimeout    time.Duration
 	MaxHeaderBytes int
 
+	// Health check
+	HealthCheck bool
+
 	// TLS config
 	TLSEnable     bool
 	TLSCertFile   string
@@ -50,6 +53,9 @@ func NewConfig() ServerConfig {
 		IdleTimeout:    time.Second * 60,
 		MaxHeaderBytes: 1 << 20, // 1MB
 
+		// Health check
+		HealthCheck: true,
+
 		// TLS default config
 		TLSEnable: false,
 
@@ -57,6 +63,11 @@ func NewConfig() ServerConfig {
 		GracefulEnable:   true,
 		GracefulTimeout:  time.Second * 30,
 		GracefulWaitTime: time.Second * 5,
+
+		// API doc config
+		OpenapiPath:     defaultOpenapiPath,
+		SwaggerPath:     defaultSwaggerPath,
+		SwaggerTemplate: "",
 
 		// log default config
 		Logger: mlog.New(),
