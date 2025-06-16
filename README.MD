@@ -1,6 +1,6 @@
 <div align="center">
   <a href="https://graingo.github.io/maltose-docs/">
-    <img width="128" src="https://raw.githubusercontent.com/graingo/maltose-docs/master/docs/public/logo.svg" alt="Maltose Logo">
+    <img width="128" src="https://graingo.github.io/maltose-docs/logo.svg" alt="Maltose Logo">
   </a>
   <h1>Maltose</h1>
   <p><strong>基于 Gin 打造的轻量级、企业级 Go Web 开发框架</strong></p>
