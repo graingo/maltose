@@ -70,6 +70,11 @@ func (c *AdapterFile) Available(ctx context.Context, resource ...string) bool {
 	return false
 }
 
+// MergeConfigMap merges a map into the existing configuration.
+func (c *AdapterFile) MergeConfigMap(ctx context.Context, data map[string]any) error {
+	return c.v.MergeConfigMap(data)
+}
+
 // IsExist checks if the file exists.
 func IsExist(path string) bool {
 	_, err := os.Stat(path)

@@ -2,6 +2,7 @@ package nacos
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/graingo/maltose/errors/merror"
@@ -11,6 +12,7 @@ import (
 	nacosConfigClient "github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
 	"github.com/nacos-group/nacos-sdk-go/v2/vo"
+	"github.com/spf13/viper"
 	"github.com/tidwall/gjson"
 )
 
@@ -130,4 +132,30 @@ func (c *Client) updateLocalValue() (err error) {
 	}
 
 	return c.doUpdate(content)
+}
+
+func (c *Client) MergeConfigMap(ctx context.Context, data map[string]any) error {
+	currentData, err := c.Data(ctx)
+	if err != nil {
+		return merror.Wrap(err, "failed to get current config")
+	}
+
+	// Use viper for deep merging
+	v := viper.New()
+	if err := v.MergeConfigMap(currentData); err != nil {
+		return merror.Wrap(err, "failed to merge current config")
+	}
+	if err := v.MergeConfigMap(data); err != nil {
+		return merror.Wrap(err, "failed to merge new data")
+	}
+
+	mergedData := v.AllSettings()
+	mergedJSON, err := json.Marshal(mergedData)
+	if err != nil {
+		return merror.Wrap(err, "failed to marshal merged config")
+	}
+
+	c.doUpdate(string(mergedJSON))
+
+	return nil
 }

@@ -2,6 +2,7 @@ package apollo
 
 import (
 	"context"
+	"encoding/json"
 
 	"github.com/apolloconfig/agollo/v4"
 	apolloConfig "github.com/apolloconfig/agollo/v4/env/config"
@@ -11,6 +12,7 @@ import (
 	"github.com/graingo/maltose/frame/m"
 	"github.com/graingo/maltose/os/mcfg"
 	"github.com/graingo/mconv"
+	"github.com/spf13/viper"
 	"github.com/tidwall/gjson"
 	"github.com/tidwall/sjson"
 )
@@ -138,4 +140,32 @@ func (c *Client) updateLocalValue(_ context.Context) (err error) {
 		c.value.Set(s)
 	}
 	return
+}
+
+func (c *Client) MergeConfigMap(ctx context.Context, data map[string]any) error {
+	currentData, err := c.Data(ctx)
+	if err != nil {
+		return merror.Wrap(err, "failed to get current config")
+	}
+
+	// Use viper for deep merging
+	v := viper.New()
+	if err := v.MergeConfigMap(currentData); err != nil {
+		return merror.Wrap(err, "failed to merge current config")
+	}
+	if err := v.MergeConfigMap(data); err != nil {
+		return merror.Wrap(err, "failed to merge new data")
+	}
+
+	// Marshal the merged data back to a json string.
+	mergedData := v.AllSettings()
+	mergedJSON, err := json.Marshal(mergedData)
+	if err != nil {
+		return merror.Wrap(err, "failed to marshal merged config")
+	}
+
+	// Update the cached value.
+	c.value.Set(string(mergedJSON))
+
+	return nil
 }

@@ -103,3 +103,7 @@ func (m *mockAdapter) Data(_ context.Context) (map[string]interface{}, error) {
 func (m *mockAdapter) Available(_ context.Context, _ ...string) bool {
 	return true
 }
+
+func (m *mockAdapter) MergeConfigMap(_ context.Context, _ map[string]any) error {
+	return nil
+}

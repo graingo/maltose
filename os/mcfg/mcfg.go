@@ -6,6 +6,7 @@ import (
 
 	"github.com/graingo/maltose/container/minstance"
 	"github.com/graingo/maltose/container/mvar"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/spf13/viper"
 )
 
@@ -88,26 +89,16 @@ func (c *Config) getValueByPattern(data map[string]any, pattern string) any {
 // The optional `def` parameter is the default value. If the configuration value is empty, the default value is returned.
 // If the configuration value is empty and no default value is provided, nil is returned.
 func (c *Config) Get(ctx context.Context, pattern string, def ...any) (*mvar.Var, error) {
-	var (
-		err   error
-		value any
-	)
-	value, err = c.adapter.Get(ctx, pattern)
+	data, err := c.Data(ctx)
 	if err != nil {
 		return nil, err
 	}
+
+	value := c.getValueByPattern(data, pattern)
 	if value != nil {
 		return mvar.New(value), nil
 	}
-	if len(afterLoadHooks) > 0 {
-		data, err := c.Data(ctx)
-		if err != nil {
-			return nil, err
-		}
-		if value = c.getValueByPattern(data, pattern); value != nil {
-			return mvar.New(value), nil
-		}
-	}
+
 	if len(def) > 0 {
 		return mvar.New(def[0]), nil
 	}
@@ -136,4 +127,13 @@ func (c *Config) Data(ctx context.Context) (map[string]any, error) {
 // The optional `resource` parameter is the resource name. If the resource name is not empty, it checks if the resource is available.
 func (c *Config) Available(ctx context.Context, resource ...string) bool {
 	return c.adapter.Available(ctx, resource...)
+}
+
+// MergeConfigMap merges a map into the existing configuration.
+// This is useful for layering configurations.
+func (c *Config) MergeConfigMap(ctx context.Context, data map[string]any) error {
+	if c.adapter == nil {
+		return merror.New(`config adapter is not set`)
+	}
+	return c.adapter.MergeConfigMap(ctx, data)
 }
