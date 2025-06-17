@@ -14,7 +14,7 @@ type DB struct {
 }
 
 func New(config ...*Config) (*DB, error) {
-	cfg := DefaultConfig()
+	cfg := defaultConfig()
 	// Validate config
 	if len(config) > 0 && config[0] != nil {
 		cfg = config[0]

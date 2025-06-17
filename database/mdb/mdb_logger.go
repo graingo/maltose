@@ -3,6 +3,7 @@ package mdb
 import (
 	"context"
 	"errors"
+	"fmt"
 	"time"
 
 	"github.com/graingo/maltose/os/mlog"
@@ -65,21 +66,21 @@ func (l *GormLogger) LogMode(level logger.LogLevel) logger.Interface {
 // Info logs an info message.
 func (l *GormLogger) Info(ctx context.Context, msg string, args ...interface{}) {
 	if l.gormLogLevel >= logger.Info {
-		l.logger.Infof(ctx, msg, args...)
+		l.logger.Infof(ctx, fmt.Sprintf("[MDB] %s", msg), args...)
 	}
 }
 
 // Warn logs a warning message.
 func (l *GormLogger) Warn(ctx context.Context, msg string, args ...interface{}) {
 	if l.gormLogLevel >= logger.Warn {
-		l.logger.Warnf(ctx, msg, args...)
+		l.logger.Warnf(ctx, fmt.Sprintf("[MDB] %s", msg), args...)
 	}
 }
 
 // Error logs an error message.
 func (l *GormLogger) Error(ctx context.Context, msg string, args ...interface{}) {
 	if l.gormLogLevel >= logger.Error {
-		l.logger.Errorf(ctx, msg, args...)
+		l.logger.Errorf(ctx, fmt.Sprintf("[MDB] %s", msg), args...)
 	}
 }
 
@@ -96,14 +97,14 @@ func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 	case err != nil && l.gormLogLevel >= logger.Error:
 		if errors.Is(err, logger.ErrRecordNotFound) && l.skipErrRecordNotFound {
 			if l.gormLogLevel >= logger.Info {
-				l.logger.Infof(ctx, "SQL NOT FOUND: [%.3fms] [rows:%d] %s - %v", float64(elapsed.Nanoseconds())/1e6, rows, sql, err)
+				l.logger.Infof(ctx, "[MDB] SQL NOT FOUND: [%.3fms] [rows:%d] %s - %v", float64(elapsed.Nanoseconds())/1e6, rows, sql, err)
 			}
 			return
 		}
-		l.logger.Errorf(ctx, "SQL ERROR: [%.3fms] [rows:%d] %s - %v", float64(elapsed.Nanoseconds())/1e6, rows, sql, err)
+		l.logger.Errorf(ctx, "[MDB] SQL ERROR: [%.3fms] [rows:%d] %s - %v", float64(elapsed.Nanoseconds())/1e6, rows, sql, err)
 	case l.slowThreshold != 0 && elapsed > l.slowThreshold && l.gormLogLevel >= logger.Warn:
-		l.logger.Warnf(ctx, "SQL SLOW: [%.3fms] [rows:%d] %s", float64(elapsed.Nanoseconds())/1e6, rows, sql)
+		l.logger.Warnf(ctx, "[MDB] SQL SLOW: [%.3fms] [rows:%d] %s", float64(elapsed.Nanoseconds())/1e6, rows, sql)
 	case l.gormLogLevel >= logger.Info:
-		l.logger.Infof(ctx, "SQL: [%.3fms] [rows:%d] %s", float64(elapsed.Nanoseconds())/1e6, rows, sql)
+		l.logger.Infof(ctx, "[MDB] SQL: [%.3fms] [rows:%d] %s", float64(elapsed.Nanoseconds())/1e6, rows, sql)
 	}
 }

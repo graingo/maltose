@@ -27,7 +27,7 @@ type Config struct {
 	Plugins           []gorm.Plugin // plugins list
 }
 
-func DefaultConfig() *Config {
+func defaultConfig() *Config {
 	return &Config{
 		Type:              "mysql",
 		MaxIdleTime:       10 * time.Second,
