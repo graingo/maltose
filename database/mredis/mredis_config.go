@@ -7,7 +7,7 @@ import (
 	"github.com/spf13/viper"
 )
 
-// Config is the configuration for the Redis client.
+// Config is the configuration object for Redis.
 type Config struct {
 	Address         string        `json:"address"`
 	DB              int           `json:"db"`
@@ -30,6 +30,16 @@ type Config struct {
 	Hooks           []Hook        `json:"-"`
 }
 
+func defaultConfig() *Config {
+	return &Config{
+		Address:      "127.0.0.1:6379",
+		ReadTimeout:  3 * time.Second,
+		WriteTimeout: 3 * time.Second,
+		DialTimeout:  5 * time.Second,
+		PoolSize:     10,
+	}
+}
+
 func (c *Config) SetConfigWithMap(config map[string]any) error {
 	v := viper.New()
 	v.MergeConfigMap(config)
@@ -38,4 +48,8 @@ func (c *Config) SetConfigWithMap(config map[string]any) error {
 
 func (c *Config) SetLogger(logger *mlog.Logger) {
 	c.Logger = logger
+}
+
+func (c *Config) AddHook(hook Hook) {
+	c.Hooks = append(c.Hooks, hook)
 }
