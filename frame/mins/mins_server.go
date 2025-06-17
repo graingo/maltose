@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/graingo/maltose/errors/mcode"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/net/mhttp"
 )
 
@@ -22,26 +24,19 @@ func Server(name ...string) *mhttp.Server {
 	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameServer, instanceName)
 
 	instance := globalInstances.GetOrSetFunc(instanceKey, func() any {
-		// initialize server
 		server := mhttp.New()
 
 		// if config is available, read server config from config
 		if Config().Available(ctx) {
-			var (
-				loggerConfigMap map[string]any
-				globalConfigMap map[string]any
-				serverConfigMap map[string]any
-			)
-
-			// get global config
 			configMap, err := Config().Data(ctx)
 			if err != nil {
-				panic(fmt.Errorf("retrieve config data map failed: %+v", err))
+				panic(merror.NewCodef(mcode.CodeMissingConfiguration, `retrieve config data map failed: %v`, err))
 			}
 
-			if configMap[configNodeNameServer] != "" {
-				globalConfigMap = configMap[configNodeNameServer].(map[string]any)
+			if serverConfigNode, ok := configMap[configNodeNameServer]; ok {
+				globalConfigMap := serverConfigNode.(map[string]any)
 
+				var serverConfigMap map[string]any
 				// try to get instance specific config
 				if instanceConfig, ok := globalConfigMap[instanceName]; ok {
 					serverConfigMap = instanceConfig.(map[string]any)
@@ -53,12 +48,11 @@ func Server(name ...string) *mhttp.Server {
 					serverConfigMap = globalConfigMap
 				}
 
-				// apply server config
 				if len(serverConfigMap) > 0 {
-					// basic config
 					server.SetConfigWithMap(serverConfigMap)
 
 					// check current config for logger node
+					var loggerConfigMap map[string]any
 					if cfg, ok := serverConfigMap[configNodeNameLogger].(map[string]any); ok {
 						loggerConfigMap = cfg
 					} else if globalLoggerConfig, ok := configMap[configNodeNameLogger]; ok {
@@ -69,7 +63,7 @@ func Server(name ...string) *mhttp.Server {
 					// apply logger config
 					if len(loggerConfigMap) > 0 {
 						if err := server.Logger().SetConfigWithMap(loggerConfigMap); err != nil {
-							panic(fmt.Errorf("set server logger config failed: %+v", err))
+							panic(merror.NewCodef(mcode.CodeInvalidConfiguration, "set server logger config failed: %v", err))
 						}
 					} else {
 						// if no logger config, use global logger

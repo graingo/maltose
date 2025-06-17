@@ -4,6 +4,8 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/graingo/maltose/errors/mcode"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/os/mlog"
 )
 
@@ -24,25 +26,22 @@ func Log(name ...string) *mlog.Logger {
 	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameLogger, instanceName)
 
 	instance := globalInstances.GetOrSetFunc(instanceKey, func() any {
-		// create logger instance
 		logger := mlog.Instance(instanceName)
-		// try to get logger config
-		var configMap map[string]any
-		// try to get logger config with certain name
+
+		// It firstly searches configuration of the instance name.
 		certainLoggerNodeName := fmt.Sprintf(`%s.%s`, configNodeNameLogger, instanceName)
-		if v, _ := Config().Get(ctx, certainLoggerNodeName); v.IsNil() {
-			configMap = v.Map()
-		}
-		// if certain config not exists, use global logger config
-		if len(configMap) == 0 {
-			if v, _ := Config().Get(ctx, configNodeNameLogger); !v.IsEmpty() {
-				configMap = v.Map()
+		if v, _ := Config().Get(ctx, certainLoggerNodeName); !v.IsNil() {
+			if err := logger.SetConfigWithMap(v.Map()); err != nil {
+				panic(merror.NewCodef(mcode.CodeInvalidConfiguration, `set logger config for instance "%s" failed: %v`, instanceName, err))
 			}
+			return logger
 		}
-		// if config exists, set to logger instance
-		if len(configMap) > 0 {
-			if err := logger.SetConfigWithMap(configMap); err != nil {
-				panic(err)
+
+		// If the configuration for the instance name is not found,
+		// it then searches the default configuration.
+		if v, _ := Config().Get(ctx, configNodeNameLogger); !v.IsNil() {
+			if err := logger.SetConfigWithMap(v.Map()); err != nil {
+				panic(merror.NewCodef(mcode.CodeInvalidConfiguration, `set logger config for default failed: %v`, err))
 			}
 		}
 		return logger
