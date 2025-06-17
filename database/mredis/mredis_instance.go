@@ -5,7 +5,6 @@ import (
 
 	"github.com/graingo/maltose/container/minstance"
 	"github.com/graingo/maltose/internal/intlog"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -65,9 +64,8 @@ func SetConfigByMap(m map[string]any, name ...string) error {
 
 // ConfigFromMap parses and returns config from given map.
 func ConfigFromMap(m map[string]any) (config *Config, err error) {
-	v := viper.New()
-	v.MergeConfigMap(m)
-	if err := v.Unmarshal(&config); err != nil {
+	config = defaultConfig()
+	if err := config.SetConfigWithMap(m); err != nil {
 		return nil, err
 	}
 	return config, nil

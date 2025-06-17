@@ -19,8 +19,7 @@ type Hook redis.Hook
 
 // New creates and returns a new Redis client.
 func New(config ...*Config) (*Redis, error) {
-	var cfg *Config
-
+	cfg := defaultConfig()
 	if len(config) > 0 && config[0] != nil {
 		cfg = config[0]
 	}
@@ -63,7 +62,7 @@ func New(config ...*Config) (*Redis, error) {
 		panic(err)
 	}
 
-	// Add hooks if configured.
+	// Add hooks from config
 	for _, hook := range cfg.Hooks {
 		client.AddHook(hook)
 	}
@@ -81,6 +80,7 @@ func (r *Redis) Client() redis.UniversalClient {
 
 // AddHook adds a hook to the client.
 func (r *Redis) AddHook(hook Hook) {
+	r.config.Hooks = append(r.config.Hooks, hook)
 	r.client.AddHook(hook)
 }
 

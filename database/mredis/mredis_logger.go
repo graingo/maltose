@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"net"
+	"strings"
 	"time"
 
 	"github.com/graingo/maltose/os/mlog"
@@ -66,36 +67,38 @@ func (h *loggerHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 // ProcessPipelineHook is a hook for processing a pipeline of commands.
 func (h *loggerHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.ProcessPipelineHook {
 	return func(ctx context.Context, cmds []redis.Cmder) error {
-		const pipelinePlaceholder = "pipeline"
 		startTime := time.Now()
 		err := next(ctx, cmds)
 		duration := time.Since(startTime)
 
 		var (
-			cmdArgs [][]interface{}
+			cmdNames []string
+			cmdArgs  [][]interface{}
 		)
 		for _, cmd := range cmds {
+			cmdNames = append(cmdNames, cmd.Name())
 			cmdArgs = append(cmdArgs, cmd.Args())
 		}
 		argsStr := fmt.Sprintf("%v", cmdArgs)
+		commandStr := strings.Join(cmdNames, ", ")
 
 		if err != nil && err != redis.Nil {
 			h.logger.Errorf(
 				ctx,
 				`[MREDIS] command:"%s", args:%s, error:"%v"`,
-				pipelinePlaceholder, argsStr, err,
+				commandStr, argsStr, err,
 			)
 		} else if h.slowThreshold > 0 && duration > h.slowThreshold {
 			h.logger.Warnf(
 				ctx,
 				`[MREDIS] slow command, command:"%s", args:%s, duration:"%s"`,
-				pipelinePlaceholder, argsStr, duration,
+				commandStr, argsStr, duration,
 			)
 		} else {
 			h.logger.Infof(
 				ctx,
 				`[MREDIS] command:"%s", args:%s, duration:"%s"`,
-				pipelinePlaceholder, argsStr, duration,
+				commandStr, argsStr, duration,
 			)
 		}
 		return err
