@@ -64,11 +64,11 @@ func SetConfigByMap(m map[string]any, name ...string) error {
 
 // ConfigFromMap parses and returns config from given map.
 func ConfigFromMap(m map[string]any) (config *Config, err error) {
-	cfg := defaultConfig()
-	if err := cfg.SetConfigWithMap(m); err != nil {
+	config = defaultConfig()
+	if err := config.SetConfigWithMap(m); err != nil {
 		return nil, err
 	}
-	return cfg, nil
+	return config, nil
 }
 
 // GetConfig returns the db configuration with the specified name.
