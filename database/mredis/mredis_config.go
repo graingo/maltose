@@ -3,47 +3,39 @@ package mredis
 import (
 	"time"
 
+	"github.com/graingo/maltose/os/mlog"
 	"github.com/spf13/viper"
 )
 
 // Config is the configuration for the Redis client.
 type Config struct {
-	// Address can be a single address or a comma-separated list of addresses for a cluster.
-	Address string `json:"address"`
-	// DB is the database to select after connecting to the server.
-	DB int `json:"db"`
-	// User is the user to authenticate with.
-	User string `json:"user"`
-	// Password is the password to authenticate with.
-	Password string `json:"password"`
-	// MasterName is the name of the master for Sentinel connections.
-	MasterName string `json:"masterName"`
-	// MinIdleConns is the minimum number of idle connections.
-	MinIdleConns int `json:"minIdleConns"`
-	// MaxIdleConns is the maximum number of idle connections.
-	MaxIdleConns int `json:"maxIdleConns"`
-	// MaxRetries is the maximum number of retries before giving up.
-	MaxRetries int `json:"maxRetries"`
-	// PoolSize is the maximum number of socket connections.
-	PoolSize int `json:"poolSize"`
-	// MinRetryBackoff is the minimum backoff between each retry.
-	MinRetryBackoff time.Duration `json:"minRetryBackoff"`
-	// MaxRetryBackoff is the maximum backoff between each retry.
-	MaxRetryBackoff time.Duration `json:"maxRetryBackoff"`
-	// DialTimeout is the timeout for establishing new connections.
-	DialTimeout time.Duration `json:"dialTimeout"`
-	// ReadTimeout is the timeout for reading.
-	ReadTimeout time.Duration `json:"readTimeout"`
-	// WriteTimeout is the timeout for writing.
-	WriteTimeout time.Duration `json:"writeTimeout"`
-	// PoolTimeout is the timeout for getting a connection from the pool.
-	PoolTimeout time.Duration `json:"poolTimeout"`
-	// ConnMaxIdleTime is the timeout for idle connections.
-	ConnMaxIdleTime time.Duration `json:"idleTimeout"`
+	Address         string        `json:"address"`
+	DB              int           `json:"db"`
+	User            string        `json:"user"`
+	Password        string        `json:"password"`
+	MasterName      string        `json:"masterName"`      // sentinel master name
+	MinIdleConns    int           `json:"minIdleConns"`    // minimum number of idle connections
+	MaxIdleConns    int           `json:"maxIdleConns"`    // maximum number of idle connections
+	MaxRetries      int           `json:"maxRetries"`      // maximum number of retries before giving up
+	PoolSize        int           `json:"poolSize"`        // maximum number of socket connections
+	MinRetryBackoff time.Duration `json:"minRetryBackoff"` // minimum backoff between each retry
+	MaxRetryBackoff time.Duration `json:"maxRetryBackoff"` // maximum backoff between each retry
+	DialTimeout     time.Duration `json:"dialTimeout"`     // timeout for establishing new connections
+	ReadTimeout     time.Duration `json:"readTimeout"`     // timeout for reading
+	WriteTimeout    time.Duration `json:"writeTimeout"`    // timeout for writing
+	PoolTimeout     time.Duration `json:"poolTimeout"`     // timeout for getting a connection from the pool
+	ConnMaxIdleTime time.Duration `json:"connMaxIdleTime"` // timeout for idle connections
+	SlowThreshold   time.Duration `json:"slowThreshold"`   // slow query threshold
+	Logger          *mlog.Logger  `json:"-"`
+	Hooks           []Hook        `json:"-"`
 }
 
 func (c *Config) SetConfigWithMap(config map[string]any) error {
 	v := viper.New()
 	v.MergeConfigMap(config)
 	return v.Unmarshal(c)
+}
+
+func (c *Config) SetLogger(logger *mlog.Logger) {
+	c.Logger = logger
 }

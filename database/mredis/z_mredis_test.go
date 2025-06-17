@@ -2,10 +2,12 @@ package mredis_test
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
 	"github.com/graingo/maltose/database/mredis"
+	"github.com/graingo/maltose/os/mlog"
 	"github.com/stretchr/testify/assert"
 )
 
@@ -202,4 +204,37 @@ func TestInstance(t *testing.T) {
 func TestClient(t *testing.T) {
 	client := testClient(t)
 	assert.NotNil(t, client.Client())
+}
+
+func TestRedis_LoggingHook(t *testing.T) {
+	// Create a client with logger configured
+	client, err := mredis.New(&mredis.Config{
+		Address:       "localhost:6379",
+		DB:            9,
+		Logger:        mlog.New(), // Enable the logger
+		SlowThreshold: 1 * time.Millisecond,
+	})
+	assert.NoError(t, err)
+	defer client.Close()
+
+	ctx := context.Background()
+	client.FlushDB(ctx)
+
+	// --- Test a normal command ---
+	fmt.Println("--- Testing a normal command ---")
+	err = client.Set(ctx, "fast_key", "value")
+	assert.NoError(t, err)
+
+	// --- Test a slow command (simulated) ---
+	fmt.Println("\n--- Testing a slow command ---")
+	// Using a command that might take a bit longer, or just for demonstration
+	_, err = client.Keys(ctx, "*")
+	assert.NoError(t, err)
+
+	// --- Test a command that returns an error (by using wrong type) ---
+	fmt.Println("\n--- Testing a command with an error ---")
+	err = client.HSet(ctx, "a_string_key", map[string]interface{}{"f": "v"})
+	assert.NoError(t, err) // This will set the key
+	_, err = client.Client().Incr(ctx, "a_string_key").Result()
+	assert.Error(t, err) // This should fail
 }

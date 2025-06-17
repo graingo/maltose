@@ -5,6 +5,7 @@ import (
 
 	"github.com/graingo/maltose/errors/mcode"
 	"github.com/graingo/maltose/errors/merror"
+	"github.com/redis/go-redis/extra/redisotel/v9"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -13,6 +14,8 @@ type Redis struct {
 	client redis.UniversalClient
 	config *Config
 }
+
+type Hook redis.Hook
 
 // New creates and returns a new Redis client.
 func New(config ...*Config) (*Redis, error) {
@@ -48,8 +51,25 @@ func New(config ...*Config) (*Redis, error) {
 		ConnMaxIdleTime: cfg.ConnMaxIdleTime,
 	}
 
+	client := redis.NewUniversalClient(opts)
+
+	// Add logger hook if logger is configured.
+	if cfg.Logger != nil {
+		client.AddHook(newLoggerHook(cfg.Logger, cfg.SlowThreshold))
+	}
+
+	// Enable tracing.
+	if err := redisotel.InstrumentTracing(client); err != nil {
+		panic(err)
+	}
+
+	// Add hooks if configured.
+	for _, hook := range cfg.Hooks {
+		client.AddHook(hook)
+	}
+
 	return &Redis{
-		client: redis.NewUniversalClient(opts),
+		client: client,
 		config: cfg,
 	}, nil
 }
@@ -57,6 +77,11 @@ func New(config ...*Config) (*Redis, error) {
 // Client returns the underlying universal client.
 func (r *Redis) Client() redis.UniversalClient {
 	return r.client
+}
+
+// AddHook adds a hook to the client.
+func (r *Redis) AddHook(hook Hook) {
+	r.client.AddHook(hook)
 }
 
 // Ping checks the connection to the server.
