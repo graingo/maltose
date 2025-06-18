@@ -21,6 +21,7 @@ import (
 type ServiceGenerator struct {
 	Src           string // Source path for API definition files
 	Dst           string // Destination path for generated files
+	ServiceName   string // The name for single service generation.
 	ModuleName    string // Go module name
 	ModuleRoot    string // File system path to the module root
 	InterfaceMode bool   // Whether to generate service with interface
@@ -50,13 +51,18 @@ type serviceTplData struct {
 	SvcPackage   string
 }
 
-func NewServiceGenerator(src, dst string, interfaceMode bool) (*ServiceGenerator, error) {
-	absSrc, err := filepath.Abs(src)
+func NewServiceGenerator(src, dst, serviceName string, interfaceMode bool) (*ServiceGenerator, error) {
+	pathForModule := src
+	if src == "" {
+		pathForModule = dst
+	}
+
+	absPath, err := filepath.Abs(pathForModule)
 	if err != nil {
 		return nil, fmt.Errorf("failed to get absolute source path: %w", err)
 	}
 
-	moduleName, moduleRoot, err := utils.GetModuleInfo(absSrc)
+	moduleName, moduleRoot, err := utils.GetModuleInfo(absPath)
 	if err != nil {
 		return nil, fmt.Errorf("could not find go.mod: %w", err)
 	}
@@ -64,6 +70,7 @@ func NewServiceGenerator(src, dst string, interfaceMode bool) (*ServiceGenerator
 	return &ServiceGenerator{
 		Src:           src,
 		Dst:           dst,
+		ServiceName:   serviceName,
 		ModuleName:    moduleName,
 		ModuleRoot:    moduleRoot,
 		InterfaceMode: interfaceMode,
@@ -72,6 +79,10 @@ func NewServiceGenerator(src, dst string, interfaceMode bool) (*ServiceGenerator
 
 // Gen generates the service and controller files.
 func (g *ServiceGenerator) Gen() error {
+	if g.ServiceName != "" {
+		return g.genSimpleService()
+	}
+
 	utils.PrintInfo("scanning_directory", utils.TplData{"Path": filepath.Base(g.Src)})
 	return filepath.Walk(g.Src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
@@ -82,6 +93,22 @@ func (g *ServiceGenerator) Gen() error {
 		}
 		return nil
 	})
+}
+
+func (g *ServiceGenerator) genSimpleService() error {
+	fileName := strings.TrimSuffix(g.ServiceName, ".go")
+	outputPath := filepath.Join(g.ModuleRoot, g.Dst, "service", fileName+".go")
+
+	if _, err := os.Stat(outputPath); !os.IsNotExist(err) {
+		utils.PrintWarn("skipping_file", utils.TplData{"Path": outputPath})
+		return nil
+	}
+
+	data := serviceTplData{
+		Service: strcase.ToCamel(fileName),
+	}
+
+	return generateFile(outputPath, "serviceInterface", TplGenServiceInterface, &data)
 }
 
 func (g *ServiceGenerator) genFromFile(file string) error {

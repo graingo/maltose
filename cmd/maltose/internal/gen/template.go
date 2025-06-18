@@ -149,9 +149,9 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 	}
 
 	{{range .Functions}}
-	func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req {{if .ReqIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ReqName}}) (res {{if .ResIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ResName}}, err error) {
+	func (s *s{{$.Service}}) {{.Name}}(ctx context.Context{{if .ReqName}}, input {{if .ReqIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ReqName}}{{end}}) ({{if .ResName}}output {{if .ResIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ResName}}, {{end}}err error) {
 		// TODO: Implement the business logic of {{.Name}}.
-		{{if .ResIsPointer}}res = new({{$.ApiPkg}}.{{.ResName}}){{end}}
+		{{if .ResName}}{{if .ResIsPointer}}output = new({{$.ApiPkg}}.{{.ResName}}){{end}}{{end}}
 		return
 	}
 	{{end}}
@@ -160,9 +160,9 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 	// TplGenServiceLogicAppend is the template for appending new methods to a service logic file.
 	TplGenServiceLogicAppend = `
 {{range .Functions}}
-func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req {{if .ReqIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ReqName}}) (res {{if .ResIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ResName}}, err error) {
+func (s *s{{$.Service}}) {{.Name}}(ctx context.Context{{if .ReqName}}, input {{if .ReqIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ReqName}}{{end}}) ({{if .ResName}}output {{if .ResIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ResName}}, {{end}}err error) {
 	// TODO: Implement the business logic of {{.Name}}.
-	{{if .ResIsPointer}}res = new({{$.ApiPkg}}.{{.ResName}}){{end}}
+	{{if .ResName}}{{if .ResIsPointer}}output = new({{$.ApiPkg}}.{{.ResName}}){{end}}{{end}}
 	return
 }
 {{end}}
@@ -218,6 +218,17 @@ import (
 
 	func (d *{{.DaoName}}) Create(ctx context.Context, data *entity.{{.StructName}}) error {
 		return d.DB.WithContext(ctx).Create(data).Error
+	}
+
+	// FirstOrCreate finds the first record that matches the given conditions, or creates a new one if not found.
+	// The found/created record is returned.
+	func (d *{{.DaoName}}) FirstOrCreate(ctx context.Context, condition map[string]any) (*entity.{{.StructName}}, error) {
+		var result entity.{{.StructName}}
+		err := d.DB.WithContext(ctx).Where(condition).FirstOrCreate(&result).Error
+		if err != nil {
+			return nil, err
+		}
+		return &result, nil
 	}
 
 	// Update updates a full record by its primary key.
