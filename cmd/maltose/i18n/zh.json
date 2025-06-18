@@ -58,7 +58,5 @@
   "not_have_service_interface": "当前文件没有 service 接口, 跳过 logic 生成。",
   "logic_file_uptodate": "⏩ Logic 文件 {{.File}} 已是最新, 无需改动。",
   "logic_methods_appended": "✅ 已向 {{.File}} 追加 {{.Count}} 个新方法。",
-  "logic_gen_skip_method_not_func": "⚠️ 因方法 '{{.Method}}' (服务 '{{.Service}}') 不是函数，已跳过。",
-  "logic_gen_skip_method_bad_params": "⚠️ 因方法 '{{.Method}}' (服务 '{{.Service}}') 参数不规范，已跳过。期望格式：'(ctx context.Context, req *YourReq)'.",
-  "logic_gen_skip_method_bad_results": "⚠️ 因方法 '{{.Method}}' (服务 '{{.Service}}') 返回值不规范，已跳过。期望格式：'(*YourRes, error)'."
+  "logic_gen_skip_method_bad_signature": "⚠️ 因方法 '{{.Method}}' (服务 '{{.Service}}') 签名不支持，已跳过。支持的格式为:\n  - Method(ctx context.Context) error\n  - Method(ctx context.Context) (*Res, error)\n  - Method(ctx context.Context, req *Req) error\n  - Method(ctx context.Context, req *Req) (*Res, error)"
 }

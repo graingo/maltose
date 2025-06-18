@@ -244,42 +244,41 @@ func (p *LogicParser) Parse(filePath string) (*logicTplData, error) {
 						continue
 					}
 
+					methodName := method.Names[0].Name
+					params := funcType.Params
+					results := funcType.Results
+
 					// --- Method signature validation ---
-					// Must have at least 2 params: (context.Context, *req)
-					if funcType.Params == nil || funcType.Params.NumFields() < 2 {
-						continue
-					}
-					// Must have at least 2 results: (*res, error)
-					if funcType.Results == nil || funcType.Results.NumFields() < 2 {
-						continue
-					}
-
-					// Check for context.Context
-					if !isContextContext(funcType.Params.List[0]) {
-						continue
-					}
-
-					// Check for error return type
-					if !isError(funcType.Results.List[funcType.Results.NumFields()-1]) {
+					if params == nil || results == nil ||
+						params.NumFields() < 1 || params.NumFields() > 2 ||
+						results.NumFields() < 1 || results.NumFields() > 2 ||
+						!isContextContext(params.List[0]) ||
+						!isError(results.List[results.NumFields()-1]) {
+						utils.PrintWarn("logic_gen_skip_method_bad_signature", utils.TplData{
+							"Method":  methodName,
+							"Service": serviceName,
+						})
 						continue
 					}
 
-					// --- Request Parsing ---
-					reqField := funcType.Params.List[1]
-					reqPkg, reqName, reqIsPointer := parseType(reqField.Type)
-					if reqName == "" {
-						continue
+					// --- Request Parsing (if it exists) ---
+					var reqPkg, reqName string
+					var reqIsPointer bool
+					if params.NumFields() == 2 {
+						reqField := params.List[1]
+						reqPkg, reqName, reqIsPointer = parseType(reqField.Type)
 					}
 
-					// --- Response Parsing ---
-					resField := funcType.Results.List[0] // We only care about the first return value
-					_, resName, resIsPointer := parseType(resField.Type)
-					if resName == "" {
-						continue
+					// --- Response Parsing (if it exists) ---
+					var resName string
+					var resIsPointer bool
+					if results.NumFields() == 2 {
+						resField := results.List[0]
+						_, resName, resIsPointer = parseType(resField.Type)
 					}
 
 					functions = append(functions, logicFunction{
-						Name:         method.Names[0].Name,
+						Name:         methodName,
 						ReqName:      reqName,
 						ResName:      resName,
 						ReqIsPointer: reqIsPointer,
