@@ -149,9 +149,9 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 	}
 
 	{{range .Functions}}
-	func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req {{if .ReqIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ReqName}}) (res {{if .ResIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ResName}}, err error) {
+	func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, input {{if .ReqIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ReqName}}) (output {{if .ResIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ResName}}, err error) {
 		// TODO: Implement the business logic of {{.Name}}.
-		{{if .ResIsPointer}}res = new({{$.ApiPkg}}.{{.ResName}}){{end}}
+		{{if .ResIsPointer}}output = new({{$.ApiPkg}}.{{.ResName}}){{end}}
 		return
 	}
 	{{end}}
@@ -160,9 +160,9 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 	// TplGenServiceLogicAppend is the template for appending new methods to a service logic file.
 	TplGenServiceLogicAppend = `
 {{range .Functions}}
-func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req {{if .ReqIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ReqName}}) (res {{if .ResIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ResName}}, err error) {
+func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, input {{if .ReqIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ReqName}}) (output {{if .ResIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ResName}}, err error) {
 	// TODO: Implement the business logic of {{.Name}}.
-	{{if .ResIsPointer}}res = new({{$.ApiPkg}}.{{.ResName}}){{end}}
+	{{if .ResIsPointer}}output = new({{$.ApiPkg}}.{{.ResName}}){{end}}
 	return
 }
 {{end}}
