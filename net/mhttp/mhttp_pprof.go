@@ -23,6 +23,7 @@ func (s *Server) EnablePProf(pattern ...string) {
 	uri := strings.TrimRight(p, "/")
 
 	s.Group(uri, func(group *RouterGroup) {
+		group.GET("/", up.Index)
 		group.GET("/:action", up.Index)
 		group.GET("/cmdline", up.Cmdline)
 		group.GET("/profile", up.Profile)

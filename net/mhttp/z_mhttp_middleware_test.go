@@ -180,3 +180,48 @@ func TestMiddleware_Abort(t *testing.T) {
 	assert.Equal(t, "aborted", string(body))
 	assert.False(t, handlerCalled, "Handler should not be called after abort")
 }
+
+func TestMiddleware_RateLimit(t *testing.T) {
+	config := mhttp.RateLimitConfig{
+		Rate:  5, // 5 requests per second
+		Burst: 1, // Burst of 1
+	}
+
+	teardown := setupServer(t, func(s *mhttp.Server) {
+		s.Use(mhttp.MiddlewareRateLimit(config))
+		s.GET("/limited", func(r *mhttp.Request) {
+			r.String(http.StatusOK, "ok")
+		})
+	})
+	defer teardown()
+
+	// First request should pass
+	resp, err := http.Get(baseURL + "/limited")
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	// Immediate second request should be rate-limited
+	resp, err = http.Get(baseURL + "/limited")
+	require.NoError(t, err)
+	resp.Body.Close()
+	assert.Equal(t, http.StatusTooManyRequests, resp.StatusCode)
+}
+
+func TestMiddleware_Recovery(t *testing.T) {
+	teardown := setupServer(t, func(s *mhttp.Server) {
+		// Recovery middleware is added by default in New()
+		s.GET("/panic", func(r *mhttp.Request) {
+			panic("something went terribly wrong")
+		})
+	})
+	defer teardown()
+
+	resp, err := http.Get(baseURL + "/panic")
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
+	body, _ := ioutil.ReadAll(resp.Body)
+	assert.Contains(t, string(body), "Internal Server Error")
+}
