@@ -19,7 +19,7 @@ const (
 type Server struct {
 	RouterGroup
 	engine       *gin.Engine
-	config       ServerConfig
+	config       Config
 	routes       []Route
 	openapi      *OpenAPI
 	preBindItems []preBindItem
@@ -29,7 +29,12 @@ type Server struct {
 }
 
 // New creates a new HTTP server.
-func New() *Server {
+func New(config ...Config) *Server {
+	conf := defaultConfig()
+	if len(config) > 0 {
+		conf = config[0]
+	}
+
 	// disable gin's default log output
 	gin.DefaultWriter = io.Discard
 	gin.DefaultErrorWriter = io.Discard
@@ -40,7 +45,7 @@ func New() *Server {
 
 	s := &Server{
 		engine:       engine,
-		config:       NewConfig(),
+		config:       conf,
 		preBindItems: make([]preBindItem, 0),
 	}
 
