@@ -9,14 +9,7 @@ type traceHook struct{}
 
 // Levels implements the Hook interface.
 func (h *traceHook) Levels() []Level {
-	return []Level{
-		DebugLevel,
-		InfoLevel,
-		WarnLevel,
-		ErrorLevel,
-		FatalLevel,
-		PanicLevel,
-	}
+	return AllLevels()
 }
 
 // Fire implements the Hook interface.
@@ -33,14 +26,7 @@ type ctxHook struct {
 
 // Levels implements the Hook interface.
 func (h *ctxHook) Levels() []Level {
-	return []Level{
-		DebugLevel,
-		InfoLevel,
-		WarnLevel,
-		ErrorLevel,
-		FatalLevel,
-		PanicLevel,
-	}
+	return AllLevels()
 }
 
 // Fire implements the Hook interface.
