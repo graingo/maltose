@@ -64,6 +64,10 @@ func NewConfig() ServerConfig {
 		GracefulTimeout:  time.Second * 30,
 		GracefulWaitTime: time.Second * 5,
 
+		// API doc config
+		OpenapiPath: "/api.json",
+		SwaggerPath: "/swagger",
+
 		// log default config
 		Logger: mlog.New(),
 	}
@@ -73,7 +77,7 @@ func NewConfig() ServerConfig {
 func (s *Server) SetConfigWithMap(configMap map[string]any) error {
 	v := viper.New()
 	v.MergeConfigMap(configMap)
-	return v.Unmarshal(s)
+	return v.Unmarshal(&s.config)
 }
 
 // SetAddress sets the server listening address.

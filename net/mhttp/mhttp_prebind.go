@@ -21,29 +21,35 @@ type preBindItem struct {
 func (s *Server) bindRoutes(_ context.Context) {
 	processedGroups := make(map[*RouterGroup]bool)
 
+	// Step 1: Apply all group-level middlewares exactly once per group using ginGroup.Use().
 	for _, item := range s.preBindItems {
 		group := item.Group
 		if !processedGroups[group] {
 			processedGroups[group] = true
-			for _, middleware := range group.middlewares {
-				ginMiddleware := func(c *gin.Context) {
-					middleware(newRequest(c, s))
+			if len(group.middlewares) > 0 {
+				var ginMiddlewares []gin.HandlerFunc
+				for _, middleware := range group.middlewares {
+					m := middleware
+					ginMiddlewares = append(ginMiddlewares, func(c *gin.Context) {
+						m(newRequest(c, s))
+					})
 				}
-				group.ginGroup.Use(ginMiddleware)
+				group.ginGroup.Use(ginMiddlewares...)
 			}
 		}
 	}
 
-	// second step: register all routes and their route-level middlewares
+	// Step 2: Register all routes with their route-specific middlewares and the final handler.
+	// DO NOT add group middlewares here again.
 	for _, item := range s.preBindItems {
 		var routeHandlers []gin.HandlerFunc
 
-		// only handle route-level middlewares
+		// ONLY handle route-level middlewares
 		for _, middleware := range item.RouteMiddlewares {
-			ginMiddleware := func(c *gin.Context) {
-				middleware(newRequest(c, s))
-			}
-			routeHandlers = append(routeHandlers, ginMiddleware)
+			m := middleware
+			routeHandlers = append(routeHandlers, func(c *gin.Context) {
+				m(newRequest(c, s))
+			})
 		}
 
 		// add final handler function

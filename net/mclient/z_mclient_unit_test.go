@@ -46,7 +46,7 @@ func TestBasicRequest(t *testing.T) {
 	resp, err := client.R().
 		SetRetry(config).
 		SetHeader("Accept", "application/json").
-		GET(server.URL)
+		Get(server.URL)
 
 	// Assert response
 	require.NoError(t, err, "Should not return error")
@@ -110,7 +110,7 @@ func TestJSONBodyRequest(t *testing.T) {
 	resp, err := client.R().
 		SetBody(data).
 		SetResult(&result).
-		POST(server.URL)
+		Post(server.URL)
 
 	// Assert response
 	require.NoError(t, err, "Should not return error")
@@ -152,7 +152,7 @@ func TestRetryOnFailure(t *testing.T) {
 	// Send request
 	resp, err := client.R().
 		SetRetry(config).
-		GET(server.URL)
+		Get(server.URL)
 
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
@@ -196,7 +196,7 @@ func TestCustomRetryCondition(t *testing.T) {
 	resp, err := client.R().
 		SetRetry(config).
 		SetRetryCondition(customRetryCondition).
-		GET(server.URL)
+		Get(server.URL)
 
 	if err != nil {
 		t.Fatalf("Request failed: %v", err)
@@ -230,7 +230,7 @@ func TestAuthMiddleware(t *testing.T) {
 	}))
 
 	// Send request
-	resp, err := client.R().GET(server.URL)
+	resp, err := client.R().Get(server.URL)
 	require.NoError(t, err, "Should not return error")
 	assert.Equal(t, http.StatusOK, resp.StatusCode, "Expected status code 200")
 }
@@ -253,7 +253,7 @@ func TestRateLimitMiddleware(t *testing.T) {
 
 	// Send multiple requests
 	for i := 0; i < 3; i++ {
-		resp, err := client.R().GET(server.URL)
+		resp, err := client.R().Get(server.URL)
 		require.NoError(t, err, "All requests should succeed, but with rate limiting")
 		assert.Equal(t, http.StatusOK, resp.StatusCode, "Expected status code 200")
 	}

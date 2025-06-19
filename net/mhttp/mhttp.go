@@ -23,6 +23,7 @@ type Server struct {
 	routes       []Route
 	openapi      *OpenAPI
 	preBindItems []preBindItem
+	uni          *ut.UniversalTranslator
 	translator   ut.Translator
 	srv          *http.Server
 }

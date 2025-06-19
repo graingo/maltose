@@ -48,7 +48,7 @@ func internalMiddlewareDefaultResponse() MiddlewareFunc {
 			case []byte:
 				r.String(200, string(v))
 			default:
-				r.String(200, fmt.Sprintf("%v", v))
+				r.JSON(200, v)
 			}
 			return
 		}

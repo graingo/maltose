@@ -15,54 +15,51 @@ import (
 // RuleFunc is the custom validation rule function.
 type RuleFunc func(fl validator.FieldLevel) bool
 
-// registerValidateTranslator registers the gin validator translator.
+// registerValidateTranslator registers the gin validator translator, making sure it only runs once.
 func (s *Server) registerValidateTranslator(locale string) {
+	if s.uni != nil {
+		// If uni is already initialized, just ensure the server's default translator is set.
+		if trans, found := s.uni.GetTranslator(locale); found {
+			s.translator = trans
+		}
+		return
+	}
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
 		zhT := zh.New()
 		enT := en.New()
-		uni := ut.New(enT, zhT, enT)
-		trans, _ := uni.GetTranslator(locale)
+		s.uni = ut.New(enT, zhT, enT)
+		trans, _ := s.uni.GetTranslator(locale)
 		s.translator = trans
-		switch locale {
-		case "en":
-			_ = en_translations.RegisterDefaultTranslations(v, trans)
-		case "zh":
-			_ = zh_translations.RegisterDefaultTranslations(v, trans)
+
+		// Register default translations for all supported languages
+		_ = en_translations.RegisterDefaultTranslations(v, s.uni.GetFallback())
+		if zhTrans, found := s.uni.GetTranslator("zh"); found {
+			_ = zh_translations.RegisterDefaultTranslations(v, zhTrans)
 		}
 	}
 	s.setupExtendedTags()
 }
 
-// RegisterRuleWithTranslation registers the custom validation rule and translation.
+// RegisterRuleWithTranslation registers the custom validation rule and translation for multiple languages.
 func (s *Server) RegisterRuleWithTranslation(rule string, fn RuleFunc, errMessage map[string]string) {
 	if v, ok := binding.Validator.Engine().(*validator.Validate); ok {
-		// register validation rule
+		// Register the validation rule function itself.
 		_ = v.RegisterValidation(rule, func(fl validator.FieldLevel) bool {
 			return fn(fl)
 		})
 
-		// register error translation
-		if s.translator != nil {
-			for lang, msg := range errMessage {
-				switch lang {
-				case "zh":
-					registerZhTranslation(v, s.translator, rule, msg)
-				case "en":
-					registerEnTranslation(v, s.translator, rule, msg)
-				}
+		// Ensure the universal translator is initialized.
+		if s.uni == nil {
+			s.registerValidateTranslator(s.config.ServerLocale)
+		}
+
+		// Register translations for each language provided.
+		for lang, msg := range errMessage {
+			if trans, found := s.uni.GetTranslator(lang); found {
+				registerTranslation(v, trans, rule, msg)
 			}
 		}
 	}
-}
-
-// registerZhTranslation registers the Chinese translation.
-func registerZhTranslation(v *validator.Validate, trans ut.Translator, tag string, msg string) {
-	registerTranslation(v, trans, tag, msg)
-}
-
-// registerEnTranslation registers the English translation.
-func registerEnTranslation(v *validator.Validate, trans ut.Translator, tag string, msg string) {
-	registerTranslation(v, trans, tag, msg)
 }
 
 // registerTranslation registers the translation.

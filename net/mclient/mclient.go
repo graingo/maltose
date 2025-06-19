@@ -1,9 +1,12 @@
 package mclient
 
 import (
+	"fmt"
 	"net/http"
 	"net/url"
 	"time"
+
+	"github.com/graingo/maltose"
 )
 
 // Client is an HTTP client with enhanced features.
@@ -20,8 +23,14 @@ func New() *Client {
 			Transport: http.DefaultTransport,
 			Timeout:   30 * time.Second,
 		},
+		config: ClientConfig{
+			Header: make(http.Header),
+		},
 		middlewares: make([]MiddlewareFunc, 0),
 	}
+
+	// Set default User-Agent.
+	c.config.Header.Set("User-Agent", fmt.Sprintf("maltose-mclient/%s", maltose.VERSION))
 
 	// Add default internal middlewares
 	c.Use(
@@ -36,6 +45,14 @@ func New() *Client {
 // NewWithConfig creates and returns a client with given config.
 func NewWithConfig(config ClientConfig) *Client {
 	c := New()
+
+	// Preserve default User-Agent if not provided in the custom config.
+	if config.Header == nil {
+		config.Header = make(http.Header)
+	}
+	if config.Header.Get("User-Agent") == "" {
+		config.Header.Set("User-Agent", c.config.Header.Get("User-Agent"))
+	}
 	c.config = config
 
 	// Apply configuration to http.Client

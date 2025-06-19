@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"math/rand"
 	"net/http"
 	"strings"
 	"time"
@@ -227,11 +226,6 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 func (r *Request) Do() (*Response, error) {
 	var resp *Response
 	var err error
-
-	// Initialize random seed if needed
-	if r.retryConfig != (RetryConfig{}) && r.retryConfig.JitterFactor > 0 {
-		rand.Seed(time.Now().UnixNano())
-	}
 
 	// Try the request up to retryCount + 1 times
 	for attempt := 0; attempt <= r.retryCount; attempt++ {
