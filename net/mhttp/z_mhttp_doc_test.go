@@ -56,11 +56,15 @@ func TestDoc_SwaggerUI(t *testing.T) {
 
 func TestDoc_OpenAPIJSON(t *testing.T) {
 	teardown := setupServer(t, func(s *mhttp.Server) {
+		s.SetConfigWithMap(map[string]any{
+			"openapiPath": "/api/v1/openapi.json",
+			"swaggerPath": "/api/v1/swagger",
+		})
 		s.Bind(&TestDocController{})
 	})
 	defer teardown()
 
-	resp, err := http.Get(baseURL + "/api.json")
+	resp, err := http.Get(baseURL + "/api/v1/openapi.json")
 	require.NoError(t, err)
 	defer resp.Body.Close()
 

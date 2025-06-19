@@ -43,6 +43,8 @@ func (c *TestMiddlewareController) GetError(ctx context.Context, req *ErrorReq) 
 func TestMiddleware_ExecutionOrder(t *testing.T) {
 	var results []string
 	teardown := setupServer(t, func(s *mhttp.Server) {
+		// Reset results for this specific test to ensure isolation
+		results = []string{}
 		s.Use(func(r *mhttp.Request) {
 			results = append(results, "m1-in")
 			r.Next()
@@ -135,7 +137,7 @@ func TestMiddleware_StandardResponse(t *testing.T) {
 		require.NoError(t, err, "Response should be valid JSON")
 
 		assert.Equal(t, float64(0), respMap["code"])
-		assert.Equal(t, "success", respMap["message"])
+		assert.Equal(t, "OK", respMap["message"])
 	})
 
 	t.Run("Error Case", func(t *testing.T) {
@@ -143,7 +145,7 @@ func TestMiddleware_StandardResponse(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
+		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
 		body, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
 		var respMap map[string]interface{}

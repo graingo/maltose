@@ -3,6 +3,7 @@ package mhttp_test
 import (
 	"context"
 	"io/ioutil"
+	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -57,21 +58,11 @@ func setupServer(t *testing.T, configurator func(s *mhttp.Server)) func() {
 
 // waitForServerReady polls the server until it's responsive.
 func waitForServerReady(t *testing.T, s *mhttp.Server) {
-	// A simple check to see if we can establish a connection.
-	// We check against the first registered route if health check is off.
-	routes := s.Routes()
-	path := "/health" // default check
-	if len(routes) > 0 {
-		path = routes[0].Path
-	}
-
-	client := http.Client{Timeout: 200 * time.Millisecond}
+	// Use a TCP dial check which is more reliable and has no side effects.
 	for i := 0; i < 25; i++ { // try for 5 seconds
-		// Using a GET request to a known path.
-		resp, err := client.Get(baseURL + path)
+		conn, err := net.DialTimeout("tcp", testHost, 200*time.Millisecond)
 		if err == nil {
-			resp.Body.Close()
-			// We don't care about the status code, just that the server responded.
+			conn.Close()
 			return
 		}
 		time.Sleep(200 * time.Millisecond)
