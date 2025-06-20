@@ -1,82 +1,106 @@
 package mmetric
 
-import "context"
+import (
+	"context"
 
-// noopProvider is a noop provider that does not perform any actual operations
-// It is used when no actual provider is set or metric collection is disabled
-type noopProvider struct{}
+	"go.opentelemetry.io/otel/metric"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
+)
 
-// newNoopProvider creates a new noop provider
-func newNoopProvider() *noopProvider {
-	return &noopProvider{}
+// provider is a wrapper for a sdkmetric.MeterProvider that implements the Provider interface.
+type provider struct {
+	provider *sdkmetric.MeterProvider
 }
 
-// Meter implements the Provider interface, returns a noop meter
-func (p *noopProvider) Meter(option MeterOption) Meter {
-	return &noopMeter{}
+// NewProvider creates a new Provider with the given OpenTelemetry SDK options.
+// It wraps the standard OpenTelemetry MeterProvider in our custom interface.
+func NewProvider(opts ...sdkmetric.Option) Provider {
+	p := sdkmetric.NewMeterProvider(opts...)
+	return &provider{provider: p}
 }
 
-// Shutdown implements the Provider interface, does not perform any operations
-func (p *noopProvider) Shutdown(ctx context.Context) error {
-	return nil
+// Meter implements the Provider interface.
+func (p *provider) Meter(option MeterOption) Meter {
+	meter := p.provider.Meter(
+		option.Instrument,
+		metric.WithInstrumentationVersion(option.InstrumentVersion),
+	)
+	return &meterWrapper{meter: meter}
 }
 
-// noopMeter is a noop meter that does not perform any actual operations
-type noopMeter struct{}
-
-// Counter creates a noop counter
-func (m *noopMeter) Counter(name string, option MetricOption) (Counter, error) {
-	return &noopCounter{}, nil
+// Shutdown implements the Provider interface.
+func (p *provider) Shutdown(ctx context.Context) error {
+	return p.provider.Shutdown(ctx)
 }
 
-// MustCounter creates a noop counter
-func (m *noopMeter) MustCounter(name string, option MetricOption) Counter {
-	return &noopCounter{}
+// meterWrapper is a wrapper for an OpenTelemetry Meter that implements the Meter interface.
+type meterWrapper struct {
+	meter metric.Meter
 }
 
-// UpDownCounter creates a noop up-down counter
-func (m *noopMeter) UpDownCounter(name string, option MetricOption) (UpDownCounter, error) {
-	return &noopUpDownCounter{}, nil
+// Counter creates a new Counter metric instrument.
+func (m *meterWrapper) Counter(name string, option MetricOption) (Counter, error) {
+	counter, err := m.meter.Float64Counter(
+		name,
+		metric.WithDescription(option.Help),
+		metric.WithUnit(option.Unit),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &counterWrapper{counter: counter}, nil
 }
 
-// MustUpDownCounter creates a noop up-down counter
-func (m *noopMeter) MustUpDownCounter(name string, option MetricOption) UpDownCounter {
-	return &noopUpDownCounter{}
+// MustCounter creates a new Counter, panicking on error.
+func (m *meterWrapper) MustCounter(name string, option MetricOption) Counter {
+	counter, err := m.Counter(name, option)
+	if err != nil {
+		panic(err)
+	}
+	return counter
 }
 
-// Histogram creates a noop histogram
-func (m *noopMeter) Histogram(name string, option MetricOption) (Histogram, error) {
-	return &noopHistogram{}, nil
+// UpDownCounter creates a new UpDownCounter metric instrument.
+func (m *meterWrapper) UpDownCounter(name string, option MetricOption) (UpDownCounter, error) {
+	counter, err := m.meter.Float64UpDownCounter(
+		name,
+		metric.WithDescription(option.Help),
+		metric.WithUnit(option.Unit),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &upDownCounterWrapper{counter: counter}, nil
 }
 
-// MustHistogram creates a noop histogram
-func (m *noopMeter) MustHistogram(name string, option MetricOption) Histogram {
-	return &noopHistogram{}
+// MustUpDownCounter creates a new UpDownCounter, panicking on error.
+func (m *meterWrapper) MustUpDownCounter(name string, option MetricOption) UpDownCounter {
+	counter, err := m.UpDownCounter(name, option)
+	if err != nil {
+		panic(err)
+	}
+	return counter
 }
 
-// noopCounter is a noop counter that does not perform any actual operations
-type noopCounter struct{}
+// Histogram creates a new Histogram metric instrument.
+func (m *meterWrapper) Histogram(name string, option MetricOption) (Histogram, error) {
+	histogram, err := m.meter.Float64Histogram(
+		name,
+		metric.WithDescription(option.Help),
+		metric.WithUnit(option.Unit),
+		metric.WithExplicitBucketBoundaries(option.Buckets...),
+	)
+	if err != nil {
+		return nil, err
+	}
+	return &histogramWrapper{histogram: histogram}, nil
+}
 
-// Add does not perform any operations
-func (c *noopCounter) Add(ctx context.Context, value float64, opts ...Option) {}
-
-// Inc does not perform any operations
-func (c *noopCounter) Inc(ctx context.Context, opts ...Option) {}
-
-// noopUpDownCounter is a noop up-down counter that does not perform any actual operations
-type noopUpDownCounter struct{}
-
-// Add does not perform any operations
-func (c *noopUpDownCounter) Add(ctx context.Context, value float64, opts ...Option) {}
-
-// Inc does not perform any operations
-func (c *noopUpDownCounter) Inc(ctx context.Context, opts ...Option) {}
-
-// Dec does not perform any operations
-func (c *noopUpDownCounter) Dec(ctx context.Context, opts ...Option) {}
-
-// noopHistogram is a noop histogram that does not perform any actual operations
-type noopHistogram struct{}
-
-// Record does not perform any operations
-func (h *noopHistogram) Record(value float64, opts ...Option) {}
+// MustHistogram creates a new Histogram, panicking on error.
+func (m *meterWrapper) MustHistogram(name string, option MetricOption) Histogram {
+	histogram, err := m.Histogram(name, option)
+	if err != nil {
+		panic(err)
+	}
+	return histogram
+}

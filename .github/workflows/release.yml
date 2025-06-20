@@ -53,13 +53,21 @@ jobs:
             echo "-> 正在处理模块: $module_path"
             (
               cd "$dir"
-              # 移除本地 replace 指令，确保从远程仓库拉取
-              if grep -q "github.com/graingo/maltose =>" go.mod; then
-                go mod edit -dropreplace=github.com/graingo/maltose
+              # 对于非 contrib 模块，移除本地 replace 指令以确保从远程拉取。
+              # 对于 contrib 模块，则保留该指令。
+              if [[ "$module_path" != contrib* ]]; then
+                if grep -q "github.com/graingo/maltose =>" go.mod; then
+                  echo "--> 非 contrib 模块，移除 replace 指令..."
+                  go mod edit -dropreplace=github.com/graingo/maltose
+                fi
+              else
+                echo "--> contrib 模块，跳过移除 replace 指令。"
               fi
               # 将依赖设置为新版本
               go mod edit -require="github.com/graingo/maltose@$VERSION"
-              go mod tidy
+              # 此处不执行 go mod tidy，因为此时 $VERSION 标签尚未在远程仓库中创建，
+              # 执行 tidy 会导致依赖解析失败。
+              # go.sum 文件将在使用者下次执行 go mod tidy 时自动更新。
             )
           done
           echo "=========================================="

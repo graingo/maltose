@@ -2,6 +2,8 @@ package mmetric
 
 import (
 	"context"
+
+	"go.opentelemetry.io/otel/attribute"
 )
 
 // NewMeterOption creates a new meter option
@@ -56,61 +58,73 @@ func (o MetricOption) WithBuckets(buckets []float64) MetricOption {
 	return o
 }
 
-// NewOption creates a new option
-func NewOption() Option {
+// WithAttributes creates an Option with the given attributes.
+// This is a convenience function for creating attributes for a single metric observation.
+func WithAttributes(attrs ...attribute.KeyValue) Option {
 	return Option{
-		Attributes: make(AttributeMap),
+		Attributes: attrs,
 	}
 }
 
-// WithOptionAttributes sets the attributes
-func (o Option) WithOptionAttributes(attrs AttributeMap) Option {
-	o.Attributes = attrs
-	return o
+// IsEnabled returns true if the metric provider is not a no-op provider.
+// This can be used to avoid the overhead of building attributes if metrics are disabled.
+func IsEnabled() bool {
+	_, ok := defaultProvider.(*noopProvider)
+	return !ok
 }
 
-// GetMeter gets the meter with the specified name
-func GetMeter(name string) Meter {
-	return GetProvider().Meter(NewMeterOption().WithInstrument(name))
+// GetMeter creates a Meter with the specified instrument name.
+// If no provider is specified, the global default provider is used.
+func GetMeter(name string, provider ...Provider) Meter {
+	p := GetProvider()
+	if len(provider) > 0 && provider[0] != nil {
+		p = provider[0]
+	}
+	return p.Meter(MeterOption{Instrument: name})
 }
 
-// NewCounter creates a counter
-func NewCounter(name string, option MetricOption) (Counter, error) {
-	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
+// NewCounter creates a new Counter metric.
+// It uses the global default provider unless a specific provider is passed.
+func NewCounter(name string, option MetricOption, provider ...Provider) (Counter, error) {
+	meter := GetMeter(name, provider...)
 	return meter.Counter(name, option)
 }
 
-// NewMustCounter creates a counter, panics if it fails
-func NewMustCounter(name string, option MetricOption) Counter {
-	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
+// NewMustCounter creates a new Counter metric and panics if an error occurs.
+func NewMustCounter(name string, option MetricOption, provider ...Provider) Counter {
+	meter := GetMeter(name, provider...)
 	return meter.MustCounter(name, option)
 }
 
-// NewUpDownCounter creates an up-down counter
-func NewUpDownCounter(name string, option MetricOption) (UpDownCounter, error) {
-	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
+// NewUpDownCounter creates a new UpDownCounter metric.
+func NewUpDownCounter(name string, option MetricOption, provider ...Provider) (UpDownCounter, error) {
+	meter := GetMeter(name, provider...)
 	return meter.UpDownCounter(name, option)
 }
 
-// NewMustUpDownCounter creates an up-down counter, panics if it fails
-func NewMustUpDownCounter(name string, option MetricOption) UpDownCounter {
-	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
+// NewMustUpDownCounter creates a new UpDownCounter metric and panics if an error occurs.
+func NewMustUpDownCounter(name string, option MetricOption, provider ...Provider) UpDownCounter {
+	meter := GetMeter(name, provider...)
 	return meter.MustUpDownCounter(name, option)
 }
 
-// NewHistogram creates a histogram
-func NewHistogram(name string, option MetricOption) (Histogram, error) {
-	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
+// NewHistogram creates a new Histogram metric.
+func NewHistogram(name string, option MetricOption, provider ...Provider) (Histogram, error) {
+	meter := GetMeter(name, provider...)
 	return meter.Histogram(name, option)
 }
 
-// NewMustHistogram creates a histogram, panics if it fails
-func NewMustHistogram(name string, option MetricOption) Histogram {
-	meter := GetProvider().Meter(NewMeterOption().WithInstrument(name))
+// NewMustHistogram creates a new Histogram metric and panics if an error occurs.
+func NewMustHistogram(name string, option MetricOption, provider ...Provider) Histogram {
+	meter := GetMeter(name, provider...)
 	return meter.MustHistogram(name, option)
 }
 
-// Shutdown shuts down the provider
-func Shutdown(ctx context.Context) error {
-	return GetProvider().Shutdown(ctx)
+// Shutdown gracefully shuts down the metric provider.
+func Shutdown(ctx context.Context, provider ...Provider) error {
+	p := GetProvider()
+	if len(provider) > 0 && provider[0] != nil {
+		p = provider[0]
+	}
+	return p.Shutdown(ctx)
 }

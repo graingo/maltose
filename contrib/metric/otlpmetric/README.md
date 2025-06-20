@@ -28,6 +28,7 @@ import (
 
 	"github.com/graingo/maltose/contrib/metric/otlpmetric"
 	"github.com/graingo/maltose/os/mmetric"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func main() {
@@ -49,10 +50,10 @@ func main() {
 	})
 
 	// 增加计数器值
-	counter.Inc(context.Background(), mmetric.WithAttributes(map[string]interface{}{
-		"label1": "value1",
-		"label2": "value2",
-	}))
+	counter.Inc(context.Background(), mmetric.WithAttributes(
+		attribute.String("label1", "value1"),
+		attribute.String("label2", "value2"),
+	))
 
 	// 等待指标导出
 	time.Sleep(15 * time.Second)
@@ -74,6 +75,7 @@ import (
 
 	"github.com/graingo/maltose/contrib/metric/otlpmetric"
 	"github.com/graingo/maltose/os/mmetric"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 func main() {
@@ -108,14 +110,14 @@ func main() {
 
 		// 记录指标
 		duration := time.Since(startTime).Seconds()
-		requestCounter.Inc(r.Context(), mmetric.WithAttributes(map[string]interface{}{
-			"method": r.Method,
-			"path":   r.URL.Path,
-		}))
-		latencyHistogram.Record(duration, mmetric.WithAttributes(map[string]interface{}{
-			"method": r.Method,
-			"path":   r.URL.Path,
-		}))
+		requestCounter.Inc(r.Context(), mmetric.WithAttributes(
+			attribute.String("method", r.Method),
+			attribute.String("path", r.URL.Path),
+		))
+		latencyHistogram.Record(duration, mmetric.WithAttributes(
+			attribute.String("method", r.Method),
+			attribute.String("path", r.URL.Path),
+		))
 	})
 
 	// 启动服务器

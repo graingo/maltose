@@ -2,7 +2,7 @@ package mtrace
 
 import (
 	"context"
-	"errors"
+	"crypto/rand"
 	"fmt"
 	"strings"
 
@@ -10,6 +10,7 @@ import (
 	"github.com/graingo/maltose/net/mtrace/internal/provider"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
+	sdkTrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
 
@@ -38,14 +39,25 @@ var (
 )
 
 func init() {
-	otel.SetTracerProvider(provider.New())
 	CheckSetDefaultTextMapPropagator()
 }
 
-// IsUsingDefaultProvider checks if the default trace provider is used.
-func IsUsingDefaultProvider() bool {
+// IsUsingMaltoseProvider checks if the trace provider is a Maltose provider.
+func IsUsingMaltoseProvider() bool {
 	_, ok := otel.GetTracerProvider().(*provider.TracerProvider)
 	return ok
+}
+
+// SetProvider sets the global tracer provider.
+func SetProvider(p trace.TracerProvider) {
+	otel.SetTracerProvider(p)
+}
+
+// NewProvider creates a new Maltose TracerProvider with custom options.
+// It uses the OpenTelemetry SDK's default IDGenerator (random IDs) by default,
+// which can be overridden by providing a custom `sdktrace.WithIDGenerator` option.
+func NewProvider(opts ...sdkTrace.TracerProviderOption) trace.TracerProvider {
+	return provider.New(opts...)
 }
 
 // CheckSetDefaultTextMapPropagator checks if the default TextMapPropagator is set.
@@ -114,21 +126,24 @@ func WithUUID(ctx context.Context, uuid string) (context.Context, error) {
 func WithTraceID(ctx context.Context, traceID string) (context.Context, error) {
 	generatedTraceID, err := trace.TraceIDFromHex(traceID)
 	if err != nil {
-		return ctx, errors.New(fmt.Sprintf(`invalid custom traceID "%s", a traceID string should be composed with [0-f] and fixed length 32`, traceID))
+		return ctx, fmt.Errorf(`invalid custom traceID "%s", a traceID string should be composed with [0-f] and fixed length 32`, traceID)
 	}
+
 	sc := trace.SpanContextFromContext(ctx)
-	if !sc.HasTraceID() {
-		var span trace.Span
-		ctx, span = NewSpan(ctx, "gtrace.WithTraceID")
-		defer span.End()
-		sc = trace.SpanContextFromContext(ctx)
+	if !sc.IsValid() {
+		// If there is no SpanContext in the current context,
+		// we create a new one with the given traceID and a new random spanID.
+		var spanID trace.SpanID
+		_, _ = rand.Read(spanID[:])
+		sc = trace.NewSpanContext(trace.SpanContextConfig{
+			TraceID: generatedTraceID,
+			SpanID:  spanID,
+			Remote:  true, // As it is from a custom ID, we mark it as remote.
+		})
+	} else {
+		// If there is a SpanContext, we only replace the traceID.
+		sc = sc.WithTraceID(generatedTraceID)
 	}
-	ctx = trace.ContextWithRemoteSpanContext(ctx, trace.NewSpanContext(trace.SpanContextConfig{
-		TraceID:    generatedTraceID,
-		SpanID:     sc.SpanID(),
-		TraceFlags: sc.TraceFlags(),
-		TraceState: sc.TraceState(),
-		Remote:     sc.IsRemote(),
-	}))
-	return ctx, nil
+
+	return trace.ContextWithSpanContext(ctx, sc), nil
 }

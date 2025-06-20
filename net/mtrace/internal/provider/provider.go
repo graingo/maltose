@@ -10,15 +10,12 @@ type TracerProvider struct {
 }
 
 // New returns a new configured TracerProvider.
-// The default configuration includes:
-// - ParentBased(AlwaysSample) sampler
-// - IDGenerator based on unix nano timestamp and random number
-// - resource.Default() Resource
-// - default SpanLimits
-func New() *TracerProvider {
+// It acts as a lightweight wrapper around the OpenTelemetry SDK's NewTracerProvider,
+// ensuring a consistent creation pattern within the Maltose framework.
+// By default, it uses the OpenTelemetry SDK's default IDGenerator (random IDs).
+// Users can override this and other options by providing sdkTrace.TracerProviderOption.
+func New(opts ...sdkTrace.TracerProviderOption) *TracerProvider {
 	return &TracerProvider{
-		TracerProvider: sdkTrace.NewTracerProvider(
-			sdkTrace.WithIDGenerator(NewIDGenerator()),
-		),
+		TracerProvider: sdkTrace.NewTracerProvider(opts...),
 	}
 }
