@@ -3,6 +3,7 @@ package mcfg
 import (
 	"context"
 	"os"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -35,6 +36,16 @@ func NewAdapterFile() (*AdapterFile, error) {
 
 // SetFileName sets the configuration file name.
 func (c *AdapterFile) SetFileName(name string) {
+	if name == "" {
+		name = DefaultConfigFileName
+	}
+	// Remove the file extension if it exists.
+	for _, ext := range supportedFileTypes {
+		if strings.HasSuffix(name, "."+ext) {
+			name = strings.TrimSuffix(name, "."+ext)
+			break
+		}
+	}
 	c.fileName = name
 	c.v.SetConfigName(name)
 	// read the config file again

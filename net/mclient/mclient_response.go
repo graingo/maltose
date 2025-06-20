@@ -157,19 +157,14 @@ func (r *Response) parseResponse() error {
 		return errors.New("response is nil")
 	}
 
-	intlog.Printf(r.Request.Context(), "parseResponse called, status code: %d, result: %v, errorResult: %v",
-		r.StatusCode, r.result != nil, r.errorResult != nil)
-
 	if r.StatusCode >= 200 && r.StatusCode < 300 {
 		// Success response - parse into result if provided
 		if r.result != nil {
-			intlog.Printf(r.Request.Context(), "Parsing success response into result")
 			return r.Parse(r.result)
 		}
 	} else {
 		// Error response - parse into errorResult if provided
 		if r.errorResult != nil {
-			intlog.Printf(r.Request.Context(), "Parsing error response into errorResult")
 			return r.Parse(r.errorResult)
 		}
 	}
