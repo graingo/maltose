@@ -2,12 +2,14 @@ package mhttp
 
 import (
 	"context"
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
+	"strings"
 	"syscall"
 	"time"
+
+	"github.com/graingo/maltose/errors/merror"
 )
 
 // SetStaticPath enhances the static file service.
@@ -33,7 +35,7 @@ func (s *Server) Run() {
 	s.printRoute(ctx)
 
 	s.srv = &http.Server{
-		Addr:           s.config.Address,
+		Addr:           s.normalizeAddress(),
 		Handler:        s.engine,
 		ReadTimeout:    s.config.ReadTimeout,
 		WriteTimeout:   s.config.WriteTimeout,
@@ -47,7 +49,7 @@ func (s *Server) Run() {
 		var err error
 		if s.config.TLSEnable {
 			if s.config.TLSCertFile == "" || s.config.TLSKeyFile == "" {
-				errChan <- fmt.Errorf("TLS certificate and key files are required")
+				errChan <- merror.New("TLS certificate and key files are required")
 				return
 			}
 			err = s.srv.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
@@ -102,7 +104,7 @@ func (s *Server) Start(ctx context.Context) error {
 	s.printRoute(ctx)
 
 	s.srv = &http.Server{
-		Addr:           s.config.Address,
+		Addr:           s.normalizeAddress(),
 		Handler:        s.engine,
 		ReadTimeout:    s.config.ReadTimeout,
 		WriteTimeout:   s.config.WriteTimeout,
@@ -113,7 +115,7 @@ func (s *Server) Start(ctx context.Context) error {
 	var err error
 	if s.config.TLSEnable {
 		if s.config.TLSCertFile == "" || s.config.TLSKeyFile == "" {
-			return fmt.Errorf("TLS certificate and key files are required")
+			return merror.New("TLS certificate and key files are required")
 		}
 		err = s.srv.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
 	} else {
@@ -134,4 +136,14 @@ func (s *Server) Stop(ctx context.Context) error {
 		return nil
 	}
 	return s.srv.Shutdown(ctx)
+}
+
+// normalizeAddress checks and formats the server address.
+// If the address only contains a port, it prepends a colon to make it a valid listening address.
+func (s *Server) normalizeAddress() string {
+	address := s.config.Address
+	if address != "" && !strings.Contains(address, ":") {
+		return ":" + address
+	}
+	return address
 }

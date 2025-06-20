@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/graingo/maltose/cmd/maltose/utils"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/iancoleman/strcase"
 	"github.com/jinzhu/inflection"
 	"gorm.io/gorm"
@@ -22,7 +23,7 @@ type DaoGenerator struct {
 func NewDaoGenerator(dst string) (*DaoGenerator, error) {
 	moduleName, moduleRoot, err := utils.GetModuleInfo(dst)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get module info: %w", err)
+		return nil, merror.Wrap(err, "failed to get module info")
 	}
 
 	return &DaoGenerator{

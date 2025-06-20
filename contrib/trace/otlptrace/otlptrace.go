@@ -2,8 +2,8 @@ package otlptrace
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/frame/m"
 	"github.com/graingo/maltose/net/mipv4"
 	"github.com/graingo/maltose/net/mtrace"
@@ -32,7 +32,7 @@ func Init(endpoint string, opts ...Option) (func(context.Context), error) {
 
 	res, err := createResource(o)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create resource: %w", err)
+		return nil, merror.Wrap(err, "failed to create resource")
 	}
 
 	var exporter *otlptrace.Exporter
@@ -42,7 +42,7 @@ func Init(endpoint string, opts ...Option) (func(context.Context), error) {
 		exporter, err = createHTTPExporter(ctx, o)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to create exporter: %w", err)
+		return nil, merror.Wrap(err, "failed to create exporter")
 	}
 
 	// Create a new tracer provider with a batch span processor and the given exporter.

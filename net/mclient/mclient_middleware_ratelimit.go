@@ -2,10 +2,10 @@ package mclient
 
 import (
 	"context"
-	"fmt"
 	"sync"
 	"time"
 
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/internal/intlog"
 )
 
@@ -153,7 +153,7 @@ func MiddlewareRateLimit(config RateLimitConfig) MiddlewareFunc {
 				if config.ErrorHandler != nil {
 					return config.ErrorHandler(ctx, err)
 				}
-				return nil, fmt.Errorf("rate limit error: %w", err)
+				return nil, merror.Wrap(err, "rate limit error")
 			}
 
 			// Log rate limiting info in debug mode

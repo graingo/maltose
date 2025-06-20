@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/internal/intlog"
 )
 
@@ -109,7 +109,7 @@ func (r *Response) Parse(result interface{}) error {
 	default:
 		resultPtr, ok := result.(*string)
 		if !ok {
-			return fmt.Errorf("mclient: text/plain content type requires a *string to unmarshal into, got %T", result)
+			return merror.Newf("mclient: text/plain content type requires a *string to unmarshal into, got %T", result)
 		}
 		*resultPtr = string(body)
 	}

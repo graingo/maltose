@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/graingo/maltose/cmd/maltose/utils"
+	"github.com/graingo/maltose/errors/merror"
 )
 
 // APIDefinition holds the extracted information for a single API endpoint.
@@ -57,7 +58,7 @@ func ParseDir(dir string) ([]APIDefinition, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to walk directory %s: %w", dir, err)
+		return nil, merror.Wrapf(err, "failed to walk directory %s", dir)
 	}
 
 	var apiDefs []APIDefinition

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/os/mlog"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -32,7 +33,7 @@ func createDriver(cfg *Config) (gorm.Dialector, error) {
 	}
 
 	if dsn == "" {
-		return nil, fmt.Errorf("DSN is not set, please configure DSN or complete connection parameters")
+		return nil, merror.New("DSN is not set, please configure DSN or complete connection parameters")
 	}
 
 	// Create database driver
@@ -45,7 +46,7 @@ func createDriver(cfg *Config) (gorm.Dialector, error) {
 	case "sqlite":
 		driver = sqlite.Open(dsn)
 	default:
-		return nil, fmt.Errorf("unsupported database type: " + cfg.Type)
+		return nil, merror.Newf("unsupported database type: %s", cfg.Type)
 	}
 
 	return driver, nil
@@ -139,7 +140,7 @@ func configureReplicas(db *gorm.DB, cfg *Config) error {
 		if cfg.Logger != nil {
 			cfg.Logger.Errorf(context.Background(), "failed to configure db resolver: %v", err)
 		}
-		return fmt.Errorf("failed to configure db resolver: %w", err)
+		return merror.Wrap(err, "failed to configure db resolver")
 	}
 
 	return nil

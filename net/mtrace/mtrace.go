@@ -3,10 +3,10 @@ package mtrace
 import (
 	"context"
 	"crypto/rand"
-	"fmt"
 	"strings"
 
 	"github.com/graingo/maltose/container/mvar"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/net/mtrace/internal/provider"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
@@ -126,7 +126,7 @@ func WithUUID(ctx context.Context, uuid string) (context.Context, error) {
 func WithTraceID(ctx context.Context, traceID string) (context.Context, error) {
 	generatedTraceID, err := trace.TraceIDFromHex(traceID)
 	if err != nil {
-		return ctx, fmt.Errorf(`invalid custom traceID "%s", a traceID string should be composed with [0-f] and fixed length 32`, traceID)
+		return ctx, merror.Newf(`invalid custom traceID "%s", a traceID string should be composed with [0-f] and fixed length 32`, traceID)
 	}
 
 	sc := trace.SpanContextFromContext(ctx)

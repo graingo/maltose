@@ -2,11 +2,11 @@
 package openapi
 
 import (
-	"fmt"
 	"os"
 	"path"
 
 	"github.com/graingo/maltose/cmd/maltose/utils"
+	"github.com/graingo/maltose/errors/merror"
 	"gopkg.in/yaml.v3"
 )
 
@@ -19,36 +19,36 @@ func Generate(src, outputFile string) error {
 	// The parser will return a structured representation of the API definitions.
 	apiDefs, err := ParseDir(src)
 	if err != nil {
-		return fmt.Errorf("failed to parse source directory: %w", err)
+		return merror.Wrap(err, "failed to parse source directory")
 	}
 
 	if len(apiDefs) == 0 {
-		return fmt.Errorf("no API definitions (structs with m.Meta) found in %s", src)
+		return merror.Newf("no API definitions (structs with m.Meta) found in %s", src)
 	}
 
 	utils.PrintInfo("found_api_definitions", utils.TplData{"Count": len(apiDefs)})
 
 	moduleName, _, err := utils.GetModuleInfo(".")
 	if err != nil {
-		return fmt.Errorf("failed to get project name: %w", err)
+		return merror.Wrap(err, "failed to get project name")
 	}
 	projectName := path.Base(moduleName)
 
 	// Step 2: Build the OpenAPI specification from the parsed definitions.
 	spec, err := BuildSpec(apiDefs, projectName)
 	if err != nil {
-		return fmt.Errorf("failed to build OpenAPI spec: %w", err)
+		return merror.Wrap(err, "failed to build OpenAPI spec")
 	}
 
 	// Step 3: Marshal the specification to YAML.
 	yamlData, err := yaml.Marshal(spec)
 	if err != nil {
-		return fmt.Errorf("failed to marshal spec to YAML: %w", err)
+		return merror.Wrap(err, "failed to marshal spec to YAML")
 	}
 
 	// Step 4: Write the YAML data to the output file.
 	if err := os.WriteFile(outputFile, yamlData, 0644); err != nil {
-		return fmt.Errorf("failed to write OpenAPI spec to %s: %w", outputFile, err)
+		return merror.Wrapf(err, "failed to write OpenAPI spec to %s", outputFile)
 	}
 
 	return nil

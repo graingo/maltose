@@ -3,8 +3,8 @@ package mdb
 import (
 	"context"
 	"database/sql"
-	"fmt"
 
+	"github.com/graingo/maltose/errors/merror"
 	"gorm.io/gorm"
 )
 
@@ -35,7 +35,7 @@ func New(config ...*Config) (*DB, error) {
 		if cfg.Logger != nil {
 			cfg.Logger.Errorf(context.Background(), "failed to connect database: %v", err)
 		}
-		return nil, fmt.Errorf("failed to open database connection: %w", err)
+		return nil, merror.Wrap(err, "failed to open database connection")
 	}
 
 	// Configure connection pool
@@ -43,7 +43,7 @@ func New(config ...*Config) (*DB, error) {
 		if cfg.Logger != nil {
 			cfg.Logger.Errorf(context.Background(), "failed to configure database connection pool: %v", err)
 		}
-		return nil, fmt.Errorf("failed to configure database connection pool: %w", err)
+		return nil, merror.Wrap(err, "failed to configure database connection pool")
 	}
 
 	// Configure replicas
@@ -51,13 +51,13 @@ func New(config ...*Config) (*DB, error) {
 		if cfg.Logger != nil {
 			cfg.Logger.Errorf(context.Background(), "failed to configure database replicas: %v", err)
 		}
-		return nil, fmt.Errorf("failed to configure database replicas: %w", err)
+		return nil, merror.Wrap(err, "failed to configure database replicas")
 	}
 
 	// Load plugins
 	for _, plugin := range cfg.Plugins {
 		if err := db.Use(plugin); err != nil {
-			return nil, fmt.Errorf("failed to load database plugin: %w", err)
+			return nil, merror.Wrap(err, "failed to load database plugin")
 		}
 	}
 

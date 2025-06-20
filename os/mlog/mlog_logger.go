@@ -14,7 +14,7 @@ type Logger struct {
 }
 
 const (
-	defaultPath       = "/logs"
+	defaultPath       = "logs"
 	defaultFile       = "{Y}-{m}-{d}.log"
 	defaultTimeFormat = time.DateTime
 	defaultFormat     = "text"

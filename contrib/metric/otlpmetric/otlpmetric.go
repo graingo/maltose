@@ -2,8 +2,8 @@ package otlpmetric
 
 import (
 	"context"
-	"fmt"
 
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/net/mipv4"
 	"github.com/graingo/maltose/os/mmetric"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
@@ -27,7 +27,7 @@ func Init(endpoint string, opts ...Option) (func(context.Context) error, error) 
 	// Create a resource with service and host information.
 	res, err := createResource(o)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create resource: %w", err)
+		return nil, merror.Wrap(err, "failed to create resource")
 	}
 
 	// Create an exporter based on the configured protocol.
@@ -38,7 +38,7 @@ func Init(endpoint string, opts ...Option) (func(context.Context) error, error) 
 		exporter, err = createHTTPExporter(o)
 	}
 	if err != nil {
-		return nil, fmt.Errorf("failed to create exporter: %w", err)
+		return nil, merror.Wrap(err, "failed to create exporter")
 	}
 
 	// Create a periodic reader to export metrics at a fixed interval.
