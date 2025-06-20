@@ -8,6 +8,7 @@ import (
 
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/os/mmetric"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -46,10 +47,6 @@ func newMetricManager() *localMetricManager {
 			mmetric.MetricOption{
 				Help: "request duration",
 				Unit: "ms",
-				Buckets: []float64{
-					1, 5, 10, 25, 50, 75, 100, 250, 500, 750,
-					1000, 2500, 5000, 7500, 10000, 30000, 60000,
-				},
 			},
 		),
 		HttpServerRequestTotal: meter.MustCounter(
@@ -91,98 +88,6 @@ func newMetricManager() *localMetricManager {
 	return mm
 }
 
-// get request duration metric option
-func (m *localMetricManager) GetMetricOptionForRequestDurationByMap(attrMap mmetric.AttributeMap) mmetric.Option {
-	return mmetric.Option{
-		Attributes: attrMap.Pick(
-			metricAttrKeyServerAddress,
-			metricAttrKeyServerPort,
-		),
-	}
-}
-
-// get request metric option
-func (m *localMetricManager) GetMetricOptionForRequestByMap(attrMap mmetric.AttributeMap) mmetric.Option {
-	return mmetric.Option{
-		Attributes: attrMap.Pick(
-			metricAttrKeyServerAddress,
-			metricAttrKeyServerPort,
-			metricAttrKeyHttpRoute,
-			metricAttrKeyUrlSchema,
-			metricAttrKeyHttpRequestMethod,
-			metricAttrKeyNetworkProtocolVersion,
-		),
-	}
-}
-
-// get response metric option
-func (m *localMetricManager) GetMetricOptionForResponseByMap(attrMap mmetric.AttributeMap) mmetric.Option {
-	return mmetric.Option{
-		Attributes: attrMap.Pick(
-			metricAttrKeyServerAddress,
-			metricAttrKeyServerPort,
-			metricAttrKeyHttpRoute,
-			metricAttrKeyUrlSchema,
-			metricAttrKeyHttpRequestMethod,
-			metricAttrKeyNetworkProtocolVersion,
-			metricAttrKeyErrorCode,
-			metricAttrKeyHttpResponseStatusCode,
-		),
-	}
-}
-
-// get metric attribute map
-func (m *localMetricManager) GetMetricAttributeMap(r *Request) mmetric.AttributeMap {
-	var (
-		serverAddress   string
-		serverPort      string
-		httpRoute       string
-		protocolVersion string
-		attrMap         = make(mmetric.AttributeMap)
-	)
-
-	// parse server address and port
-	serverAddress, serverPort = parseHostPort(r.Request.Host)
-	if localAddr := r.Request.Context().Value(http.LocalAddrContextKey); localAddr != nil {
-		_, serverPort = parseHostPort(localAddr.(net.Addr).String())
-	}
-
-	// get route path
-	httpRoute = r.FullPath()
-	if httpRoute == "" {
-		httpRoute = r.Request.URL.Path
-	}
-
-	// get protocol version
-	if array := strings.Split(r.Request.Proto, "/"); len(array) > 1 {
-		protocolVersion = array[1]
-	}
-
-	// set basic attributes
-	attrMap.Sets(mmetric.AttributeMap{
-		metricAttrKeyServerAddress:          serverAddress,
-		metricAttrKeyServerPort:             serverPort,
-		metricAttrKeyHttpRoute:              httpRoute,
-		metricAttrKeyUrlSchema:              getSchema(r),
-		metricAttrKeyHttpRequestMethod:      r.Request.Method,
-		metricAttrKeyNetworkProtocolVersion: protocolVersion,
-	})
-
-	// set response related attributes
-	if len(r.Errors) > 0 {
-		var errCode int
-		if err := r.Errors[0]; err != nil {
-			errCode = merror.Code(err).Code()
-		}
-		attrMap.Sets(mmetric.AttributeMap{
-			metricAttrKeyErrorCode:              errCode,
-			metricAttrKeyHttpResponseStatusCode: r.Writer.Status(),
-		})
-	}
-
-	return attrMap
-}
-
 // parse host and port
 func parseHostPort(hostPort string) (host, port string) {
 	parts := strings.Split(hostPort, ":")
@@ -207,22 +112,41 @@ func (s *Server) handleMetricsBeforeRequest(r *Request) {
 	}
 
 	var (
-		ctx           = r.Request.Context()
-		attrMap       = metricManager.GetMetricAttributeMap(r)
-		requestOption = metricManager.GetMetricOptionForRequestByMap(attrMap)
+		ctx                       = r.Request.Context()
+		serverAddress, serverPort = parseHostPort(r.Request.Host)
+		httpRoute                 = r.FullPath()
+		protocolVersion           string
+		requestAttributes         []attribute.KeyValue
 	)
 
+	if httpRoute == "" {
+		httpRoute = r.Request.URL.Path
+	}
+	if array := strings.Split(r.Request.Proto, "/"); len(array) > 1 {
+		protocolVersion = array[1]
+	}
+	if localAddr := r.Request.Context().Value(http.LocalAddrContextKey); localAddr != nil {
+		_, serverPort = parseHostPort(localAddr.(net.Addr).String())
+	}
+
+	requestAttributes = []attribute.KeyValue{
+		attribute.String(metricAttrKeyServerAddress, serverAddress),
+		attribute.String(metricAttrKeyServerPort, serverPort),
+		attribute.String(metricAttrKeyHttpRoute, httpRoute),
+		attribute.String(metricAttrKeyUrlSchema, getSchema(r)),
+		attribute.String(metricAttrKeyHttpRequestMethod, r.Request.Method),
+		attribute.String(metricAttrKeyNetworkProtocolVersion, protocolVersion),
+	}
+	options := mmetric.WithAttributes(requestAttributes...)
+
 	// increase active request count
-	metricManager.HttpServerRequestActive.Inc(
-		ctx,
-		requestOption,
-	)
+	metricManager.HttpServerRequestActive.Inc(ctx, options)
 
 	// record request body size
 	metricManager.HttpServerRequestBodySize.Add(
 		ctx,
 		float64(r.Request.ContentLength),
-		requestOption,
+		options,
 	)
 }
 
@@ -233,39 +157,69 @@ func (s *Server) handleMetricsAfterRequestDone(r *Request, startTime time.Time) 
 	}
 
 	var (
-		ctx             = r.Request.Context()
-		attrMap         = metricManager.GetMetricAttributeMap(r)
-		durationMilli   = float64(time.Since(startTime).Milliseconds())
-		responseOption  = metricManager.GetMetricOptionForResponseByMap(attrMap)
-		histogramOption = metricManager.GetMetricOptionForRequestDurationByMap(attrMap)
+		ctx                       = r.Request.Context()
+		durationMilli             = float64(time.Since(startTime).Milliseconds())
+		serverAddress, serverPort = parseHostPort(r.Request.Host)
+		httpRoute                 = r.FullPath()
+		protocolVersion           string
 	)
+
+	if httpRoute == "" {
+		httpRoute = r.Request.URL.Path
+	}
+	if array := strings.Split(r.Request.Proto, "/"); len(array) > 1 {
+		protocolVersion = array[1]
+	}
+	if localAddr := r.Request.Context().Value(http.LocalAddrContextKey); localAddr != nil {
+		_, serverPort = parseHostPort(localAddr.(net.Addr).String())
+	}
+
+	requestAttributes := []attribute.KeyValue{
+		attribute.String(metricAttrKeyServerAddress, serverAddress),
+		attribute.String(metricAttrKeyServerPort, serverPort),
+		attribute.String(metricAttrKeyHttpRoute, httpRoute),
+		attribute.String(metricAttrKeyUrlSchema, getSchema(r)),
+		attribute.String(metricAttrKeyHttpRequestMethod, r.Request.Method),
+		attribute.String(metricAttrKeyNetworkProtocolVersion, protocolVersion),
+	}
+	requestOptions := mmetric.WithAttributes(requestAttributes...)
+
+	responseAttributes := make([]attribute.KeyValue, 0, len(requestAttributes)+2)
+	responseAttributes = append(responseAttributes, requestAttributes...)
+	responseAttributes = append(responseAttributes, attribute.Int(metricAttrKeyHttpResponseStatusCode, r.Writer.Status()))
+
+	if len(r.Errors) > 0 {
+		var errCode int
+		if err := r.Errors[0]; err != nil {
+			errCode = merror.Code(err).Code()
+		}
+		responseAttributes = append(responseAttributes, attribute.Int(metricAttrKeyErrorCode, errCode))
+	}
+	responseOptions := mmetric.WithAttributes(responseAttributes...)
 
 	// increase request total
-	metricManager.HttpServerRequestTotal.Inc(ctx, responseOption)
+	metricManager.HttpServerRequestTotal.Inc(ctx, responseOptions)
 
 	// decrease active request count
-	metricManager.HttpServerRequestActive.Dec(
-		ctx,
-		metricManager.GetMetricOptionForRequestByMap(attrMap),
-	)
+	metricManager.HttpServerRequestActive.Dec(ctx, requestOptions)
 
 	// record response body size
 	metricManager.HttpServerResponseBodySize.Add(
 		ctx,
 		float64(r.Writer.Size()),
-		responseOption,
+		responseOptions,
 	)
 
 	// record request duration total
 	metricManager.HttpServerRequestDurationTotal.Add(
 		ctx,
 		durationMilli,
-		responseOption,
+		responseOptions,
 	)
 
 	// record request duration distribution
 	metricManager.HttpServerRequestDuration.Record(
 		durationMilli,
-		histogramOption,
+		responseOptions,
 	)
 }

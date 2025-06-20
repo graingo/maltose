@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/graingo/maltose/os/mmetric"
+	"go.opentelemetry.io/otel/attribute"
 )
 
 const (
@@ -43,10 +44,6 @@ func newMetricManager() *localMetricManager {
 			mmetric.MetricOption{
 				Help: "request duration",
 				Unit: "ms",
-				Buckets: []float64{
-					1, 5, 10, 25, 50, 75, 100, 250, 500, 750,
-					1000, 2500, 5000, 7500, 10000, 30000, 60000,
-				},
 			},
 		),
 		HttpClientRequestTotal: meter.MustCounter(
@@ -87,66 +84,6 @@ func newMetricManager() *localMetricManager {
 	}
 }
 
-// get request metric option
-func (m *localMetricManager) GetMetricOptionForRequestByMap(attrMap mmetric.Attributes) mmetric.Option {
-	return mmetric.Option{
-		Attributes: attrMap(
-			metricAttrKeyUrlHost,
-			metricAttrKeyUrlPath,
-			metricAttrKeyUrlSchema,
-			metricAttrKeyHttpRequestMethod,
-			metricAttrKeyNetworkProtocolVersion,
-		),
-	}
-}
-
-// get response metric option
-func (m *localMetricManager) GetMetricOptionForResponseByMap(attrMap mmetric.Attributes) mmetric.Option {
-	return mmetric.Option{
-		Attributes: attrMap.Pick(
-			metricAttrKeyUrlHost,
-			metricAttrKeyUrlPath,
-			metricAttrKeyUrlSchema,
-			metricAttrKeyHttpRequestMethod,
-			metricAttrKeyNetworkProtocolVersion,
-			metricAttrKeyErrorCode,
-			metricAttrKeyHttpResponseStatusCode,
-		),
-	}
-}
-
-// get metric attribute map
-func (m *localMetricManager) GetMetricAttributeMap(req *http.Request, resp *http.Response, err error) mmetric.AttributeMap {
-	var (
-		attrMap = make(mmetric.AttributeMap)
-	)
-
-	// Set basic attributes
-	attrMap.Sets(mmetric.AttributeMap{
-		metricAttrKeyUrlHost:                getHost(req.URL),
-		metricAttrKeyUrlPath:                getPath(req.URL),
-		metricAttrKeyUrlSchema:              getSchema(req.URL),
-		metricAttrKeyHttpRequestMethod:      req.Method,
-		metricAttrKeyNetworkProtocolVersion: getProtocolVersion(req.Proto),
-	})
-
-	// Set response related attributes
-	if resp != nil {
-		attrMap.Sets(mmetric.AttributeMap{
-			metricAttrKeyHttpResponseStatusCode: resp.StatusCode,
-		})
-	}
-
-	// Set error related attributes
-	if err != nil {
-		attrMap.Sets(mmetric.AttributeMap{
-			metricAttrKeyErrorCode: 1, // Use a generic error code
-		})
-	}
-
-	return attrMap
-}
-
 // handle metrics before request
 func handleMetricsBeforeRequest(req *http.Request) {
 	if !mmetric.IsEnabled() {
@@ -154,16 +91,20 @@ func handleMetricsBeforeRequest(req *http.Request) {
 	}
 
 	var (
-		ctx           = req.Context()
-		attrMap       = metricManager.GetMetricAttributeMap(req, nil, nil)
-		requestOption = metricManager.GetMetricOptionForRequestByMap(attrMap)
+		ctx        = req.Context()
+		attributes = []attribute.KeyValue{
+			attribute.String(metricAttrKeyUrlHost, getHost(req.URL)),
+			attribute.String(metricAttrKeyUrlPath, getPath(req.URL)),
+			attribute.String(metricAttrKeyUrlSchema, getSchema(req.URL)),
+			attribute.String(metricAttrKeyHttpRequestMethod, req.Method),
+			attribute.String(metricAttrKeyNetworkProtocolVersion, getProtocolVersion(req.Proto)),
+		}
 	)
 
-	// Record request body size
 	metricManager.HttpClientRequestBodySize.Add(
 		ctx,
 		float64(req.ContentLength),
-		requestOption,
+		mmetric.WithAttributes(attributes...),
 	)
 }
 
@@ -174,30 +115,40 @@ func handleMetricsAfterRequestDone(req *http.Request, resp *http.Response, err e
 	}
 
 	var (
-		ctx            = req.Context()
-		attrMap        = metricManager.GetMetricAttributeMap(req, resp, err)
-		durationMilli  = float64(time.Since(startTime).Milliseconds())
-		responseOption = metricManager.GetMetricOptionForResponseByMap(attrMap)
+		ctx           = req.Context()
+		durationMilli = float64(time.Since(startTime).Milliseconds())
+		attributes    = make([]attribute.KeyValue, 0, 7)
 	)
 
-	// Increase request total
-	metricManager.HttpClientRequestTotal.Inc(ctx, responseOption)
+	attributes = append(attributes,
+		attribute.String(metricAttrKeyUrlHost, getHost(req.URL)),
+		attribute.String(metricAttrKeyUrlPath, getPath(req.URL)),
+		attribute.String(metricAttrKeyUrlSchema, getSchema(req.URL)),
+		attribute.String(metricAttrKeyHttpRequestMethod, req.Method),
+		attribute.String(metricAttrKeyNetworkProtocolVersion, getProtocolVersion(req.Proto)),
+	)
 
-	// Record request duration
-	metricManager.HttpClientRequestDuration.Record(durationMilli, responseOption)
-	metricManager.HttpClientRequestDurationTotal.Add(ctx, durationMilli, responseOption)
+	if resp != nil {
+		attributes = append(attributes, attribute.Int(metricAttrKeyHttpResponseStatusCode, resp.StatusCode))
+	}
 
-	// Record response body size if available
+	if err != nil {
+		attributes = append(attributes, attribute.Int(metricAttrKeyErrorCode, 1))
+	}
+
+	metricManager.HttpClientRequestTotal.Inc(ctx, mmetric.WithAttributes(attributes...))
+	metricManager.HttpClientRequestDuration.Record(durationMilli, mmetric.WithAttributes(attributes...))
+	metricManager.HttpClientRequestDurationTotal.Add(ctx, durationMilli, mmetric.WithAttributes(attributes...))
+
 	if resp != nil {
 		metricManager.HttpClientResponseBodySize.Add(
 			ctx,
 			float64(resp.ContentLength),
-			responseOption,
+			mmetric.WithAttributes(attributes...),
 		)
 	}
 
-	// Record error if any
 	if err != nil {
-		metricManager.HttpClientErrorTotal.Inc(ctx, responseOption)
+		metricManager.HttpClientErrorTotal.Inc(ctx, mmetric.WithAttributes(attributes...))
 	}
 }
