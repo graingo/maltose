@@ -6,8 +6,6 @@ import (
 
 	"github.com/graingo/maltose/net/mipv4"
 	"github.com/graingo/maltose/os/mmetric"
-	"go.opentelemetry.io/otel"
-	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -15,39 +13,24 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
-// Protocol type.
-type Protocol string
-
-const (
-	ProtocolGRPC         Protocol = "grpc" // gRPC protocol.
-	ProtocolHTTP         Protocol = "http" // HTTP protocol.
-	metricHostnameTagKey          = "hostname"
-)
-
-// Init initializes OpenTelemetry metrics.
-//
-// Parameters:
-//   - endpoint: The collector endpoint, e.g., "collector:4317".
-//   - opts: Configuration options.
-//
-// Returns:
-//   - shutdown: A function for graceful shutdown.
-//   - err: An error, if any.
+// Init initializes OpenTelemetry metrics using the otlpmetric exporter.
+// It configures and creates an exporter (gRPC or HTTP), a resource, and a periodic reader,
+// then uses them to create and set a global mmetric.Provider.
 func Init(endpoint string, opts ...Option) (func(context.Context) error, error) {
-	// Apply options.
+	// Apply user-provided options.
 	o := defaultOptions()
 	o.endpoint = endpoint
 	for _, opt := range opts {
 		opt(&o)
 	}
 
-	// Create resource.
+	// Create a resource with service and host information.
 	res, err := createResource(o)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create resource: %w", err)
 	}
 
-	// Create exporter based on protocol.
+	// Create an exporter based on the configured protocol.
 	var exporter sdkmetric.Exporter
 	if o.protocol == ProtocolGRPC {
 		exporter, err = createGRPCExporter(o)
@@ -58,7 +41,7 @@ func Init(endpoint string, opts ...Option) (func(context.Context) error, error) 
 		return nil, fmt.Errorf("failed to create exporter: %w", err)
 	}
 
-	// Create a reader.
+	// Create a periodic reader to export metrics at a fixed interval.
 	reader := sdkmetric.NewPeriodicReader(
 		exporter,
 		// Export interval configuration: Set the interval for exporting metric data.
@@ -70,8 +53,8 @@ func Init(endpoint string, opts ...Option) (func(context.Context) error, error) 
 		sdkmetric.WithInterval(o.exportInterval),
 	)
 
-	// Create a meter provider.
-	provider := sdkmetric.NewMeterProvider(
+	// Use the new mmetric.NewProvider to create and wrap the OTel provider.
+	provider := mmetric.NewProvider(
 		// Resource configuration: Set resource information associated with metrics.
 		// Resources usually include:
 		// - Service name
@@ -89,14 +72,10 @@ func Init(endpoint string, opts ...Option) (func(context.Context) error, error) 
 		sdkmetric.WithReader(reader),
 	)
 
-	// Set the global meter provider.
-	otel.SetMeterProvider(provider)
+	// Set the created provider as the global provider for the mmetric package.
+	mmetric.SetProvider(provider)
 
-	// Create and set our provider wrapper.
-	wrapper := newProviderWrapper(provider)
-	mmetric.SetProvider(wrapper)
-
-	// Return the shutdown function.
+	// Return the shutdown function from our provider wrapper.
 	return provider.Shutdown, nil
 }
 
@@ -134,7 +113,6 @@ func createResource(opts options) (*resource.Resource, error) {
 		resource.WithAttributes(
 			semconv.ServiceNameKey.String(opts.serviceName),
 			semconv.HostNameKey.String(hostIP),
-			attribute.String(metricHostnameTagKey, hostIP),
 		),
 	)
 }

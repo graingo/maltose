@@ -88,9 +88,9 @@ func newMetricManager() *localMetricManager {
 }
 
 // get request metric option
-func (m *localMetricManager) GetMetricOptionForRequestByMap(attrMap mmetric.AttributeMap) mmetric.Option {
+func (m *localMetricManager) GetMetricOptionForRequestByMap(attrMap mmetric.Attributes) mmetric.Option {
 	return mmetric.Option{
-		Attributes: attrMap.Pick(
+		Attributes: attrMap(
 			metricAttrKeyUrlHost,
 			metricAttrKeyUrlPath,
 			metricAttrKeyUrlSchema,
@@ -101,7 +101,7 @@ func (m *localMetricManager) GetMetricOptionForRequestByMap(attrMap mmetric.Attr
 }
 
 // get response metric option
-func (m *localMetricManager) GetMetricOptionForResponseByMap(attrMap mmetric.AttributeMap) mmetric.Option {
+func (m *localMetricManager) GetMetricOptionForResponseByMap(attrMap mmetric.Attributes) mmetric.Option {
 	return mmetric.Option{
 		Attributes: attrMap.Pick(
 			metricAttrKeyUrlHost,

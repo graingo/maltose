@@ -1,120 +1,127 @@
-// Package mmetric 提供指标收集和监控的抽象接口
 package mmetric
 
 import (
 	"context"
+
+	"go.opentelemetry.io/otel/attribute"
 )
 
-// Provider is the interface for metric providers
-type Provider interface {
-	Meter(option MeterOption) Meter     // Meter creates a meter
-	Shutdown(ctx context.Context) error // Shutdown shuts down the provider
-}
+const (
+	// DefaultInstrument an instrument name for the default meter.
+	DefaultInstrument = "github.com/graingo/maltose/os/mmetric"
+)
 
-// Meter is the interface for meters
-type Meter interface {
-	Counter(name string, option MetricOption) (Counter, error)             // Counter creates a counter
-	MustCounter(name string, option MetricOption) Counter                  // MustCounter creates a counter, panics if creation fails
-	UpDownCounter(name string, option MetricOption) (UpDownCounter, error) // UpDownCounter creates an up-down counter
-	MustUpDownCounter(name string, option MetricOption) UpDownCounter      // MustUpDownCounter creates an up-down counter, panics if creation fails
-	Histogram(name string, option MetricOption) (Histogram, error)         // Histogram creates a histogram
-	MustHistogram(name string, option MetricOption) Histogram              // MustHistogram creates a histogram, panics if creation fails
-}
-
-// Counter is the interface for counters
-type Counter interface {
-	Add(ctx context.Context, value float64, opts ...Option) // Add adds a specified value
-	Inc(ctx context.Context, opts ...Option)                // Inc increments the counter by 1
-}
-
-// UpDownCounter is the interface for up-down counters
-type UpDownCounter interface {
-	Add(ctx context.Context, value float64, opts ...Option) // Add adds a specified value (can be negative)
-	Inc(ctx context.Context, opts ...Option)                // Inc increments the counter by 1
-	Dec(ctx context.Context, opts ...Option)                // Dec decrements the counter by 1
-}
-
-// Histogram is the interface for histograms
-type Histogram interface {
-	Record(value float64, opts ...Option) // Record records a value
-}
-
-// MeterOption is the option for meters
-type MeterOption struct {
-	Instrument        string     // Instrument name
-	InstrumentVersion string     // Instrument version
-	Attributes        Attributes // Attributes
-}
-
-// MetricOption is the option for metrics
-type MetricOption struct {
-	Help       string     // Help information
-	Unit       string     // Unit
-	Attributes Attributes // Attributes
-	Buckets    []float64  // Buckets (may not be supported by all implementations)
-}
-
-// Option is the option for recording metrics
-type Option struct {
-	Attributes AttributeMap // Attributes map
-}
-
-// Attributes is a list of attributes, key-value pairs
-type Attributes map[string]string
-
-// AttributeMap is a map of attributes, supports multiple types of values
-type AttributeMap map[string]interface{}
-
-// Sets sets multiple attributes
-func (m AttributeMap) Sets(attrs AttributeMap) {
-	for k, v := range attrs {
-		m[k] = v
-	}
-}
-
-// Pick picks specific attributes
-func (m AttributeMap) Pick(keys ...string) AttributeMap {
-	result := make(AttributeMap)
-	for _, key := range keys {
-		if v, ok := m[key]; ok {
-			result[key] = v
-		}
-	}
-	return result
-}
-
-// Global variables
 var (
-	enabled                  = true              // Whether to enable metric collection
-	defaultProvider          = newNoopProvider() // Default noop provider
-	activeProvider  Provider = defaultProvider   // Current active provider, modified to Provider interface type
+	// defaultProvider is the default provider for mmetric.
+	// It is a no-op provider by default, which means that no metrics will be collected
+	// unless a real provider is set using the SetProvider function.
+	defaultProvider Provider = newNoopProvider()
 )
 
-// NewNoopProvider creates a new noop provider
-func NewNoopProvider() Provider {
-	return newNoopProvider()
+// Attributes is a slice of attribute.KeyValue. It is used to add metadata to metrics.
+// Using attribute.KeyValue allows for strongly-typed attributes, which is recommended
+// by OpenTelemetry for better performance and correctness.
+//
+// Example:
+//
+//	attrs := mmetric.Attributes{
+//		attribute.String("request.method", "GET"),
+//		attribute.Int("response.status_code", 200),
+//	}
+type Attributes []attribute.KeyValue
+
+// MeterOption is the option for creating a new meter. A meter is responsible for creating
+// instruments (e.g., counters, histograms).
+type MeterOption struct {
+	// Instrument is the name of the instrumentation library.
+	Instrument string
+	// InstrumentVersion is the version of the instrumentation library.
+	InstrumentVersion string
+	// Attributes is a list of attributes that will be attached to all metrics created by this meter.
+	Attributes Attributes
 }
 
-// IsEnabled checks if metric collection is enabled
-func IsEnabled() bool {
-	return enabled
+// MetricOption is the option for creating a new metric instrument (e.g., Counter, Histogram).
+type MetricOption struct {
+	// Help provides a brief description of the metric. It is used by some backends
+	// to display help text in GUIs.
+	Help string
+	// Unit specifies the unit of the metric. It should follow the UCUM standard.
+	// See: https://unitsofmeasure.org/ucum.html
+	Unit string
+	// Attributes is a list of attributes that will be attached to the metric.
+	Attributes Attributes
+	// Buckets defines the bucket boundaries for a Histogram. If not set, a default
+	// set of buckets will be used by the provider.
+	// This is only applicable to Histogram metrics.
+	Buckets []float64
 }
 
-// SetEnabled sets whether metric collection is enabled
-func SetEnabled(e bool) {
-	enabled = e
+// Option is the option for a single metric operation, like Add or Inc.
+type Option struct {
+	// Attributes is a list of attributes that will be attached to this specific metric observation.
+	// These attributes are combined with the attributes from the Meter and the Instrument.
+	Attributes Attributes
 }
 
-// SetProvider sets the active provider
-func SetProvider(provider Provider) {
-	activeProvider = provider
-	enabled = true
+// Provider is the interface for a metric provider. It is responsible for creating meters.
+// This is an abstraction over OpenTelemetry's MeterProvider.
+type Provider interface {
+	// Meter creates a new meter with the given options.
+	Meter(option MeterOption) Meter
+	// Shutdown gracefully shuts down the provider, ensuring all buffered metrics are exported.
+	Shutdown(ctx context.Context) error
 }
 
-// GetProvider gets the current active provider
+// Meter is the interface for a metric meter. It is responsible for creating instruments.
+// This is an abstraction over OpenTelemetry's Meter.
+type Meter interface {
+	// Counter creates a new counter metric. A counter is a metric that only goes up.
+	Counter(name string, option MetricOption) (Counter, error)
+	// MustCounter is like Counter but panics on error.
+	MustCounter(name string, option MetricOption) Counter
+	// UpDownCounter creates a new up-down counter. This metric can go up and down.
+	UpDownCounter(name string, option MetricOption) (UpDownCounter, error)
+	// MustUpDownCounter is like UpDownCounter but panics on error.
+	MustUpDownCounter(name string, option MetricOption) UpDownCounter
+	// Histogram creates a new histogram metric. Histograms are used to measure the
+	// distribution of a set of values.
+	Histogram(name string, option MetricOption) (Histogram, error)
+	// MustHistogram is like Histogram but panics on error.
+	MustHistogram(name string, option MetricOption) Histogram
+}
+
+// Counter is an interface for a counter metric.
+type Counter interface {
+	// Add adds a value to the counter. The value must be non-negative.
+	Add(ctx context.Context, value float64, opts ...Option)
+	// Inc increments the counter by 1.
+	Inc(ctx context.Context, opts ...Option)
+}
+
+// UpDownCounter is an interface for an up-down counter metric.
+type UpDownCounter interface {
+	// Add adds a value to the counter. The value can be positive or negative.
+	Add(ctx context.Context, value float64, opts ...Option)
+	// Inc increments the counter by 1.
+	Inc(ctx context.Context, opts ...Option)
+	// Dec decrements the counter by 1.
+	Dec(ctx context.Context, opts ...Option)
+}
+
+// Histogram is an interface for a histogram metric.
+type Histogram interface {
+	// Record records a value in the histogram.
+	Record(value float64, opts ...Option)
+}
+
+// SetProvider sets the global metric provider.
+// This should be called once at the beginning of the application.
+func SetProvider(p Provider) {
+	defaultProvider = p
+}
+
+// GetProvider returns the global metric provider.
 func GetProvider() Provider {
-	if !enabled {
-		return defaultProvider
-	}
-	return activeProvider
+	return defaultProvider
 }

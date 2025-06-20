@@ -52,6 +52,8 @@ require (
 	github.com/modern-go/concurrent v0.0.0-20180306012644-bacd9c7ef1dd // indirect
 	github.com/modern-go/reflect2 v1.0.2 // indirect
 	github.com/pelletier/go-toml/v2 v2.2.3 // indirect
+	github.com/redis/go-redis/extra/rediscmd/v9 v9.10.0 // indirect
+	github.com/redis/go-redis/extra/redisotel/v9 v9.10.0 // indirect
 	github.com/redis/go-redis/v9 v9.10.0 // indirect
 	github.com/sagikazarmark/locafero v0.4.0 // indirect
 	github.com/sagikazarmark/slog-shim v0.1.0 // indirect
@@ -91,3 +93,5 @@ require (
 	gorm.io/gorm v1.26.1 // indirect
 	gorm.io/plugin/dbresolver v1.6.0 // indirect
 )
+
+replace github.com/graingo/maltose => ../../../

@@ -6,12 +6,11 @@ import (
 
 	"github.com/graingo/maltose/frame/m"
 	"github.com/graingo/maltose/net/mipv4"
-	"go.opentelemetry.io/otel"
+	"github.com/graingo/maltose/net/mtrace"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracehttp"
-	"go.opentelemetry.io/otel/propagation"
 	"go.opentelemetry.io/otel/sdk/resource"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
@@ -46,7 +45,8 @@ func Init(endpoint string, opts ...Option) (func(context.Context), error) {
 		return nil, fmt.Errorf("failed to create exporter: %w", err)
 	}
 
-	tracerProvider := sdktrace.NewTracerProvider(
+	// Create a new tracer provider with a batch span processor and the given exporter.
+	tracerProvider := mtrace.NewProvider(
 		sdktrace.WithSampler(o.sampler),
 		// resource configuration: set the resource information associated with spans.
 		// The resource usually contains information about the entity producing telemetry,
@@ -64,24 +64,18 @@ func Init(endpoint string, opts ...Option) (func(context.Context), error) {
 		sdktrace.WithSpanProcessor(sdktrace.NewBatchSpanProcessor(exporter)),
 	)
 
-	// set global text map propagator, for passing trace context between different services
-	otel.SetTextMapPropagator(propagation.NewCompositeTextMapPropagator(
-		// implement W3C TraceContext specification, for passing trace ID and span ID
-		propagation.TraceContext{},
-		// implement W3C Baggage specification, for passing key-value pair metadata
-		propagation.Baggage{},
-	))
-
-	// set global tracer provider
-	otel.SetTracerProvider(tracerProvider)
+	// Set the global tracer provider, so a tracer can be retrieved using otel.Tracer(name).
+	mtrace.SetProvider(tracerProvider)
 
 	return func(ctx context.Context) {
 		ctx, cancel := context.WithTimeout(ctx, o.timeout)
 		defer cancel()
-		if err := tracerProvider.Shutdown(ctx); err != nil {
-			m.Log().Errorf(ctx, "failed to shutdown tracer provider: %+v", err)
-		} else {
-			m.Log().Debug(ctx, "tracer provider shutdown successfully")
+		if tp, ok := tracerProvider.(*sdktrace.TracerProvider); ok {
+			if err := tp.Shutdown(ctx); err != nil {
+				m.Log().Errorf(ctx, "failed to shutdown tracer provider: %+v", err)
+			} else {
+				m.Log().Debug(ctx, "tracer provider shutdown successfully")
+			}
 		}
 	}, nil
 }

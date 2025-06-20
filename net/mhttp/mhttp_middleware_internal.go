@@ -94,7 +94,7 @@ func internalMiddlewareMetric() MiddlewareFunc {
 func internalMiddlewareTrace() MiddlewareFunc {
 	return func(r *Request) {
 		// If the default trace provider is used, do nothing.
-		if mtrace.IsUsingDefaultProvider() {
+		if !mtrace.IsUsingMaltoseProvider() {
 			r.Next()
 			return
 		}

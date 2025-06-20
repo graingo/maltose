@@ -4,6 +4,16 @@ import (
 	"time"
 )
 
+// Protocol defines the protocol for the exporter.
+type Protocol string
+
+const (
+	// ProtocolGRPC is the gRPC protocol.
+	ProtocolGRPC Protocol = "grpc"
+	// ProtocolHTTP is the HTTP protocol.
+	ProtocolHTTP Protocol = "http"
+)
+
 // Option is a function type for configuration options.
 type Option func(*options)
 
