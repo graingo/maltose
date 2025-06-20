@@ -3,6 +3,7 @@ package mhttp
 import (
 	"context"
 	"reflect"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/graingo/maltose/util/mmeta"
@@ -169,7 +170,7 @@ func (rg *RouterGroup) bindObject(object any) *RouterGroup {
 
 		// get route information
 		path := mmeta.Get(reqInstance, "path").String()
-		httpMethod := mmeta.Get(reqInstance, "method").String()
+		httpMethod := strings.ToUpper(mmeta.Get(reqInstance, "method").String())
 		if path == "" || httpMethod == "" {
 			continue
 		}

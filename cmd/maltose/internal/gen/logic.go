@@ -156,10 +156,6 @@ func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) error 
 	}
 	defer f.Close()
 
-	if _, err = f.WriteString("\n"); err != nil {
-		return fmt.Errorf("failed to write newline before appending: %w", err)
-	}
-
 	if _, err = f.Write(buffer.Bytes()); err != nil {
 		return fmt.Errorf("failed to append new methods to logic file: %w", err)
 	}

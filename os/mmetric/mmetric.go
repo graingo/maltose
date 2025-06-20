@@ -90,6 +90,11 @@ var (
 	activeProvider  Provider = defaultProvider   // Current active provider, modified to Provider interface type
 )
 
+// NewNoopProvider creates a new noop provider
+func NewNoopProvider() Provider {
+	return newNoopProvider()
+}
+
 // IsEnabled checks if metric collection is enabled
 func IsEnabled() bool {
 	return enabled

@@ -7,8 +7,8 @@ import (
 	"github.com/spf13/viper"
 )
 
-// ServerConfig is the server configuration.
-type ServerConfig struct {
+// Config is the server configuration.
+type Config struct {
 	// basic config
 	Address        string
 	ServerName     string
@@ -42,8 +42,8 @@ type ServerConfig struct {
 	Logger *mlog.Logger
 }
 
-func NewConfig() ServerConfig {
-	return ServerConfig{
+func defaultConfig() Config {
+	return Config{
 		// basic config default values
 		Address:        defaultPort,
 		ServerName:     DefaultServerName,
@@ -73,7 +73,7 @@ func NewConfig() ServerConfig {
 func (s *Server) SetConfigWithMap(configMap map[string]any) error {
 	v := viper.New()
 	v.MergeConfigMap(configMap)
-	return v.Unmarshal(s)
+	return v.Unmarshal(&s.config)
 }
 
 // SetAddress sets the server listening address.
@@ -94,4 +94,20 @@ func (s *Server) SetLogger(logger *mlog.Logger) {
 // Logger gets the logger instance.
 func (s *Server) Logger() *mlog.Logger {
 	return s.config.Logger
+}
+
+// SetConfigWithMap sets the server config.
+func (s *Config) SetConfigWithMap(configMap map[string]any) error {
+	v := viper.New()
+	v.MergeConfigMap(configMap)
+	return v.Unmarshal(s)
+}
+
+// ConfigFromMap creates a new server config from a map.
+func ConfigFromMap(configMap map[string]any) (Config, error) {
+	config := defaultConfig()
+	if err := config.SetConfigWithMap(configMap); err != nil {
+		return Config{}, err
+	}
+	return config, nil
 }

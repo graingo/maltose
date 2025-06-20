@@ -14,6 +14,23 @@ type DefaultResponse struct {
 	Data    any    `json:"data"`    // business data
 }
 
+func codeToHTTPStatus(code mcode.Code) int {
+	switch code {
+	case mcode.CodeOK:
+		return http.StatusOK
+	case mcode.CodeValidationFailed:
+		return http.StatusBadRequest
+	case mcode.CodeNotFound:
+		return http.StatusNotFound
+	case mcode.CodeNotAuthorized:
+		return http.StatusUnauthorized
+	case mcode.CodeForbidden:
+		return http.StatusForbidden
+	default:
+		return http.StatusInternalServerError
+	}
+}
+
 // MiddlewareResponse standard response middleware
 func MiddlewareResponse() MiddlewareFunc {
 	return func(r *Request) {
@@ -40,28 +57,13 @@ func MiddlewareResponse() MiddlewareFunc {
 			}
 			msg = err.Error()
 			data = nil
-		} else if status := r.Writer.Status(); status != http.StatusOK {
-			// handle HTTP status code error
-			msg = http.StatusText(status)
-			switch status {
-			case http.StatusNotFound:
-				code = mcode.CodeNotFound
-			case http.StatusForbidden:
-				code = mcode.CodeForbidden
-			case http.StatusUnauthorized:
-				code = mcode.CodeNotAuthorized
-			default:
-				code = mcode.CodeInternalError
-			}
-			data = nil
-			// create error object for other middleware usage
-			r.Error(merror.NewCode(code, msg))
 		} else {
 			msg = code.Message()
 		}
 
 		// return standard response
-		r.JSON(r.Writer.Status(), DefaultResponse{
+		httpStatus := codeToHTTPStatus(code)
+		r.JSON(httpStatus, DefaultResponse{
 			Code:    code.Code(),
 			Message: msg,
 			Data:    data,

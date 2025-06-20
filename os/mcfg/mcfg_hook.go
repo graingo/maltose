@@ -3,7 +3,8 @@ package mcfg
 import (
 	"context"
 	"fmt"
-	"sync"
+
+	"github.com/graingo/maltose/container/minstance"
 )
 
 // StatefulHook is an interface for hooks that need to maintain state across multiple calls.
@@ -15,9 +16,9 @@ type StatefulHook interface {
 type ConfigHookFunc func(ctx context.Context, data map[string]interface{}) (map[string]interface{}, error)
 
 var (
-	// afterLoadHooks stores the hooks to be executed after configuration is loaded.
-	afterLoadHooks     []ConfigHookFunc
-	afterLoadHookMutex sync.RWMutex
+	// hooks stores the hooks to be executed after configuration is loaded,
+	// using a concurrent-safe instance manager.
+	hooks = minstance.New()
 )
 
 // RegisterAfterLoadHook registers a hook to be executed after configuration is loaded.
@@ -25,36 +26,37 @@ var (
 // or an implementation of the `StatefulHook` interface.
 // Using a `StatefulHook` is the recommended way to handle expensive operations that should only run once (e.g., fetching remote config),
 // as it allows caching within the hook's state.
+// Each hook is stored with a unique key to prevent duplicate registrations.
 func RegisterAfterLoadHook(hook interface{}) {
-	afterLoadHookMutex.Lock()
-	defer afterLoadHookMutex.Unlock()
-
+	var hookFunc ConfigHookFunc
 	switch h := hook.(type) {
 	case ConfigHookFunc:
-		afterLoadHooks = append(afterLoadHooks, h)
+		hookFunc = h
 	case func(context.Context, map[string]interface{}) (map[string]interface{}, error):
-		afterLoadHooks = append(afterLoadHooks, h)
+		hookFunc = h
 	case StatefulHook:
-		afterLoadHooks = append(afterLoadHooks, h.Hook)
+		hookFunc = h.Hook
 	default:
 		panic(fmt.Sprintf("unsupported hook type: %T. Must be a ConfigHookFunc or a StatefulHook", h))
 	}
+
+	// Use a unique key for each hook to store it in the instance manager.
+	hooks.Set(fmt.Sprintf("%p", hook), hookFunc)
 }
 
 // runAfterLoadHooks executes all registered after-load hooks in order.
 func runAfterLoadHooks(ctx context.Context, data map[string]any) (map[string]any, error) {
-	afterLoadHookMutex.RLock()
-	hooks := make([]ConfigHookFunc, len(afterLoadHooks))
-	copy(hooks, afterLoadHooks)
-	afterLoadHookMutex.RUnlock()
-
 	processedData := data
 	var err error
 
-	for _, hook := range hooks {
-		processedData, err = hook(ctx, processedData)
-		if err != nil {
-			return nil, err
+	// All retrieves all registered hooks in a thread-safe manner.
+	allHooks := hooks.All()
+	for _, hookInstance := range allHooks {
+		if hook, ok := hookInstance.(ConfigHookFunc); ok {
+			processedData, err = hook(ctx, processedData)
+			if err != nil {
+				return nil, err
+			}
 		}
 	}
 

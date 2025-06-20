@@ -59,3 +59,22 @@ func (c *Container) Remove(name string) {
 	defer c.mu.Unlock()
 	delete(c.instances, name)
 }
+
+// All returns all instances.
+func (c *Container) All() []any {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+
+	list := make([]any, 0, len(c.instances))
+	for _, v := range c.instances {
+		list = append(list, v)
+	}
+	return list
+}
+
+// Count returns the number of instances.
+func (c *Container) Count() int {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return len(c.instances)
+}

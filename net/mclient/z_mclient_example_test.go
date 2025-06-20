@@ -16,7 +16,7 @@ func Example() {
 	// Send a simple GET request
 	resp, err := client.R().
 		SetHeader("Accept", "application/json").
-		GET("https://api.example.com/users")
+		Get("https://api.example.com/users")
 
 	if err != nil {
 		log.Printf("Request failed: %v", err)
@@ -55,7 +55,7 @@ func ExampleJSON() {
 	_, err := client.R().
 		SetBody(user).
 		SetResult(&result).
-		POST("https://api.example.com/users")
+		Post("https://api.example.com/users")
 
 	if err != nil {
 		log.Printf("Request failed: %v", err)
@@ -81,7 +81,7 @@ func ExampleRetry() {
 	// Send request with retry
 	resp, err := client.R().
 		SetRetry(config).
-		GET("https://api.example.com/users")
+		Get("https://api.example.com/users")
 
 	if err != nil {
 		log.Printf("Request failed after retries: %v", err)
@@ -128,7 +128,7 @@ func ExampleCustomRetryCondition() {
 	resp, err := client.R().
 		SetRetry(config).
 		SetRetryCondition(customRetryCondition).
-		GET("https://api.example.com/users")
+		Get("https://api.example.com/users")
 
 	if err != nil {
 		log.Printf("Request failed after retries: %v", err)
@@ -165,7 +165,7 @@ func ExampleMiddleware() {
 	}))
 
 	// Send request
-	resp, err := client.R().GET("https://api.example.com/users")
+	resp, err := client.R().Get("https://api.example.com/users")
 	if err != nil {
 		log.Printf("Request failed: %v", err)
 		return
@@ -186,7 +186,7 @@ func ExampleRateLimit() {
 
 	// Send multiple requests
 	for i := 0; i < 3; i++ {
-		resp, err := client.R().GET("https://api.example.com/users")
+		resp, err := client.R().Get("https://api.example.com/users")
 		if err != nil {
 			log.Printf("Request %d failed: %v", i+1, err)
 			continue
@@ -223,7 +223,7 @@ func ExampleChainedRequests() {
 	_, err := client.R().
 		SetRetry(config).
 		SetResult(&userList).
-		GET("https://api.example.com/users")
+		Get("https://api.example.com/users")
 
 	if err != nil {
 		log.Printf("Failed to get user list: %v", err)
@@ -236,7 +236,7 @@ func ExampleChainedRequests() {
 		_, err := client.R().
 			SetRetry(config).
 			SetResult(&userDetail).
-			GET(fmt.Sprintf("https://api.example.com/users/%d", user.ID))
+			Get(fmt.Sprintf("https://api.example.com/users/%d", user.ID))
 
 		if err != nil {
 			log.Printf("Failed to get user %d details: %v", user.ID, err)

@@ -14,20 +14,31 @@ import (
 // HandlerFunc defines the basic handler function type.
 type HandlerFunc func(*Request)
 
+// handleValidationErrors handles the validation errors.
+func handleValidationErrors(r *Request, err error) error {
+	if validationErrors, ok := err.(validator.ValidationErrors); ok {
+		var errMsgs []string
+		trans := r.GetTranslator()
+		for _, e := range validationErrors.Translate(trans) {
+			errMsgs = append(errMsgs, e)
+		}
+		if len(errMsgs) > 0 {
+			return merror.NewCode(mcode.CodeValidationFailed, strings.Join(errMsgs, "; "))
+		}
+	}
+	return err
+}
+
 // handleRequest handles the request and returns the result.
 func handleRequest(r *Request, method reflect.Method, val reflect.Value, req interface{}) error {
-	// parameter binding
+	// Parameter binding from URI. We can ignore the error here because
+	// not all requests have URI parameters. The main validation for body,
+	// query, etc., is handled by ShouldBind below.
+	_ = r.ShouldBindUri(req)
+
+	// parameter binding from query, form, body, etc.
 	if err := r.ShouldBind(req); err != nil {
-		if validationErrors, ok := err.(validator.ValidationErrors); ok {
-			var errMsgs []string
-			for _, e := range validationErrors.Translate(r.GetTranslator()) {
-				errMsgs = append(errMsgs, e)
-			}
-			if len(errMsgs) > 0 {
-				return merror.NewCode(mcode.CodeValidationFailed, errMsgs[0])
-			}
-		}
-		return err
+		return handleValidationErrors(r, err)
 	}
 
 	// call method

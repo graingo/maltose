@@ -112,7 +112,7 @@ func (c *Config) Data(ctx context.Context) (map[string]any, error) {
 		return nil, err
 	}
 
-	if len(afterLoadHooks) > 0 {
+	if hooks.Count() > 0 {
 		processedData, err := runAfterLoadHooks(ctx, rawData)
 		if err != nil {
 			return nil, err
