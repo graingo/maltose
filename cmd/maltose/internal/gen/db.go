@@ -6,6 +6,7 @@ import (
 	"os"
 
 	"github.com/graingo/maltose/cmd/maltose/utils"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/joho/godotenv"
 	"gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
@@ -38,7 +39,7 @@ func initDB() error {
 
 	utils.PrintInfo("loading_env_file", nil)
 	if err := godotenv.Load(); err != nil {
-		return fmt.Errorf("error loading .env file: %w", err)
+		return merror.Wrap(err, "error loading .env file")
 	}
 
 	dbInfo := DBInfo{
@@ -111,14 +112,14 @@ func GetDBConnection(info DBInfo) (*gorm.DB, error) {
 			info.Host, info.User, info.Pass, info.Name, info.Port)
 		dialector = postgres.Open(dsn)
 	default:
-		return nil, fmt.Errorf("unsupported database type: %s", info.DBType)
+		return nil, merror.Newf("unsupported database type: %s", info.DBType)
 	}
 
 	db, err := gorm.Open(dialector, &gorm.Config{
 		Logger: logger.Default.LogMode(logger.Silent),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("failed to connect to database: %w", err)
+		return nil, merror.Wrap(err, "failed to connect to database")
 	}
 	return db, nil
 }
@@ -127,14 +128,14 @@ func GetDBConnection(info DBInfo) (*gorm.DB, error) {
 func GetTables(db *gorm.DB) ([]TableInfo, error) {
 	tableNames, err := db.Migrator().GetTables()
 	if err != nil {
-		return nil, fmt.Errorf("failed to get tables from database: %w", err)
+		return nil, merror.Wrap(err, "failed to get tables from database")
 	}
 
 	var tables []TableInfo
 	for _, name := range tableNames {
 		columns, err := db.Migrator().ColumnTypes(name)
 		if err != nil {
-			return nil, fmt.Errorf("failed to get columns for table %s: %w", name, err)
+			return nil, merror.Wrapf(err, "failed to get columns for table %s", name)
 		}
 
 		tables = append(tables, TableInfo{

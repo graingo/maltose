@@ -11,6 +11,7 @@ import (
 	"text/template"
 
 	"github.com/graingo/maltose/cmd/maltose/utils"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/iancoleman/strcase"
 	"github.com/jinzhu/inflection"
 	"golang.org/x/text/cases"
@@ -23,19 +24,19 @@ func generateFile(path, tplName, tplContent string, data interface{}) error {
 	// Create the template
 	tpl, err := template.New(tplName).Funcs(funcMap).Parse(tplContent)
 	if err != nil {
-		return fmt.Errorf("failed to parse template %s: %w", tplName, err)
+		return merror.Wrapf(err, "failed to parse template %s", tplName)
 	}
 
 	// Ensure the directory exists
 	dir := filepath.Dir(path)
 	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create directory %s: %w", dir, err)
+		return merror.Wrapf(err, "failed to create directory %s", dir)
 	}
 
 	// Execute the template
 	var buf bytes.Buffer
 	if err := tpl.Execute(&buf, data); err != nil {
-		return fmt.Errorf("failed to execute template %s: %w", tplName, err)
+		return merror.Wrapf(err, "failed to execute template %s", tplName)
 	}
 
 	// Format the generated code

@@ -2,7 +2,6 @@ package mlog
 
 import (
 	"github.com/graingo/maltose/container/minstance"
-	"github.com/spf13/viper"
 )
 
 const (
@@ -26,10 +25,9 @@ func Instance(name ...string) *Logger {
 }
 
 // ConfigFromMap parses and returns config from given map.
-func ConfigFromMap(m map[string]any) (config *Config, err error) {
-	v := viper.New()
-	v.MergeConfigMap(m)
-	if err := v.Unmarshal(&config); err != nil {
+func ConfigFromMap(m map[string]any) (*Config, error) {
+	config := defaultConfig()
+	if err := config.SetConfigWithMap(m); err != nil {
 		return nil, err
 	}
 	return config, nil

@@ -3,7 +3,6 @@ package gen
 
 import (
 	"bytes"
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -13,6 +12,7 @@ import (
 	"text/template"
 
 	"github.com/graingo/maltose/cmd/maltose/utils"
+	"github.com/graingo/maltose/errors/merror"
 )
 
 // LogicGenerator holds the configuration for generating logic files.
@@ -46,12 +46,12 @@ type logicTplData struct {
 func NewLogicGenerator(src, dst string, overwrite bool) (*LogicGenerator, error) {
 	absSrc, err := filepath.Abs(src)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute source path: %w", err)
+		return nil, merror.Wrap(err, "failed to get absolute source path")
 	}
 
 	moduleName, moduleRoot, err := utils.GetModuleInfo(absSrc)
 	if err != nil {
-		return nil, fmt.Errorf("could not find go.mod: %w", err)
+		return nil, merror.Wrap(err, "could not find go.mod")
 	}
 
 	return &LogicGenerator{
@@ -106,7 +106,7 @@ func (g *LogicGenerator) genFromFile(file string) error {
 
 	// If we are here, it means file doesn't exist, OR it exists and we want to overwrite.
 	if err := os.MkdirAll(logicDir, os.ModePerm); err != nil {
-		return fmt.Errorf("failed to create logic directory %s: %w", logicDir, err)
+		return merror.Wrapf(err, "failed to create logic directory %s", logicDir)
 	}
 
 	return generateFile(logicOutputPath, "serviceLogic", TplGenServiceLogic, genInfo)
@@ -143,21 +143,21 @@ func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) error 
 	var buffer bytes.Buffer
 	tpl, err := template.New("serviceLogicAppend").Parse(TplGenServiceLogicAppend)
 	if err != nil {
-		return fmt.Errorf("failed to parse append template: %w", err)
+		return merror.Wrap(err, "failed to parse append template")
 	}
 	if err = tpl.Execute(&buffer, appendData); err != nil {
-		return fmt.Errorf("failed to execute append template: %w", err)
+		return merror.Wrap(err, "failed to execute append template")
 	}
 
 	// Append to file
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open logic file for appending: %w", err)
+		return merror.Wrap(err, "failed to open logic file for appending")
 	}
 	defer f.Close()
 
 	if _, err = f.Write(buffer.Bytes()); err != nil {
-		return fmt.Errorf("failed to append new methods to logic file: %w", err)
+		return merror.Wrap(err, "failed to append new methods to logic file")
 	}
 
 	utils.PrintSuccess("logic_methods_appended", utils.TplData{
@@ -173,7 +173,7 @@ func parseExistingLogicMethods(filePath string) (map[string]struct{}, error) {
 	fset := token.NewFileSet()
 	node, err := parser.ParseFile(fset, filePath, nil, parser.ParseComments)
 	if err != nil {
-		return nil, fmt.Errorf("failed to parse existing logic file %s: %w", filePath, err)
+		return nil, merror.Wrapf(err, "failed to parse existing logic file %s", filePath)
 	}
 
 	ast.Inspect(node, func(n ast.Node) bool {

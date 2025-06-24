@@ -1,11 +1,11 @@
 package mmeta
 
 import (
-	"fmt"
 	"reflect"
 	"strconv"
 
 	"github.com/graingo/maltose/container/mvar"
+	"github.com/graingo/maltose/errors/merror"
 )
 
 // Meta is used as an embedded property to enable metadata features
@@ -48,13 +48,13 @@ func StructType(object any) (reflect.Type, error) {
 		reflectType = reflect.TypeOf(object)
 	}
 	if reflectType == nil {
-		return nil, fmt.Errorf("invalid object type: nil")
+		return nil, merror.New("invalid object type: nil")
 	}
 	if reflectType.Kind() == reflect.Ptr {
 		reflectType = reflectType.Elem()
 	}
 	if reflectType.Kind() != reflect.Struct {
-		return nil, fmt.Errorf("invalid object kind: %v", reflectType.Kind())
+		return nil, merror.Newf("invalid object kind: %v", reflectType.Kind())
 	}
 	return reflectType, nil
 }

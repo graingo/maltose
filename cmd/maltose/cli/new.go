@@ -8,6 +8,7 @@ import (
 	"regexp"
 
 	"github.com/graingo/maltose/cmd/maltose/utils"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/spf13/cobra"
 )
 
@@ -30,19 +31,19 @@ var newCmd = &cobra.Command{
 		// 1. Clone the repository
 		cloneCmd := exec.Command("git", "clone", repoURL, projectName)
 		if err := cloneCmd.Run(); err != nil {
-			return fmt.Errorf("cloning template repository failed: %w", err)
+			return merror.Wrap(err, "cloning template repository failed")
 		}
 
 		// 2. Remove the .git directory
 		if err := os.RemoveAll(filepath.Join(projectName, ".git")); err != nil {
-			return fmt.Errorf("failed to remove .git directory: %w", err)
+			return merror.Wrap(err, "failed to remove .git directory")
 		}
 
 		// 3. Determine and update the module path
 		// Get current working directory
 		cwd, err := os.Getwd()
 		if err != nil {
-			return fmt.Errorf("failed to get current working directory: %w", err)
+			return merror.Wrap(err, "failed to get current working directory")
 		}
 		// The new module path is the current working directory + project name
 		modulePath := filepath.Join(filepath.Base(cwd), projectName)
@@ -51,12 +52,12 @@ var newCmd = &cobra.Command{
 		gomodPath := filepath.Join(projectName, "go.mod")
 		content, err := os.ReadFile(gomodPath)
 		if err != nil {
-			return fmt.Errorf("failed to read go.mod: %w", err)
+			return merror.Wrap(err, "failed to read go.mod")
 		}
 		re := regexp.MustCompile(`module\s+\S+`)
 		newContent := re.ReplaceAllString(string(content), "module "+modulePath)
 		if err := os.WriteFile(gomodPath, []byte(newContent), 0644); err != nil {
-			return fmt.Errorf("failed to write updated go.mod: %w", err)
+			return merror.Wrap(err, "failed to write updated go.mod")
 		}
 
 		utils.PrintSuccess("new_project_success", utils.TplData{"ProjectName": projectName})

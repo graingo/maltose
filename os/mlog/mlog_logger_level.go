@@ -1,18 +1,21 @@
 package mlog
 
 import (
+	"strings"
+
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/sirupsen/logrus"
 )
 
 type Level int
 
 const (
-	DebugLevel Level = iota
-	InfoLevel
-	WarnLevel
-	ErrorLevel
+	PanicLevel Level = iota
 	FatalLevel
-	PanicLevel
+	ErrorLevel
+	WarnLevel
+	InfoLevel
+	DebugLevel
 )
 
 func AllLevels() []Level {
@@ -34,4 +37,24 @@ func (l *Logger) SetLevel(level Level) {
 // GetLevel returns the logging level value.
 func (l *Logger) GetLevel() Level {
 	return Level(l.parent.GetLevel())
+}
+
+// ParseLevel parses a string level and returns the Level value.
+func ParseLevel(level string) (Level, error) {
+	switch strings.ToLower(level) {
+	case "debug":
+		return DebugLevel, nil
+	case "info":
+		return InfoLevel, nil
+	case "warn":
+		return WarnLevel, nil
+	case "error":
+		return ErrorLevel, nil
+	case "fatal":
+		return FatalLevel, nil
+	case "panic":
+		return PanicLevel, nil
+	default:
+		return 0, merror.Newf("invalid log level: %s", level)
+	}
 }

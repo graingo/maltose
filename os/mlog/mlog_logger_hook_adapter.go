@@ -29,6 +29,7 @@ func (h *logrusHook) Fire(entry *logrus.Entry) error {
 		Level:   Level(entry.Level),
 		Message: entry.Message,
 		Data:    make(map[string]any),
+		Context: entry.Context,
 		raw:     entry,
 	}
 
@@ -36,5 +37,12 @@ func (h *logrusHook) Fire(entry *logrus.Entry) error {
 	maps.Copy(e.Data, entry.Data)
 
 	// call user's hook
-	return h.hook.Fire(e)
+	if err := h.hook.Fire(e); err != nil {
+		return err
+	}
+
+	// copy data back to logrus entry
+	maps.Copy(entry.Data, e.Data)
+
+	return nil
 }

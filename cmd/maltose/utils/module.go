@@ -1,10 +1,10 @@
 package utils
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 
+	"github.com/graingo/maltose/errors/merror"
 	"golang.org/x/mod/modfile"
 )
 
@@ -13,7 +13,7 @@ import (
 func GetModuleInfo(fromPath string) (name, rootPath string, err error) {
 	currentPath, err := filepath.Abs(fromPath)
 	if err != nil {
-		return "", "", fmt.Errorf("failed to get absolute path for %s: %w", fromPath, err)
+		return "", "", merror.Wrapf(err, "failed to get absolute path for %s", fromPath)
 	}
 
 	for {
@@ -24,12 +24,12 @@ func GetModuleInfo(fromPath string) (name, rootPath string, err error) {
 		}
 		if !os.IsNotExist(err) {
 			// File exists but cannot be read.
-			return "", "", fmt.Errorf("failed to read go.mod at %s: %w", goModPath, err)
+			return "", "", merror.Wrapf(err, "failed to read go.mod at %s", goModPath)
 		}
 
 		parent := filepath.Dir(currentPath)
 		if parent == currentPath { // Reached the root directory
-			return "", "", fmt.Errorf("go.mod not found in any parent directory of %s", fromPath)
+			return "", "", merror.Newf("go.mod not found in any parent directory of %s", fromPath)
 		}
 		currentPath = parent
 	}

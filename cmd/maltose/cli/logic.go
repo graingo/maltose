@@ -1,10 +1,9 @@
 package cli
 
 import (
-	"fmt"
-
 	"github.com/graingo/maltose/cmd/maltose/internal/gen"
 	"github.com/graingo/maltose/cmd/maltose/utils"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/spf13/cobra"
 )
 
@@ -25,7 +24,7 @@ var logicCmd = &cobra.Command{
 			return err
 		}
 		if err := generator.Gen(); err != nil {
-			return fmt.Errorf("failed to generate logic file: %w", err)
+			return merror.Wrap(err, "failed to generate logic file")
 		}
 
 		utils.PrintSuccess("logic_generation_success", nil)

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/net/mtrace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -37,7 +38,7 @@ func internalMiddlewareRecovery() MiddlewareFunc {
 			defer func() {
 				if r := recover(); r != nil {
 					// Handle panic
-					err = fmt.Errorf("client panic: %v", r)
+					err = merror.Newf("client panic: %v", r)
 				}
 			}()
 

@@ -2,9 +2,7 @@ package mredis
 
 import (
 	"context"
-	"fmt"
 	"net"
-	"strings"
 	"time"
 
 	"github.com/graingo/maltose/os/mlog"
@@ -22,7 +20,7 @@ var _ redis.Hook = (*loggerHook)(nil)
 // newLoggerHook creates and returns a new LoggerHook.
 func newLoggerHook(logger *mlog.Logger, slowThreshold time.Duration) *loggerHook {
 	return &loggerHook{
-		logger:        logger,
+		logger:        logger.WithComponent("mredis"),
 		slowThreshold: slowThreshold,
 	}
 }
@@ -41,24 +39,18 @@ func (h *loggerHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 		err := next(ctx, cmd)
 		duration := time.Since(startTime)
 
+		fields := mlog.Fields{
+			"command":     cmd.Name(),
+			"args":        cmd.Args(),
+			"duration_ms": float64(duration.Nanoseconds()) / 1e6,
+		}
+
 		if err != nil && err != redis.Nil {
-			h.logger.Errorf(
-				ctx,
-				`[MREDIS] command:"%s", args:%v, error:"%v"`,
-				cmd.Name(), cmd.Args(), err,
-			)
+			h.logger.Errorf(ctx, "redis command error: %v", err, fields)
 		} else if h.slowThreshold > 0 && duration > h.slowThreshold {
-			h.logger.Warnf(
-				ctx,
-				`[MREDIS] slow command, command:"%s", args:%v, duration:"%s"`,
-				cmd.Name(), cmd.Args(), duration,
-			)
+			h.logger.Warn(ctx, "redis slow command", fields)
 		} else {
-			h.logger.Infof(
-				ctx,
-				`[MREDIS] command:"%s", args:%v, duration:"%s"`,
-				cmd.Name(), cmd.Args(), duration,
-			)
+			h.logger.Info(ctx, "redis command", fields)
 		}
 		return err
 	}
@@ -79,27 +71,19 @@ func (h *loggerHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.P
 			cmdNames = append(cmdNames, cmd.Name())
 			cmdArgs = append(cmdArgs, cmd.Args())
 		}
-		argsStr := fmt.Sprintf("%v", cmdArgs)
-		commandStr := strings.Join(cmdNames, ", ")
+
+		fields := mlog.Fields{
+			"commands":    cmdNames,
+			"args":        cmdArgs,
+			"duration_ms": float64(duration.Nanoseconds()) / 1e6,
+		}
 
 		if err != nil && err != redis.Nil {
-			h.logger.Errorf(
-				ctx,
-				`[MREDIS] command:"%s", args:%s, error:"%v"`,
-				commandStr, argsStr, err,
-			)
+			h.logger.Errorf(ctx, "redis pipeline error: %v", err, fields)
 		} else if h.slowThreshold > 0 && duration > h.slowThreshold {
-			h.logger.Warnf(
-				ctx,
-				`[MREDIS] slow command, command:"%s", args:%s, duration:"%s"`,
-				commandStr, argsStr, duration,
-			)
+			h.logger.Warn(ctx, "redis slow pipeline", fields)
 		} else {
-			h.logger.Infof(
-				ctx,
-				`[MREDIS] command:"%s", args:%s, duration:"%s"`,
-				commandStr, argsStr, duration,
-			)
+			h.logger.Info(ctx, "redis pipeline", fields)
 		}
 		return err
 	}

@@ -5,11 +5,11 @@ import (
 	"encoding/json"
 	"encoding/xml"
 	"errors"
-	"fmt"
 	"io"
 	"net/http"
 	"strings"
 
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/internal/intlog"
 )
 
@@ -109,7 +109,7 @@ func (r *Response) Parse(result interface{}) error {
 	default:
 		resultPtr, ok := result.(*string)
 		if !ok {
-			return fmt.Errorf("mclient: text/plain content type requires a *string to unmarshal into, got %T", result)
+			return merror.Newf("mclient: text/plain content type requires a *string to unmarshal into, got %T", result)
 		}
 		*resultPtr = string(body)
 	}
@@ -157,19 +157,14 @@ func (r *Response) parseResponse() error {
 		return errors.New("response is nil")
 	}
 
-	intlog.Printf(r.Request.Context(), "parseResponse called, status code: %d, result: %v, errorResult: %v",
-		r.StatusCode, r.result != nil, r.errorResult != nil)
-
 	if r.StatusCode >= 200 && r.StatusCode < 300 {
 		// Success response - parse into result if provided
 		if r.result != nil {
-			intlog.Printf(r.Request.Context(), "Parsing success response into result")
 			return r.Parse(r.result)
 		}
 	} else {
 		// Error response - parse into errorResult if provided
 		if r.errorResult != nil {
-			intlog.Printf(r.Request.Context(), "Parsing error response into errorResult")
 			return r.Parse(r.errorResult)
 		}
 	}

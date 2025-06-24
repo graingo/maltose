@@ -14,6 +14,7 @@ import (
 
 	"github.com/fatih/color"
 	"github.com/graingo/maltose/cmd/maltose/utils"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/iancoleman/strcase"
 )
 
@@ -59,12 +60,12 @@ func NewServiceGenerator(src, dst, serviceName string, interfaceMode bool) (*Ser
 
 	absPath, err := filepath.Abs(pathForModule)
 	if err != nil {
-		return nil, fmt.Errorf("failed to get absolute source path: %w", err)
+		return nil, merror.Wrap(err, "failed to get absolute source path")
 	}
 
 	moduleName, moduleRoot, err := utils.GetModuleInfo(absPath)
 	if err != nil {
-		return nil, fmt.Errorf("could not find go.mod: %w", err)
+		return nil, merror.Wrap(err, "could not find go.mod")
 	}
 
 	return &ServiceGenerator{
@@ -142,7 +143,7 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 			templateName = TplGenServiceInterface
 		}
 		if err := generateFile(svcOutputPath, "service", templateName, genInfo); err != nil {
-			return fmt.Errorf("failed to generate service skeleton: %w", err)
+			return merror.Wrap(err, "failed to generate service skeleton")
 		}
 	} else {
 		// File exists, skip with a warning.
@@ -156,7 +157,7 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 		controllerStructPath := filepath.Join(g.Dst, "controller", genInfo.Module, genInfo.Module+".go")
 		if _, err := os.Stat(controllerStructPath); os.IsNotExist(err) {
 			if err := generateFile(controllerStructPath, "controllerStruct", TplGenControllerStruct, genInfo); err != nil {
-				return fmt.Errorf("failed to generate controller struct: %w", err)
+				return merror.Wrap(err, "failed to generate controller struct")
 			}
 		}
 
@@ -181,7 +182,7 @@ func (g *ServiceGenerator) generateOrAppend(filePath, fullTpl, appendTpl string,
 	// File exists, proceed with append logic.
 	existingMethods, err := parseGoFileForMethods(filePath)
 	if err != nil {
-		return fmt.Errorf("could not parse existing controller file %s: %w", filePath, err)
+		return merror.Wrapf(err, "could not parse existing controller file %s", filePath)
 	}
 
 	var methodsToAppend []serviceFunction
@@ -206,20 +207,20 @@ func appendToFile(filePath, tplContent string, data *serviceTplData) error {
 	var buffer bytes.Buffer
 	tpl, err := template.New("method").Parse(tplContent)
 	if err != nil {
-		return fmt.Errorf("failed to parse append template: %w", err)
+		return merror.Wrap(err, "failed to parse append template")
 	}
 	if err := tpl.Execute(&buffer, data); err != nil {
-		return fmt.Errorf("failed to execute append template: %w", err)
+		return merror.Wrap(err, "failed to execute append template")
 	}
 
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return fmt.Errorf("failed to open file for appending: %w", err)
+		return merror.Wrap(err, "failed to open file for appending")
 	}
 	defer f.Close()
 
 	if _, err := f.Write(buffer.Bytes()); err != nil {
-		return fmt.Errorf("failed to append to file: %w", err)
+		return merror.Wrap(err, "failed to append to file")
 	}
 	return nil
 }
@@ -257,7 +258,7 @@ func (p *Parser) Parse() (*serviceTplData, error) {
 	fullPath := p.fset.File(p.file.Pos()).Name()
 	relPath, err := filepath.Rel(p.moduleRoot, fullPath)
 	if err != nil {
-		return nil, fmt.Errorf("could not determine file path relative to module root: %w", err)
+		return nil, merror.Wrap(err, "could not determine file path relative to module root")
 	}
 
 	parts := strings.Split(filepath.ToSlash(relPath), "/")
@@ -270,7 +271,7 @@ func (p *Parser) Parse() (*serviceTplData, error) {
 	}
 
 	if apiIndex == -1 {
-		return nil, fmt.Errorf("path does not contain 'api' directory: %s", fullPath)
+		return nil, merror.Newf("path does not contain 'api' directory: %s", fullPath)
 	}
 
 	// api/<module>/<version>/<file>.go
@@ -286,7 +287,7 @@ func (p *Parser) Parse() (*serviceTplData, error) {
 		structBaseName = strings.TrimSuffix(fileName, ".go")
 		moduleName = versionName // In this case, the module is the version
 	} else {
-		return nil, fmt.Errorf("path format not supported. Use 'api/<version>/<file>.go' or 'api/<module>/<version>/<file>.go': %s", fullPath)
+		return nil, merror.Newf("path format not supported. Use 'api/<version>/<file>.go' or 'api/<module>/<version>/<file>.go': %s", fullPath)
 	}
 
 	info := &serviceTplData{
@@ -309,13 +310,13 @@ func (p *Parser) Parse() (*serviceTplData, error) {
 
 	absPath, err := filepath.Abs(fullPath)
 	if err != nil {
-		return nil, fmt.Errorf("could not get absolute path for %s: %w", fullPath, err)
+		return nil, merror.Wrapf(err, "could not get absolute path for %s", fullPath)
 	}
 
 	if p.moduleRoot != "" {
 		relDir, err := filepath.Rel(p.moduleRoot, filepath.Dir(absPath))
 		if err != nil {
-			return nil, fmt.Errorf("could not get relative path for %s: %w", absPath, err)
+			return nil, merror.Wrapf(err, "could not get relative path for %s", absPath)
 		}
 		info.ApiModule = filepath.ToSlash(filepath.Join(p.module, relDir))
 	} else {
@@ -359,7 +360,7 @@ func (p *Parser) Parse() (*serviceTplData, error) {
 	}
 
 	if len(functions) == 0 {
-		return nil, fmt.Errorf("no matching Req/Res struct pairs found in %s", fileName)
+		return nil, merror.Newf("no matching Req/Res struct pairs found in %s", fileName)
 	}
 
 	info.Functions = functions

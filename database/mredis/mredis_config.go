@@ -9,25 +9,44 @@ import (
 
 // Config is the configuration object for Redis.
 type Config struct {
-	Address         string        `json:"address"`
-	DB              int           `json:"db"`
-	User            string        `json:"user"`
-	Password        string        `json:"password"`
-	MasterName      string        `json:"masterName"`      // sentinel master name
-	MinIdleConns    int           `json:"minIdleConns"`    // minimum number of idle connections
-	MaxIdleConns    int           `json:"maxIdleConns"`    // maximum number of idle connections
-	MaxRetries      int           `json:"maxRetries"`      // maximum number of retries before giving up
-	PoolSize        int           `json:"poolSize"`        // maximum number of socket connections
-	MinRetryBackoff time.Duration `json:"minRetryBackoff"` // minimum backoff between each retry
-	MaxRetryBackoff time.Duration `json:"maxRetryBackoff"` // maximum backoff between each retry
-	DialTimeout     time.Duration `json:"dialTimeout"`     // timeout for establishing new connections
-	ReadTimeout     time.Duration `json:"readTimeout"`     // timeout for reading
-	WriteTimeout    time.Duration `json:"writeTimeout"`    // timeout for writing
-	PoolTimeout     time.Duration `json:"poolTimeout"`     // timeout for getting a connection from the pool
-	ConnMaxIdleTime time.Duration `json:"connMaxIdleTime"` // timeout for idle connections
-	SlowThreshold   time.Duration `json:"slowThreshold"`   // slow query threshold
-	Logger          *mlog.Logger  `json:"-"`
-	Hooks           []Hook        `json:"-"`
+	// Address is the address of the Redis server.
+	Address string `mapstructure:"address"`
+	// DB is the database number.
+	DB int `mapstructure:"db"`
+	// User is the user of the Redis server.
+	User string `mapstructure:"user"`
+	// Password is the password of the Redis server.
+	Password string `mapstructure:"password"`
+	// MasterName is the master name of the Redis server.
+	MasterName string `mapstructure:"master_name"`
+	// MinIdleConns is the minimum number of idle connections.
+	MinIdleConns int `mapstructure:"min_idle_conns"`
+	// MaxIdleConns is the maximum number of idle connections.
+	MaxIdleConns int `mapstructure:"max_idle_conns"`
+	// MaxRetries is the maximum number of retries before giving up.
+	MaxRetries int `mapstructure:"max_retries"`
+	// PoolSize is the maximum number of socket connections.
+	PoolSize int `mapstructure:"pool_size"`
+	// MinRetryBackoff is the minimum backoff between each retry.
+	MinRetryBackoff time.Duration `mapstructure:"min_retry_backoff"`
+	// MaxRetryBackoff is the maximum backoff between each retry.
+	MaxRetryBackoff time.Duration `mapstructure:"max_retry_backoff"`
+	// DialTimeout is the timeout for establishing new connections.
+	DialTimeout time.Duration `mapstructure:"dial_timeout"`
+	// ReadTimeout is the timeout for reading.
+	ReadTimeout time.Duration `mapstructure:"read_timeout"`
+	// WriteTimeout is the timeout for writing.
+	WriteTimeout time.Duration `mapstructure:"write_timeout"`
+	// PoolTimeout is the timeout for getting a connection from the pool.
+	PoolTimeout time.Duration `mapstructure:"pool_timeout"`
+	// ConnMaxIdleTime is the timeout for idle connections.
+	ConnMaxIdleTime time.Duration `mapstructure:"conn_max_idle_time"`
+	// SlowThreshold is the slow threshold for the Redis.
+	SlowThreshold time.Duration `mapstructure:"slow_threshold"`
+	// Logger is the logger for the Redis.
+	Logger *mlog.Logger
+	// Hooks is the hooks for the Redis. It will be used to add hooks to the Redis client.
+	Hooks []Hook
 }
 
 func defaultConfig() *Config {

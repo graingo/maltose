@@ -23,6 +23,7 @@ var (
 	CodeDbOperationError         = localCode{201, "Database Operation Error", nil}
 	CodeInternalPanic            = localCode{202, "Internal Panic", nil}
 	CodeServerBusy               = localCode{203, "Server Busy", nil}
+	CodeRateLimitExceeded        = localCode{204, "Rate Limit Exceeded", nil}
 	CodeInvalidOperation         = localCode{300, "Invalid Operation", nil}
 	CodeInvalidConfiguration     = localCode{301, "Invalid Configuration", nil}
 	CodeMissingConfiguration     = localCode{302, "Missing Configuration", nil}

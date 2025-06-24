@@ -22,6 +22,9 @@ type ILogger interface {
 	Panicf(ctx context.Context, format string, v ...any) // Panicf logs a message at level Panic.
 }
 
+// Fields is a map of string keys to any values.
+type Fields map[string]any
+
 var (
 	// Ensure Logger implements ILogger interface
 	_ ILogger = &Logger{}
@@ -41,3 +44,10 @@ func DefaultLogger() *Logger {
 func SetDefaultLogger(l *Logger) {
 	defaultLogger = l
 }
+
+// // Component returns a new Fields with the given component.
+// func Component(component string) Fields {
+// 	return Fields{
+// 		maltose.COMPONENT: component,
+// 	}
+// }

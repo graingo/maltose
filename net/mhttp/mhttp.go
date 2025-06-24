@@ -19,7 +19,7 @@ const (
 type Server struct {
 	RouterGroup
 	engine       *gin.Engine
-	config       Config
+	config       *Config
 	routes       []Route
 	openapi      *OpenAPI
 	preBindItems []preBindItem
@@ -29,7 +29,7 @@ type Server struct {
 }
 
 // New creates a new HTTP server.
-func New(config ...Config) *Server {
+func New(config ...*Config) *Server {
 	conf := defaultConfig()
 	if len(config) > 0 {
 		conf = config[0]

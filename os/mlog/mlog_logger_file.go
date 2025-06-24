@@ -29,7 +29,7 @@ type fileWriter struct {
 // newFileWriter creates a new DateWriter.
 func newFileWriter(basePath string, filePattern string, autoClean int) (*fileWriter, error) {
 	// Ensure directory exists
-	dir := filepath.Dir(basePath)
+	dir := logDir(basePath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, merror.Wrapf(err, "failed to create log directory: %s", dir)
 	}
@@ -41,7 +41,7 @@ func newFileWriter(basePath string, filePattern string, autoClean int) (*fileWri
 		lastCheck:   time.Now(),
 		lastCleanup: time.Now(),
 		stopChan:    make(chan struct{}),
-		isDateMode:  IsDatePattern(filePattern),
+		isDateMode:  isDatePattern(filePattern),
 	}
 
 	// Open initial file
@@ -96,7 +96,7 @@ func (w *fileWriter) checkAndRotate() error {
 	if w.isDateMode {
 		filePath = w.formatFilePath(time.Now())
 	} else {
-		filePath = filepath.Join(filepath.Dir(w.basePath), w.filePattern)
+		filePath = filepath.Join(logDir(w.basePath), w.filePattern)
 	}
 
 	// If the path is the same, no need to rotate
@@ -142,7 +142,7 @@ func (w *fileWriter) formatFilePath(t time.Time) string {
 	pattern = strings.ReplaceAll(pattern, "{s}", t.Format("05"))
 
 	// Combine with base path
-	return filepath.Join(filepath.Dir(w.basePath), pattern)
+	return filepath.Join(logDir(w.basePath), pattern)
 }
 
 // cleanupRoutine periodically cleans up old log files.
@@ -180,7 +180,7 @@ func (w *fileWriter) cleanup() {
 	}
 
 	// Get all files in directory
-	dir := filepath.Dir(w.basePath)
+	dir := logDir(w.basePath)
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		// Log error but continue
@@ -236,7 +236,18 @@ func convertDatePatternToRegex(pattern string) string {
 	return "^" + pattern + "$"
 }
 
-// IsDatePattern checks if a file pattern contains date placeholders.
-func IsDatePattern(pattern string) bool {
+// isDatePattern checks if a file pattern contains date placeholders.
+func isDatePattern(pattern string) bool {
 	return strings.Contains(pattern, "{") && strings.Contains(pattern, "}")
+}
+
+// logDir determines the directory for the log files.
+// If basePath is a simple name like "logs" without any path separators or extension,
+// it's treated as a directory. Otherwise, we extract the directory part.
+// This helps avoid `filepath.Dir("logs")` returning ".", which would place logs in the current directory.
+func logDir(basePath string) string {
+	if !strings.ContainsAny(basePath, `/\`) && filepath.Ext(basePath) == "" {
+		return basePath
+	}
+	return filepath.Dir(basePath)
 }

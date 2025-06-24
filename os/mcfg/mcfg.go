@@ -2,7 +2,6 @@ package mcfg
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/graingo/maltose/container/minstance"
 	"github.com/graingo/maltose/container/mvar"
@@ -58,7 +57,7 @@ func Instance(name ...string) *Config {
 	return instances.GetOrSetFunc(instanceName, func() any {
 		adapterFile, err := NewAdapterFile()
 		if err != nil {
-			_ = fmt.Errorf(`create config instance failed: %+v`, err)
+			_ = merror.Wrap(err, "create config instance failed")
 			return nil
 		}
 		if instanceName != DefaultInstanceName {
