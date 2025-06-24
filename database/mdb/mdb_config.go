@@ -10,21 +10,36 @@ import (
 )
 
 type Config struct {
-	Type              string
-	DSN               string
-	Host              string
-	Port              string
-	User              string
-	Password          string
-	DBName            string
-	MaxIdleTime       time.Duration
-	MaxIdleConnection int
-	MaxOpenConnection int
-	MaxLifetime       time.Duration
-	Logger            *mlog.Logger
-	SlowThreshold     time.Duration // slow query threshold
-	Replicas          []Config      // replicas list
-	Plugins           []gorm.Plugin // plugins list
+	// Type is the type of the database.
+	Type string `mapstructure:"type"`
+	// DSN is the data source name.
+	DSN string `mapstructure:"dsn"`
+	// Host is the host of the database.
+	Host string `mapstructure:"host"`
+	// Port is the port of the database.
+	Port string `mapstructure:"port"`
+	// User is the user of the database.
+	User string `mapstructure:"user"`
+	// Password is the password of the database.
+	Password string `mapstructure:"password"`
+	// DBName is the name of the database.
+	DBName string `mapstructure:"db_name"`
+	// MaxIdleTime is the maximum idle time for the database connection.
+	MaxIdleTime time.Duration `mapstructure:"max_idle_time"`
+	// MaxIdleConnection is the maximum idle connection for the database.
+	MaxIdleConnection int `mapstructure:"max_idle_connection"`
+	// MaxOpenConnection is the maximum open connection for the database.
+	MaxOpenConnection int `mapstructure:"max_open_connection"`
+	// MaxLifetime is the maximum lifetime for the database connection.
+	MaxLifetime time.Duration `mapstructure:"max_lifetime"`
+	// SlowThreshold is the slow query threshold.
+	SlowThreshold time.Duration `mapstructure:"slow_threshold"`
+	// Logger is the logger for the database.
+	Logger *mlog.Logger
+	// Replicas is the replicas list.
+	Replicas []Config
+	// Plugins is the plugins list.
+	Plugins []gorm.Plugin
 }
 
 func defaultConfig() *Config {

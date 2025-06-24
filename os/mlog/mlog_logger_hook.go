@@ -1,6 +1,7 @@
 package mlog
 
 import (
+	"context"
 	"reflect"
 
 	"github.com/sirupsen/logrus"
@@ -22,8 +23,15 @@ type Entry struct {
 	Message string
 	// log fields
 	Data map[string]interface{}
+	// Context
+	Context context.Context
 	// raw logrus entry
 	raw *logrus.Entry
+}
+
+// Raw returns the raw logrus entry.
+func (e *Entry) Raw() *logrus.Entry {
+	return e.raw
 }
 
 // AddHook adds a log hook.

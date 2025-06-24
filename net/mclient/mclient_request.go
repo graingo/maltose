@@ -37,7 +37,9 @@ func (r *Request) SetResponse(resp *Response) {
 // SetContext sets the context for the request.
 func (r *Request) SetContext(ctx context.Context) *Request {
 	if r.Request == nil {
-		r.Request = &http.Request{}
+		r.Request = &http.Request{
+			Header: make(http.Header),
+		}
 	}
 
 	if ctx != nil {

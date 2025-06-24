@@ -64,7 +64,7 @@ func internalMiddlewareRecovery() MiddlewareFunc {
 		defer func() {
 			if err := recover(); err != nil {
 				// record error log
-				r.Logger().Errorf(r.Request.Context(), "Panic recovered: %v", err)
+				r.Logger().Errorf(r.Request.Context(), "[HTTP Server] Panic recovered: %v", err)
 				// return 500 error
 				r.String(500, "Internal Server Error")
 			}
