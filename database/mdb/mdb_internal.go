@@ -138,7 +138,7 @@ func configureReplicas(db *gorm.DB, cfg *Config) error {
 	})
 	if err := db.Use(resolver); err != nil {
 		if cfg.Logger != nil {
-			cfg.Logger.Errorf(context.Background(), "failed to configure db resolver: %v", err)
+			cfg.Logger.WithComponent("mdb").Errorf(context.Background(), "Failed to configure db resolver: %v", err)
 		}
 		return merror.Wrap(err, "failed to configure db resolver")
 	}

@@ -107,7 +107,7 @@ func (s *Server) SetLogger(logger *mlog.Logger) {
 
 // Logger gets the logger instance.
 func (s *Server) Logger() *mlog.Logger {
-	return s.config.Logger
+	return s.config.Logger.WithComponent("mhttp")
 }
 
 // SetConfigWithMap sets the server config.

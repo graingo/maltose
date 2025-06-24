@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/graingo/maltose/os/mlog"
 )
 
 // responseWriter is a custom http.ResponseWriter that captures the response body and status.
@@ -55,7 +56,7 @@ func MiddlewareLog() MiddlewareFunc {
 		r.Writer = writer
 
 		// Log request details
-		logFields := map[string]any{
+		logFields := mlog.Fields{
 			"ip":     r.ClientIP(),
 			"method": r.Request.Method,
 			"path":   r.Request.URL.Path,
@@ -66,7 +67,7 @@ func MiddlewareLog() MiddlewareFunc {
 		if raw := r.Request.URL.RawQuery; raw != "" {
 			logFields["query"] = raw
 		}
-		r.Logger().Info(r.Request.Context(), "[HTTP Server] Incoming Request", logFields)
+		r.Logger().Info(r.Request.Context(), "incoming request", logFields)
 
 		// Execute next middleware
 		r.Next()
@@ -76,7 +77,7 @@ func MiddlewareLog() MiddlewareFunc {
 		status := writer.Status()
 		resBodyBytes := writer.body.Bytes()
 
-		respLogFields := map[string]any{
+		respLogFields := mlog.Fields{
 			"status":  status,
 			"latency": latency.String(),
 			"body":    getBodyString(resBodyBytes, 512),
@@ -84,9 +85,9 @@ func MiddlewareLog() MiddlewareFunc {
 
 		if len(r.Errors) > 0 {
 			respLogFields["errors"] = r.Errors.String()
-			r.Logger().Error(r.Request.Context(), "[HTTP Server] Request Finished", respLogFields)
+			r.Logger().Error(r.Request.Context(), "request finished", respLogFields)
 		} else {
-			r.Logger().Info(r.Request.Context(), "[HTTP Server] Request Finished", respLogFields)
+			r.Logger().Info(r.Request.Context(), "request finished", respLogFields)
 		}
 	}
 }

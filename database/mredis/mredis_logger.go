@@ -22,7 +22,7 @@ var _ redis.Hook = (*loggerHook)(nil)
 // newLoggerHook creates and returns a new LoggerHook.
 func newLoggerHook(logger *mlog.Logger, slowThreshold time.Duration) *loggerHook {
 	return &loggerHook{
-		logger:        logger,
+		logger:        logger.WithComponent("mredis"),
 		slowThreshold: slowThreshold,
 	}
 }
@@ -44,19 +44,19 @@ func (h *loggerHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 		if err != nil && err != redis.Nil {
 			h.logger.Errorf(
 				ctx,
-				`[MREDIS] command:"%s", args:%v, error:"%v"`,
+				`command: "%s", args: %v, error: "%v"`,
 				cmd.Name(), cmd.Args(), err,
 			)
 		} else if h.slowThreshold > 0 && duration > h.slowThreshold {
 			h.logger.Warnf(
 				ctx,
-				`[MREDIS] slow command, command:"%s", args:%v, duration:"%s"`,
+				`slow command, command: "%s", args: %v, duration: "%s"`,
 				cmd.Name(), cmd.Args(), duration,
 			)
 		} else {
 			h.logger.Infof(
 				ctx,
-				`[MREDIS] command:"%s", args:%v, duration:"%s"`,
+				`command: "%s", args: %v, duration: "%s"`,
 				cmd.Name(), cmd.Args(), duration,
 			)
 		}
@@ -85,19 +85,19 @@ func (h *loggerHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.P
 		if err != nil && err != redis.Nil {
 			h.logger.Errorf(
 				ctx,
-				`[MREDIS] command:"%s", args:%s, error:"%v"`,
+				`command: "%s", args: %s, error: "%v"`,
 				commandStr, argsStr, err,
 			)
 		} else if h.slowThreshold > 0 && duration > h.slowThreshold {
 			h.logger.Warnf(
 				ctx,
-				`[MREDIS] slow command, command:"%s", args:%s, duration:"%s"`,
+				`slow command, command:"%s", args:%s, duration:"%s"`,
 				commandStr, argsStr, duration,
 			)
 		} else {
 			h.logger.Infof(
 				ctx,
-				`[MREDIS] command:"%s", args:%s, duration:"%s"`,
+				`command: "%s", args: %s, duration: "%s"`,
 				commandStr, argsStr, duration,
 			)
 		}

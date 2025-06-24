@@ -10,7 +10,7 @@ import (
 
 // MiddlewareLog creates a middleware that logs request and response details
 // using the provided logger.
-func MiddlewareLog(logger mlog.ILogger) MiddlewareFunc {
+func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 	if logger == nil {
 		return func(next HandlerFunc) HandlerFunc {
 			return next
@@ -22,6 +22,8 @@ func MiddlewareLog(logger mlog.ILogger) MiddlewareFunc {
 			start := time.Now()
 			ctx := req.Context()
 
+			// Add component to logger
+			logger = logger.WithComponent("mclient")
 			// Log request details
 			logRequest(logger, req)
 
@@ -42,7 +44,7 @@ func MiddlewareLog(logger mlog.ILogger) MiddlewareFunc {
 }
 
 // logRequest logs the details of the request.
-func logRequest(logger mlog.ILogger, r *Request) {
+func logRequest(logger *mlog.Logger, r *Request) {
 	ctx := r.Context()
 	urlStr := "<no url>"
 	if r.Request != nil && r.Request.URL != nil {
@@ -64,7 +66,7 @@ func logRequest(logger mlog.ILogger, r *Request) {
 		bodyStr = bodyStr[:maxBodySize] + "..."
 	}
 
-	logger.Info(ctx, "[HTTP Client] Sending Request", map[string]any{
+	logger.Info(ctx, "sending request", mlog.Fields{
 		"method": r.Request.Method,
 		"url":    urlStr,
 		"body":   bodyStr,
@@ -72,9 +74,9 @@ func logRequest(logger mlog.ILogger, r *Request) {
 }
 
 // logResponse logs the details of the response.
-func logResponse(logger mlog.ILogger, req *Request, resp *Response, duration time.Duration) {
+func logResponse(logger *mlog.Logger, req *Request, resp *Response, duration time.Duration) {
 	if resp == nil {
-		logger.Warn(req.Context(), "[HTTP Client] Request Finished", map[string]any{
+		logger.Warn(req.Context(), "request finished", mlog.Fields{
 			"duration": duration.String(),
 			"error":    "response is nil",
 		})
@@ -97,15 +99,15 @@ func logResponse(logger mlog.ILogger, req *Request, resp *Response, duration tim
 		bodyStr = bodyStr[:maxBodySize] + "..."
 	}
 
-	logFields := map[string]any{
+	logFields := mlog.Fields{
 		"status":   resp.StatusCode,
 		"duration": duration.String(),
 		"body":     bodyStr,
 	}
 
 	if resp.StatusCode >= 400 {
-		logger.Error(ctx, "[HTTP Client] Request Finished", logFields)
+		logger.Error(ctx, "request finished", logFields)
 	} else {
-		logger.Info(ctx, "[HTTP Client] Request Finished", logFields)
+		logger.Info(ctx, "request finished", logFields)
 	}
 }

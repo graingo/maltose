@@ -72,9 +72,9 @@ func Init(endpoint string, opts ...Option) (func(context.Context), error) {
 		defer cancel()
 		if tp, ok := tracerProvider.(*sdktrace.TracerProvider); ok {
 			if err := tp.Shutdown(ctx); err != nil {
-				m.Log().Errorf(ctx, "failed to shutdown tracer provider: %+v", err)
+				m.Log().WithComponent("otlptrace").Errorf(ctx, "failed to shutdown tracer provider: %+v", err)
 			} else {
-				m.Log().Debug(ctx, "tracer provider shutdown successfully")
+				m.Log().WithComponent("otlptrace").Info(ctx, "tracer provider shutdown successfully")
 			}
 		}
 	}, nil
@@ -84,11 +84,10 @@ func createResource(opts options) (*resource.Resource, error) {
 	intranetIPArray, err := mipv4.GetIntranetIpArray()
 	hostIP := "NoHostIpFound"
 	if err != nil {
-		// Do not return error, just log it.
-		m.Log().Errorf(context.Background(), "failed to get intranet ip array: %v", err)
+		return nil, err
 	} else if len(intranetIPArray) == 0 {
 		if intranetIPArray, err = mipv4.GetIpArray(); err != nil {
-			m.Log().Errorf(context.Background(), "failed to get ip array: %v", err)
+			return nil, err
 		}
 	}
 	if len(intranetIPArray) > 0 {
