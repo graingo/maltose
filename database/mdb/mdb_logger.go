@@ -91,19 +91,24 @@ func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 
 	elapsed := time.Since(begin)
 	sql, rows := fc()
+	fields := mlog.Fields{
+		"sql":        sql,
+		"rows":       rows,
+		"elapsed_ms": float64(elapsed.Nanoseconds()) / 1e6,
+	}
 
 	switch {
 	case err != nil && l.gormLogLevel >= logger.Error:
 		if errors.Is(err, logger.ErrRecordNotFound) && l.skipErrRecordNotFound {
 			if l.gormLogLevel >= logger.Info {
-				l.logger.Infof(ctx, "[%.3fms] [rows:%d] sql not found: %s - %v", float64(elapsed.Nanoseconds())/1e6, rows, sql, err)
+				l.logger.Info(ctx, "sql not found", fields)
 			}
 			return
 		}
-		l.logger.Errorf(ctx, "[%.3fms] [rows:%d] sql error: %s - %v", float64(elapsed.Nanoseconds())/1e6, rows, sql, err)
+		l.logger.Errorf(ctx, "sql error: %v", err, fields)
 	case l.slowThreshold != 0 && elapsed > l.slowThreshold && l.gormLogLevel >= logger.Warn:
-		l.logger.Warnf(ctx, "[%.3fms] [rows:%d] sql slow: %s", float64(elapsed.Nanoseconds())/1e6, rows, sql)
+		l.logger.Warn(ctx, "sql slow", fields)
 	case l.gormLogLevel >= logger.Info:
-		l.logger.Infof(ctx, "[%.3fms] [rows:%d] sql: %s", float64(elapsed.Nanoseconds())/1e6, rows, sql)
+		l.logger.Info(ctx, "sql trace", fields)
 	}
 }

@@ -41,11 +41,11 @@ func MiddlewareLog() MiddlewareFunc {
 	return func(r *Request) {
 		start := time.Now()
 
-		// Safely read and log the request body
-		var bodyBytes []byte
+		// Safely read and capture the request body
+		var reqBodyBytes []byte
 		if r.Request.Body != nil {
-			bodyBytes, _ = io.ReadAll(r.Request.Body)
-			r.Request.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Restore body
+			reqBodyBytes, _ = io.ReadAll(r.Request.Body)
+			r.Request.Body = io.NopCloser(bytes.NewBuffer(reqBodyBytes)) // Restore body
 		}
 
 		// Create a response writer to capture the response
@@ -55,39 +55,43 @@ func MiddlewareLog() MiddlewareFunc {
 		}
 		r.Writer = writer
 
-		// Log request details
-		logFields := mlog.Fields{
-			"ip":     r.ClientIP(),
-			"method": r.Request.Method,
-			"path":   r.Request.URL.Path,
-		}
-		if len(bodyBytes) > 0 {
-			logFields["body"] = getBodyString(bodyBytes, 512)
-		}
-		if raw := r.Request.URL.RawQuery; raw != "" {
-			logFields["query"] = raw
-		}
-		r.Logger().Info(r.Request.Context(), "incoming request", logFields)
-
 		// Execute next middleware
 		r.Next()
 
-		// Log response details
-		latency := time.Since(start)
+		// Now we have all the information, let's build the log fields
+		duration := time.Since(start)
 		status := writer.Status()
 		resBodyBytes := writer.body.Bytes()
 
-		respLogFields := mlog.Fields{
-			"status":  status,
-			"latency": latency.String(),
-			"body":    getBodyString(resBodyBytes, 512),
+		fields := mlog.Fields{
+			"ip":         r.ClientIP(),
+			"method":     r.Request.Method,
+			"path":       r.Request.URL.Path,
+			"status":     status,
+			"latency_ms": float64(duration.Nanoseconds()) / 1e6,
 		}
 
+		if raw := r.Request.URL.RawQuery; raw != "" {
+			fields["query"] = raw
+		}
+		if len(reqBodyBytes) > 0 {
+			fields["request_body"] = getBodyString(reqBodyBytes, 512)
+		}
+		if len(resBodyBytes) > 0 {
+			fields["response_body"] = getBodyString(resBodyBytes, 512)
+		}
+
+		logger := r.Logger()
+		msg := "http server request finished"
+
+		// Decide log level based on errors or status code
 		if len(r.Errors) > 0 {
-			respLogFields["errors"] = r.Errors.String()
-			r.Logger().Error(r.Request.Context(), "request finished", respLogFields)
+			fields["errors"] = r.Errors.String()
+			logger.Error(r.Request.Context(), msg, fields)
+		} else if status >= 400 {
+			logger.Error(r.Request.Context(), msg, fields)
 		} else {
-			r.Logger().Info(r.Request.Context(), "request finished", respLogFields)
+			logger.Info(r.Request.Context(), msg, fields)
 		}
 	}
 }

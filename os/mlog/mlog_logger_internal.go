@@ -1,8 +1,6 @@
 package mlog
 
 import (
-	"fmt"
-
 	"github.com/graingo/maltose/net/mtrace"
 )
 
@@ -16,9 +14,15 @@ func (h *traceHook) Levels() []Level {
 
 // Fire implements the Hook interface.
 func (h *traceHook) Fire(entry *Entry) error {
-	fmt.Println("traceHook Fire", mtrace.GetTraceID(entry.Context))
-	entry.Data["trace_id"] = mtrace.GetTraceID(entry.Context)
-	entry.Data["span_id"] = mtrace.GetSpanID(entry.Context)
+	if entry.Context == nil {
+		return nil
+	}
+	if traceID := mtrace.GetTraceID(entry.Context); traceID != "" {
+		entry.Data["trace_id"] = traceID
+	}
+	if spanID := mtrace.GetSpanID(entry.Context); spanID != "" {
+		entry.Data["span_id"] = spanID
+	}
 	return nil
 }
 

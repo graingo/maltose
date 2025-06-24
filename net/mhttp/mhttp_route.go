@@ -48,6 +48,11 @@ func (s *Server) printRoute(ctx context.Context) {
 			continue
 		}
 
+		// skip health check route
+		if s.config.HealthCheck && route.Path == "/health" {
+			continue
+		}
+
 		parts := strings.Split(strings.Trim(route.Path, "/"), "/")
 		prefix := "/" + parts[0]
 		subpath := "/"
