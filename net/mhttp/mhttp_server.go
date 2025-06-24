@@ -49,7 +49,7 @@ func (s *Server) Run() {
 		var err error
 		if s.config.TLSEnable {
 			if s.config.TLSCertFile == "" || s.config.TLSKeyFile == "" {
-				errChan <- merror.New("TLS certificate and key files are required")
+				errChan <- merror.New("tls certificate and key files are required")
 				return
 			}
 			err = s.srv.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
@@ -115,7 +115,7 @@ func (s *Server) Start(ctx context.Context) error {
 	var err error
 	if s.config.TLSEnable {
 		if s.config.TLSCertFile == "" || s.config.TLSKeyFile == "" {
-			return merror.New("TLS certificate and key files are required")
+			return merror.New("tls certificate and key files are required")
 		}
 		err = s.srv.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
 	} else {
