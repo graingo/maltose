@@ -136,3 +136,33 @@ func (c *Config) MergeConfigMap(ctx context.Context, data map[string]any) error 
 	}
 	return c.adapter.MergeConfigMap(ctx, data)
 }
+
+// Unmarshal unmarshals the configuration into a struct.
+// The optional `pattern` parameter is the pattern to unmarshal the configuration into.
+func (c *Config) Unmarshal(ctx context.Context, v any, pattern ...string) error {
+	var (
+		data map[string]any
+		err  error
+	)
+	if len(pattern) > 0 {
+		mvalue, err := c.Get(ctx, pattern[0])
+		if err != nil {
+			return err
+		}
+		if mvalue == nil || mvalue.IsNil() {
+			return nil
+		}
+		data = mvalue.Map()
+	} else {
+		data, err = c.Data(ctx)
+		if err != nil {
+			return err
+		}
+	}
+	if data == nil {
+		return nil
+	}
+	t := viper.New()
+	t.MergeConfigMap(data)
+	return t.Unmarshal(v)
+}
