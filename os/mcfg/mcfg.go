@@ -139,6 +139,7 @@ func (c *Config) MergeConfigMap(ctx context.Context, data map[string]any) error 
 
 // Unmarshal unmarshals the configuration into a struct.
 // The optional `pattern` parameter is the pattern to unmarshal the configuration into.
+// If you want to specify the key name, you can use the `mapstructure` tag.
 func (c *Config) Unmarshal(ctx context.Context, v any, pattern ...string) error {
 	var (
 		data map[string]any
