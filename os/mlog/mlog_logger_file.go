@@ -44,11 +44,6 @@ func newFileWriter(basePath string, filePattern string, autoClean int) (*fileWri
 		isDateMode:  isDatePattern(filePattern),
 	}
 
-	// Open initial file
-	if err := w.checkAndRotate(); err != nil {
-		return nil, err
-	}
-
 	// Start cleanup goroutine if auto cleanup is enabled and using date mode
 	if autoClean > 0 && w.isDateMode {
 		go w.cleanupRoutine()
@@ -61,6 +56,13 @@ func newFileWriter(basePath string, filePattern string, autoClean int) (*fileWri
 func (w *fileWriter) Write(p []byte) (n int, err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	// Lazy initialization: open the file on first write.
+	if w.file == nil {
+		if err = w.checkAndRotate(); err != nil {
+			return 0, err
+		}
+	}
 
 	// Check if we need to switch to a new file based on current date
 	// Only check periodically and only if using date mode
