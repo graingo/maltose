@@ -7,7 +7,6 @@ import (
 	"github.com/graingo/maltose/container/mvar"
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/mconv"
-	"github.com/graingo/mconv/complex"
 	"github.com/spf13/viper"
 )
 
@@ -143,7 +142,7 @@ func (c *Config) Available(ctx context.Context, resource ...string) bool {
 // The optional `pattern` parameter is the pattern to unmarshal the configuration into.
 // If you want to specify the key name, you can use the `mconv` tag.
 // It supports custom decoding hooks.
-func (c *Config) Struct(ctx context.Context, v any, pattern string, hooks ...complex.HookFunc) error {
+func (c *Config) Struct(ctx context.Context, v any, pattern string, hooks ...mconv.HookFunc) error {
 	var (
 		data map[string]any
 		err  error
@@ -167,7 +166,7 @@ func (c *Config) Struct(ctx context.Context, v any, pattern string, hooks ...com
 		return nil
 	}
 
-	return complex.StructE(data, v, hooks...)
+	return mconv.StructE(data, v, hooks...)
 }
 
 // GetString gets the configuration value as a string.
