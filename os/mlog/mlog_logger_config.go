@@ -39,7 +39,7 @@ func defaultConfig() *Config {
 
 // SetConfigWithMap sets the logger configuration using a map.
 func (c *Config) SetConfigWithMap(configMap map[string]any) error {
-	return mconv.StructE(configMap, c, stringToLevelHookFunc)
+	return mconv.ToStructE(configMap, c, stringToLevelHookFunc)
 }
 
 func stringToLevelHookFunc(from reflect.Type, to reflect.Type, data any) (any, error) {

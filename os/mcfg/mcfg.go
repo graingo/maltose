@@ -166,7 +166,7 @@ func (c *Config) Struct(ctx context.Context, v any, pattern string, hooks ...mco
 		return nil
 	}
 
-	return mconv.StructE(data, v, hooks...)
+	return mconv.ToStructE(data, v, hooks...)
 }
 
 // GetString gets the configuration value as a string.

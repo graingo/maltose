@@ -104,7 +104,7 @@ func (v *Var) Struct(pointer any, hooks ...mconv.HookFunc) error {
 	if v == nil {
 		return nil
 	}
-	return mconv.StructE(v.Val(), pointer, hooks...)
+	return mconv.ToStructE(v.Val(), pointer, hooks...)
 }
 
 // MarshalJSON implements the json.Marshaler interface.
