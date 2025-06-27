@@ -1,0 +1,7 @@
+time=2025-06-28T03:52:27.627+08:00 level=INFO source=/home/mingzaily/go/graingo/maltose/os/mlogs/mlogs_logger.go:98 msg="Server is starting..."
+time=2025-06-28T03:52:27.627+08:00 level=INFO source=/home/mingzaily/go/graingo/maltose/os/mlogs/mlogs_logger.go:98 msg="Listening on port" port=8080 protocol=http
+time=2025-06-28T03:52:27.627+08:00 level=ERROR source=/home/mingzaily/go/graingo/maltose/os/mlogs/mlogs_logger.go:98 msg="Failed to process request" component=database error="something went wrong"
+time=2025-06-28T03:52:27.627+08:00 level=INFO source=/home/mingzaily/go/graingo/maltose/os/mlogs/mlogs_logger.go:98 msg="Processing incoming request" request_id=req-12345
+time=2025-06-28T03:52:27.627+08:00 level=WARN source=/home/mingzaily/go/graingo/maltose/os/mlogs/mlogs_logger.go:98 msg="Payment processing is slow" request_id=req-12345 component=payment_service duration_ms=2500
+time=2025-06-28T03:52:27.627+08:00 level=INFO source=/home/mingzaily/go/graingo/maltose/os/mlogs/mlogs_logger.go:98 msg="User mingzai logged in from 127.0.0.1"
+time=2025-06-28T03:52:27.627+08:00 level=ERROR source=/home/mingzaily/go/graingo/maltose/os/mlogs/mlogs_logger.go:98 msg="User mingzai failed to login from 127.0.0.1" error="something went wrong"

@@ -44,10 +44,3 @@ func DefaultLogger() *Logger {
 func SetDefaultLogger(l *Logger) {
 	defaultLogger = l
 }
-
-// // Component returns a new Fields with the given component.
-// func Component(component string) Fields {
-// 	return Fields{
-// 		maltose.COMPONENT: component,
-// 	}
-// }
