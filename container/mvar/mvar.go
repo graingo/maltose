@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/graingo/mconv"
+	"github.com/graingo/mconv/complex"
 )
 
 // Var is a universal variable type implementation.
@@ -99,11 +100,12 @@ func (v *Var) Time(format ...string) time.Time {
 
 // Struct maps the value to a struct.
 // The `pointer` parameter should be a pointer to a struct.
-func (v *Var) Struct(pointer any) error {
+// The `hooks` parameter is used to specify the hooks for the conversion.
+func (v *Var) Struct(pointer any, hooks ...complex.HookFunc) error {
 	if v == nil {
 		return nil
 	}
-	return mconv.StructE(v.Val(), pointer)
+	return mconv.StructE(v.Val(), pointer, hooks...)
 }
 
 // MarshalJSON implements the json.Marshaler interface.
