@@ -115,13 +115,13 @@ func dbTypeToGo(column gorm.ColumnType) string {
 
 // makeTags creates gorm and json struct tags for a field.
 func makeTags(column gorm.ColumnType) string {
-	return fmt.Sprintf(`gorm:"column:%s" json:"%s"`, column.Name(), strcase.ToLowerCamel(column.Name()))
+	return fmt.Sprintf(`gorm:"column:%s"`, column.Name())
 }
 
 // makeRemarks creates remarks for a field.
 func makeRemarks(column gorm.ColumnType) string {
 	comment, ok := column.Comment()
-	if !ok {
+	if !ok || comment == "" {
 		return ""
 	}
 	return fmt.Sprintf("// %s", comment)
