@@ -345,20 +345,4 @@ type {{.DaoName}} struct {
 		}
 	}
 	`
-
-	// TplGenModel is the template for generating model files.
-	TplGenModel = `// =================================================================================
-	// Code generated and maintained by Maltose tool. DO NOT EDIT.
-	// =================================================================================
-	package {{.PackageName}}
-
-	import "time"
-
-	// {{.StructName}} is the model for the {{.Table}} table.
-	type {{.StructName}} struct {
-		{{range .Fields}}
-		{{.StructName}} {{.Type}} ` + "`gorm:\"{{.Gorm}}\" json:\"{{.Json}}\"`" + ` // {{.Comment}}
-		{{end}}
-	}
-	`
 )
