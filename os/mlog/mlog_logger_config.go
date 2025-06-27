@@ -8,21 +8,21 @@ import (
 
 type Config struct {
 	// Level is the log level.
-	Level Level `mapstructure:"level"`
+	Level Level `mconv:"level"`
 	// Path is the log file path.
-	Path string `mapstructure:"path"`
+	Path string `mconv:"path"`
 	// File is the log file name.
-	File string `mapstructure:"file"`
+	File string `mconv:"file"`
 	// TimeFormat is the log time format.
-	TimeFormat string `mapstructure:"time_format"`
+	TimeFormat string `mconv:"time_format"`
 	// Format is the log format.
-	Format string `mapstructure:"format"`
+	Format string `mconv:"format"`
 	// Stdout is the stdout print.
-	Stdout bool `mapstructure:"stdout"`
+	Stdout bool `mconv:"stdout"`
 	// AutoClean is the auto clean days.
-	AutoClean int `mapstructure:"auto_clean"`
+	AutoClean int `mconv:"auto_clean"`
 	// CtxKeys is the context keys to extract.
-	CtxKeys []string `mapstructure:"ctx_keys"`
+	CtxKeys []string `mconv:"ctx_keys"`
 }
 
 func defaultConfig() *Config {

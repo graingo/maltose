@@ -60,7 +60,7 @@ func defaultConfig() *Config {
 }
 
 func (c *Config) SetConfigWithMap(config map[string]any) error {
-	return mconv.StructE(config, &c)
+	return mconv.StructE(config, c)
 }
 
 func (c *Config) SetLogger(logger *mlog.Logger) {

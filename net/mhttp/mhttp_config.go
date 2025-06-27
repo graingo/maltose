@@ -85,7 +85,7 @@ func defaultConfig() *Config {
 
 // SetConfigWithMap sets the server config.
 func (c *Config) SetConfigWithMap(configMap map[string]any) error {
-	return mconv.StructE(configMap, &c)
+	return mconv.StructE(configMap, c)
 }
 
 // SetAddress sets the server listening address.
@@ -110,7 +110,7 @@ func (s *Server) Logger() *mlog.Logger {
 
 // SetConfigWithMap sets the server config.
 func (s *Server) SetConfigWithMap(configMap map[string]any) error {
-	return mconv.StructE(configMap, &s.config)
+	return mconv.StructE(configMap, s.config)
 }
 
 func (s *Server) SetConfig(config *Config) {
