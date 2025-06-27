@@ -9,17 +9,25 @@ import (
 type (
 	// Ctx is a short name alias for context.Context.
 	Ctx = context.Context
-	// StrKey is a type for warps basic type string as context key.
-	StrKey string
 )
 
 // New creates and returns a context which contains context id.
 // The created context has a new isolated trace id for tracing functionality.
 func New() context.Context {
-	ctx, span := mtrace.NewSpan(context.Background(), "mctx.New")
-	// The span is created just for creating a new trace id.
-	// It is not necessary to use this span, so we end it directly.
-	span.End()
+	return WithSpan(context.Background(), "mctx.New")
+}
+
+// WithSpan creates and returns a context containing span upon given parent context `ctx`.
+func WithSpan(ctx context.Context, spanName string) context.Context {
+	if CtxId(ctx) != "" {
+		return ctx
+	}
+	if spanName == "" {
+		spanName = "mctx.WithSpan"
+	}
+	var span *mtrace.Span
+	ctx, span = mtrace.NewSpan(ctx, spanName)
+	defer span.End()
 	return ctx
 }
 
