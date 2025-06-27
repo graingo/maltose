@@ -13,8 +13,4 @@ type Adapter interface {
 	// Available checks and returns whether the configuration service is available.
 	// The optional `resource` parameter specifies certain configuration resources.
 	Available(ctx context.Context, resource ...string) bool
-
-	// MergeConfigMap merges a map into the existing configuration.
-	// This is useful for layering configurations.
-	MergeConfigMap(ctx context.Context, data map[string]any) error
 }

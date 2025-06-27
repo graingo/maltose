@@ -3,8 +3,7 @@ package mlog
 import (
 	"reflect"
 
-	"github.com/mitchellh/mapstructure"
-	"github.com/spf13/viper"
+	"github.com/graingo/mconv"
 )
 
 type Config struct {
@@ -40,37 +39,22 @@ func defaultConfig() *Config {
 
 // SetConfigWithMap sets the logger configuration using a map.
 func (c *Config) SetConfigWithMap(configMap map[string]any) error {
-	v := viper.New()
-	v.MergeConfigMap(configMap)
-	if err := v.Unmarshal(c, viper.DecodeHook(
-		mapstructure.ComposeDecodeHookFunc(
-			stringToLevelHookFunc(),
-		),
-	)); err != nil {
-		return err
-	}
-	return nil
+	return mconv.StructE(configMap, c, stringToLevelHookFunc)
 }
 
-func stringToLevelHookFunc() mapstructure.DecodeHookFunc {
-	return func(
-		f reflect.Type,
-		t reflect.Type,
-		data any,
-	) (any, error) {
-		if f.Kind() != reflect.String {
-			return data, nil
-		}
-		if t != reflect.TypeOf(Level(0)) {
-			return data, nil
-		}
-
-		levelStr := data.(string)
-		level, err := ParseLevel(levelStr)
-		if err != nil {
-			return data, err
-		}
-
-		return level, nil
+func stringToLevelHookFunc(from reflect.Type, to reflect.Type, data any) (any, error) {
+	if from.Kind() != reflect.String {
+		return data, nil
 	}
+	if to != reflect.TypeOf(Level(0)) {
+		return data, nil
+	}
+
+	levelStr := data.(string)
+	level, err := ParseLevel(levelStr)
+	if err != nil {
+		return data, err
+	}
+
+	return level, nil
 }

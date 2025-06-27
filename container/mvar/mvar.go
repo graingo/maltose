@@ -97,6 +97,15 @@ func (v *Var) Time(format ...string) time.Time {
 	return mconv.ToTime(v.Val())
 }
 
+// Struct maps the value to a struct.
+// The `pointer` parameter should be a pointer to a struct.
+func (v *Var) Struct(pointer any) error {
+	if v == nil {
+		return nil
+	}
+	return mconv.StructE(v.Val(), pointer)
+}
+
 // MarshalJSON implements the json.Marshaler interface.
 func (v *Var) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.Val())
