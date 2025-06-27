@@ -13,9 +13,9 @@ import (
 // ClientConfig is the configuration for Client.
 type ClientConfig struct {
 	// BaseURL specifies the base URL for all requests.
-	BaseURL string `mapstructure:"base_url"`
+	BaseURL string `mconv:"base_url"`
 	// Timeout specifies a time limit for requests made by this client.
-	Timeout time.Duration `mapstructure:"timeout"`
+	Timeout time.Duration `mconv:"timeout"`
 	// Transport specifies the mechanism by which individual HTTP requests are made.
 	Transport http.RoundTripper
 	// Header specifies the default header for requests.

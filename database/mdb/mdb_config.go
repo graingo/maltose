@@ -4,36 +4,36 @@ import (
 	"time"
 
 	"github.com/graingo/maltose/os/mlog"
-	"github.com/spf13/viper"
+	"github.com/graingo/mconv"
 	"github.com/uptrace/opentelemetry-go-extra/otelgorm"
 	"gorm.io/gorm"
 )
 
 type Config struct {
 	// Type is the type of the database.
-	Type string `mapstructure:"type"`
+	Type string `mconv:"type"`
 	// DSN is the data source name.
-	DSN string `mapstructure:"dsn"`
+	DSN string `mconv:"dsn"`
 	// Host is the host of the database.
-	Host string `mapstructure:"host"`
+	Host string `mconv:"host"`
 	// Port is the port of the database.
-	Port string `mapstructure:"port"`
+	Port string `mconv:"port"`
 	// User is the user of the database.
-	User string `mapstructure:"user"`
+	User string `mconv:"user"`
 	// Password is the password of the database.
-	Password string `mapstructure:"password"`
+	Password string `mconv:"password"`
 	// DBName is the name of the database.
-	DBName string `mapstructure:"db_name"`
+	DBName string `mconv:"db_name"`
 	// MaxIdleTime is the maximum idle time for the database connection.
-	MaxIdleTime time.Duration `mapstructure:"max_idle_time"`
+	MaxIdleTime time.Duration `mconv:"max_idle_time"`
 	// MaxIdleConnection is the maximum idle connection for the database.
-	MaxIdleConnection int `mapstructure:"max_idle_connection"`
+	MaxIdleConnection int `mconv:"max_idle_connection"`
 	// MaxOpenConnection is the maximum open connection for the database.
-	MaxOpenConnection int `mapstructure:"max_open_connection"`
+	MaxOpenConnection int `mconv:"max_open_connection"`
 	// MaxLifetime is the maximum lifetime for the database connection.
-	MaxLifetime time.Duration `mapstructure:"max_lifetime"`
+	MaxLifetime time.Duration `mconv:"max_lifetime"`
 	// SlowThreshold is the slow query threshold.
-	SlowThreshold time.Duration `mapstructure:"slow_threshold"`
+	SlowThreshold time.Duration `mconv:"slow_threshold"`
 	// Logger is the logger for the database.
 	Logger *mlog.Logger
 	// Replicas is the replicas list.
@@ -59,9 +59,7 @@ func defaultConfig() *Config {
 }
 
 func (c *Config) SetConfigWithMap(config map[string]any) error {
-	v := viper.New()
-	v.MergeConfigMap(config)
-	return v.Unmarshal(c)
+	return mconv.ToStructE(config, &c)
 }
 
 func (c *Config) SetLogger(logger *mlog.Logger) {

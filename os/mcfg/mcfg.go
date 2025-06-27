@@ -6,6 +6,7 @@ import (
 	"github.com/graingo/maltose/container/minstance"
 	"github.com/graingo/maltose/container/mvar"
 	"github.com/graingo/maltose/errors/merror"
+	"github.com/graingo/mconv"
 	"github.com/spf13/viper"
 )
 
@@ -104,6 +105,15 @@ func (c *Config) Get(ctx context.Context, pattern string, def ...any) (*mvar.Var
 	return nil, nil
 }
 
+// MustGet acts as function Get, but it panics if error occurs.
+func (c *Config) MustGet(ctx context.Context, pattern string, def ...any) *mvar.Var {
+	v, err := c.Get(ctx, pattern, def...)
+	if err != nil {
+		panic(err)
+	}
+	return v
+}
+
 // Data gets all configuration data.
 func (c *Config) Data(ctx context.Context) (map[string]any, error) {
 	rawData, err := c.adapter.Data(ctx)
@@ -128,11 +138,108 @@ func (c *Config) Available(ctx context.Context, resource ...string) bool {
 	return c.adapter.Available(ctx, resource...)
 }
 
-// MergeConfigMap merges a map into the existing configuration.
-// This is useful for layering configurations.
-func (c *Config) MergeConfigMap(ctx context.Context, data map[string]any) error {
-	if c.adapter == nil {
-		return merror.New(`config adapter is not set`)
+// Struct unmarshals the configuration into a struct.
+// The optional `pattern` parameter is the pattern to unmarshal the configuration into.
+// If you want to specify the key name, you can use the `mconv` tag.
+// It supports custom decoding hooks.
+func (c *Config) Struct(ctx context.Context, v any, pattern string, hooks ...mconv.HookFunc) error {
+	var (
+		data map[string]any
+		err  error
+	)
+	if pattern != "" {
+		mvalue, err := c.Get(ctx, pattern)
+		if err != nil {
+			return err
+		}
+		if mvalue == nil || mvalue.IsNil() {
+			return nil
+		}
+		data = mvalue.Map()
+	} else {
+		data, err = c.Data(ctx)
+		if err != nil {
+			return err
+		}
 	}
-	return c.adapter.MergeConfigMap(ctx, data)
+	if data == nil {
+		return nil
+	}
+
+	return mconv.ToStructE(data, v, hooks...)
+}
+
+// GetString gets the configuration value as a string.
+func (c *Config) GetString(ctx context.Context, pattern string, def ...any) string {
+	val, err := c.Get(ctx, pattern, def...)
+	if err != nil {
+		panic(err)
+	}
+	if val == nil {
+		if len(def) > 0 {
+			return mvar.New(def[0]).String()
+		}
+		return ""
+	}
+	return val.String()
+}
+
+// GetInt gets the configuration value as an int.
+func (c *Config) GetInt(ctx context.Context, pattern string, def ...any) int {
+	val, err := c.Get(ctx, pattern, def...)
+	if err != nil {
+		panic(err)
+	}
+	if val == nil {
+		if len(def) > 0 {
+			return mvar.New(def[0]).Int()
+		}
+		return 0
+	}
+	return val.Int()
+}
+
+// GetBool gets the configuration value as a bool.
+func (c *Config) GetBool(ctx context.Context, pattern string, def ...any) bool {
+	val, err := c.Get(ctx, pattern, def...)
+	if err != nil {
+		panic(err)
+	}
+	if val == nil {
+		if len(def) > 0 {
+			return mvar.New(def[0]).Bool()
+		}
+		return false
+	}
+	return val.Bool()
+}
+
+// GetMap gets the configuration value as a map.
+func (c *Config) GetMap(ctx context.Context, pattern string, def ...any) map[string]any {
+	val, err := c.Get(ctx, pattern, def...)
+	if err != nil {
+		panic(err)
+	}
+	if val == nil {
+		if len(def) > 0 {
+			return mvar.New(def[0]).Map()
+		}
+		return nil
+	}
+	return val.Map()
+}
+
+// GetSlice gets the configuration value as a slice.
+func (c *Config) GetSlice(ctx context.Context, pattern string, def ...any) []any {
+	val, err := c.Get(ctx, pattern, def...)
+	if err != nil {
+		panic(err)
+	}
+	if val == nil {
+		if len(def) > 0 {
+			return mconv.ToSlice(mvar.New(def[0]).Val())
+		}
+		return nil
+	}
+	return mconv.ToSlice(val.Val())
 }

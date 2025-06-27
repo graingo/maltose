@@ -97,6 +97,16 @@ func (v *Var) Time(format ...string) time.Time {
 	return mconv.ToTime(v.Val())
 }
 
+// Struct maps the value to a struct.
+// The `pointer` parameter should be a pointer to a struct.
+// The `hooks` parameter is used to specify the hooks for the conversion.
+func (v *Var) Struct(pointer any, hooks ...mconv.HookFunc) error {
+	if v == nil {
+		return nil
+	}
+	return mconv.ToStructE(v.Val(), pointer, hooks...)
+}
+
 // MarshalJSON implements the json.Marshaler interface.
 func (v *Var) MarshalJSON() ([]byte, error) {
 	return json.Marshal(v.Val())

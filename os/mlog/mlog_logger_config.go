@@ -3,27 +3,26 @@ package mlog
 import (
 	"reflect"
 
-	"github.com/mitchellh/mapstructure"
-	"github.com/spf13/viper"
+	"github.com/graingo/mconv"
 )
 
 type Config struct {
 	// Level is the log level.
-	Level Level `mapstructure:"level"`
+	Level Level `mconv:"level"`
 	// Path is the log file path.
-	Path string `mapstructure:"path"`
+	Path string `mconv:"path"`
 	// File is the log file name.
-	File string `mapstructure:"file"`
+	File string `mconv:"file"`
 	// TimeFormat is the log time format.
-	TimeFormat string `mapstructure:"time_format"`
+	TimeFormat string `mconv:"time_format"`
 	// Format is the log format.
-	Format string `mapstructure:"format"`
+	Format string `mconv:"format"`
 	// Stdout is the stdout print.
-	Stdout bool `mapstructure:"stdout"`
+	Stdout bool `mconv:"stdout"`
 	// AutoClean is the auto clean days.
-	AutoClean int `mapstructure:"auto_clean"`
+	AutoClean int `mconv:"auto_clean"`
 	// CtxKeys is the context keys to extract.
-	CtxKeys []string `mapstructure:"ctx_keys"`
+	CtxKeys []string `mconv:"ctx_keys"`
 }
 
 func defaultConfig() *Config {
@@ -40,37 +39,22 @@ func defaultConfig() *Config {
 
 // SetConfigWithMap sets the logger configuration using a map.
 func (c *Config) SetConfigWithMap(configMap map[string]any) error {
-	v := viper.New()
-	v.MergeConfigMap(configMap)
-	if err := v.Unmarshal(c, viper.DecodeHook(
-		mapstructure.ComposeDecodeHookFunc(
-			stringToLevelHookFunc(),
-		),
-	)); err != nil {
-		return err
-	}
-	return nil
+	return mconv.ToStructE(configMap, c, stringToLevelHookFunc)
 }
 
-func stringToLevelHookFunc() mapstructure.DecodeHookFunc {
-	return func(
-		f reflect.Type,
-		t reflect.Type,
-		data any,
-	) (any, error) {
-		if f.Kind() != reflect.String {
-			return data, nil
-		}
-		if t != reflect.TypeOf(Level(0)) {
-			return data, nil
-		}
-
-		levelStr := data.(string)
-		level, err := ParseLevel(levelStr)
-		if err != nil {
-			return data, err
-		}
-
-		return level, nil
+func stringToLevelHookFunc(from reflect.Type, to reflect.Type, data any) (any, error) {
+	if from.Kind() != reflect.String {
+		return data, nil
 	}
+	if to != reflect.TypeOf(Level(0)) {
+		return data, nil
+	}
+
+	levelStr := data.(string)
+	level, err := ParseLevel(levelStr)
+	if err != nil {
+		return data, err
+	}
+
+	return level, nil
 }
