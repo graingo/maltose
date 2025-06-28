@@ -32,13 +32,19 @@ func (l *Logger) loadConfig(config *Config) error {
 		outputs = append(outputs, os.Stdout)
 	}
 
-	// Set file output
-	if config.Path != "" && config.File != "" {
-		fileWriter, err := newFileWriter(config.Path, config.File, config.AutoClean)
+	// Set file output using RotationConfig
+	if config.Filepath != "" {
+		fileWriter, err := newFileWriter(config.Filepath, &rotationConfig{
+			MaxSize:    config.MaxSize,
+			MaxAge:     config.MaxAge,
+			MaxBackups: config.MaxBackups,
+		})
 		if err != nil {
 			return err
 		}
-		outputs = append(outputs, fileWriter)
+		if fileWriter != nil {
+			outputs = append(outputs, fileWriter)
+		}
 	}
 
 	// Set combined output

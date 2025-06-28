@@ -5,6 +5,7 @@ import (
 	"os"
 	"path/filepath"
 	"regexp"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -12,40 +13,66 @@ import (
 	"github.com/graingo/maltose/errors/merror"
 )
 
-// fileWriter is a writer that writes to files based on date patterns or fixed file names.
-type fileWriter struct {
-	basePath    string        // Base directory path
-	filePattern string        // File name pattern
-	autoClean   int           // Auto cleanup days
-	mu          sync.Mutex    // Mutex for concurrency safety
-	file        *os.File      // Current open file
-	currentPath string        // Current file path
-	lastCheck   time.Time     // Last file check time
-	lastCleanup time.Time     // Last cleanup check time
-	stopChan    chan struct{} // Stop channel for cleanup goroutine
-	isDateMode  bool          // Whether using date pattern mode
+// RotationConfig holds all the configuration for log file rotation.
+type rotationConfig struct {
+	// MaxSize is the maximum size in megabytes of the log file before it gets rotated.
+	// It is only applicable for 'size' rotation type.
+	MaxSize int `mconv:"max_size"` // (MB)
+	// MaxBackups is the maximum number of old log files to retain.
+	// It is only applicable for 'size' rotation type.
+	MaxBackups int `mconv:"max_backups"` // (files)
+	// MaxAge is the maximum number of days to retain old log files.
+	// It is applicable for both 'size' and 'date' rotation types.
+	MaxAge int `mconv:"max_age"` // (days)
 }
 
-// newFileWriter creates a new DateWriter.
-func newFileWriter(basePath string, filePattern string, autoClean int) (*fileWriter, error) {
+// fileWriter is a writer that writes to files based on date patterns or fixed file names.
+type fileWriter struct {
+	pathPattern  string        // Full path pattern for the log file
+	isDateMode   bool          // Whether using date pattern mode
+	mu           sync.Mutex    // Mutex for concurrency safety
+	file         *os.File      // Current open file
+	currentPath  string        // Current file path
+	lastCheck    time.Time     // Last file check time
+	lastCleanup  time.Time     // Last cleanup check time
+	stopChan     chan struct{} // Stop channel for cleanup goroutine
+	cfg          *rotationConfig
+	cleanupRegex *regexp.Regexp
+}
+
+// newFileWriter creates a new fileWriter based on the provided rotation config.
+func newFileWriter(filepath string, cfg *rotationConfig) (*fileWriter, error) {
+	if filepath == "" {
+		return nil, merror.New("filepath for log rotation cannot be empty")
+	}
+
+	isDateMode := isDatePattern(filepath)
+
 	// Ensure directory exists
-	dir := logDir(basePath)
+	dir := logDir(filepath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, merror.Wrapf(err, "failed to create log directory: %s", dir)
 	}
 
 	w := &fileWriter{
-		basePath:    basePath,
-		filePattern: filePattern,
-		autoClean:   autoClean,
+		pathPattern: filepath,
+		cfg:         cfg,
 		lastCheck:   time.Now(),
 		lastCleanup: time.Now(),
 		stopChan:    make(chan struct{}),
-		isDateMode:  isDatePattern(filePattern),
+		isDateMode:  isDateMode,
 	}
 
-	// Start cleanup goroutine if auto cleanup is enabled and using date mode
-	if autoClean > 0 && w.isDateMode {
+	// Start cleanup goroutine if needed
+	if cfg.MaxAge > 0 || (!isDateMode && cfg.MaxBackups > 0) {
+		if w.isDateMode {
+			regexPattern := convertDatePatternToRegex(w.pathPattern)
+			re, err := regexp.Compile(regexPattern)
+			if err != nil {
+				return nil, merror.Wrapf(err, "invalid file pattern for cleanup regex compilation: %s", w.pathPattern)
+			}
+			w.cleanupRegex = re
+		}
 		go w.cleanupRoutine()
 	}
 
@@ -57,23 +84,54 @@ func (w *fileWriter) Write(p []byte) (n int, err error) {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	// Lazy initialization: open the file on first write.
-	if w.file == nil {
-		if err = w.checkAndRotate(); err != nil {
-			return 0, err
-		}
+	// Lazy initialization or periodic rotation
+	if err = w.checkAndRotate(); err != nil {
+		return 0, err
 	}
 
-	// Check if we need to switch to a new file based on current date
-	// Only check periodically and only if using date mode
-	if w.isDateMode && time.Since(w.lastCheck) >= time.Minute {
-		if err := w.checkAndRotate(); err != nil {
-			return 0, err
+	// Rotate by size if not in date mode
+	if !w.isDateMode && w.cfg.MaxSize > 0 {
+		if stat, err := w.file.Stat(); err == nil {
+			// Rotate if size exceeds max size
+			if stat.Size() >= int64(w.cfg.MaxSize)*1024*1024 {
+				if err := w.rotate(); err != nil {
+					return 0, err
+				}
+			}
 		}
-		w.lastCheck = time.Now()
 	}
 
 	return w.file.Write(p)
+}
+
+// rotate performs a size-based rotation.
+func (w *fileWriter) rotate() error {
+	// Close existing file
+	if err := w.file.Close(); err != nil {
+		return err
+	}
+	w.file = nil
+
+	// Rename current log file to a backup name
+	backupPath := w.backupFilePath()
+	if err := os.Rename(w.currentPath, backupPath); err != nil {
+		return merror.Wrapf(err, "failed to rename log file for rotation: %s", w.currentPath)
+	}
+
+	// Re-open the original file, which will be new and empty
+	return w.checkAndRotate()
+}
+
+// backupFilePath generates a backup file path with a timestamp.
+// e.g., /path/to/app.2023-10-27T10-00-00.000.log
+func (w *fileWriter) backupFilePath() string {
+	dir := filepath.Dir(w.currentPath)
+	filename := filepath.Base(w.currentPath)
+	ext := filepath.Ext(filename)
+	prefix := filename[:len(filename)-len(ext)]
+	timestamp := time.Now().Format("20060102150405000")
+
+	return filepath.Join(dir, fmt.Sprintf("%s.%s%s", prefix, timestamp, ext))
 }
 
 // Close closes the current file and stops the cleanup goroutine.
@@ -98,7 +156,7 @@ func (w *fileWriter) checkAndRotate() error {
 	if w.isDateMode {
 		filePath = w.formatFilePath(time.Now())
 	} else {
-		filePath = filepath.Join(logDir(w.basePath), w.filePattern)
+		filePath = w.pathPattern
 	}
 
 	// If the path is the same, no need to rotate
@@ -134,7 +192,7 @@ func (w *fileWriter) checkAndRotate() error {
 // formatFilePath formats the file path based on the current date.
 func (w *fileWriter) formatFilePath(t time.Time) string {
 	// Replace date placeholders
-	pattern := w.filePattern
+	pattern := w.pathPattern
 	pattern = strings.ReplaceAll(pattern, "{Y}", t.Format("2006"))
 	pattern = strings.ReplaceAll(pattern, "{y}", t.Format("06"))
 	pattern = strings.ReplaceAll(pattern, "{m}", t.Format("01"))
@@ -143,8 +201,7 @@ func (w *fileWriter) formatFilePath(t time.Time) string {
 	pattern = strings.ReplaceAll(pattern, "{i}", t.Format("04"))
 	pattern = strings.ReplaceAll(pattern, "{s}", t.Format("05"))
 
-	// Combine with base path
-	return filepath.Join(logDir(w.basePath), pattern)
+	return pattern
 }
 
 // cleanupRoutine periodically cleans up old log files.
@@ -167,43 +224,46 @@ func (w *fileWriter) cleanup() {
 	w.mu.Lock()
 	defer w.mu.Unlock()
 
-	// Skip if auto cleanup is not enabled or not in date mode
-	if w.autoClean <= 0 || !w.isDateMode {
-		return
+	// For size mode, cleanup is based on MaxAge or MaxBackups.
+	// For date mode, cleanup is based on cfg.MaxAge.
+	if w.isDateMode {
+		if w.cfg.MaxAge <= 0 {
+			return
+		}
+	} else {
+		if w.cfg.MaxAge <= 0 && w.cfg.MaxBackups <= 0 {
+			return
+		}
 	}
 
-	// Convert date pattern to regex pattern for matching
-	regexPattern := convertDatePatternToRegex(w.filePattern)
-	re, err := regexp.Compile(regexPattern)
-	if err != nil {
-		// Log error but continue
-		fmt.Printf("Invalid pattern for cleanup: %s, error: %v\n", w.filePattern, err)
-		return
-	}
-
-	// Get all files in directory
-	dir := logDir(w.basePath)
+	dir := logDir(w.pathPattern)
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		// Log error but continue
 		fmt.Printf("Failed to read directory for cleanup: %s, error: %v\n", dir, err)
 		return
 	}
 
+	if w.isDateMode {
+		w.cleanupDateMode(files, dir)
+	} else {
+		w.cleanupSizeMode(files, dir)
+	}
+
+	w.lastCleanup = time.Now()
+}
+
+func (w *fileWriter) cleanupDateMode(files []os.DirEntry, dir string) {
+	if w.cleanupRegex == nil || w.cfg.MaxAge <= 0 {
+		return
+	}
+	maxAge := time.Duration(w.cfg.MaxAge) * 24 * time.Hour
 	now := time.Now()
-	maxAge := time.Duration(w.autoClean) * 24 * time.Hour // Convert to days
 
 	for _, file := range files {
-		if file.IsDir() {
+		if file.IsDir() || !w.cleanupRegex.MatchString(file.Name()) {
 			continue
 		}
 
-		// Check if file matches pattern
-		if !re.MatchString(file.Name()) {
-			continue
-		}
-
-		// Check file age
 		info, err := file.Info()
 		if err != nil {
 			continue
@@ -211,18 +271,74 @@ func (w *fileWriter) cleanup() {
 
 		if now.Sub(info.ModTime()) > maxAge {
 			filePath := filepath.Join(dir, file.Name())
-			// Skip current file
 			if filePath == w.currentPath {
 				continue
 			}
-			if err := os.Remove(filePath); err != nil {
-				// Log error but continue
-				fmt.Printf("Failed to remove file %s: %v\n", filePath, err)
-			}
+			os.Remove(filePath)
 		}
 	}
+}
 
-	w.lastCleanup = now
+type backupFile struct {
+	path    string
+	modTime time.Time
+}
+
+func (w *fileWriter) cleanupSizeMode(files []os.DirEntry, dir string) {
+	if w.cfg.MaxAge <= 0 && w.cfg.MaxBackups <= 0 {
+		return
+	}
+	var backupFiles []backupFile
+	filePattern := filepath.Base(w.pathPattern)
+	prefix := filePattern[:len(filePattern)-len(filepath.Ext(filePattern))]
+	ext := filepath.Ext(filePattern)
+
+	for _, file := range files {
+		if file.IsDir() || !strings.HasPrefix(file.Name(), prefix) || !strings.HasSuffix(file.Name(), ext) {
+			continue
+		}
+		// Skip the main log file
+		if file.Name() == filePattern {
+			continue
+		}
+
+		info, err := file.Info()
+		if err != nil {
+			continue
+		}
+		backupFiles = append(backupFiles, backupFile{
+			path:    filepath.Join(dir, file.Name()),
+			modTime: info.ModTime(),
+		})
+	}
+
+	// Sort by mod time, oldest first
+	sort.Slice(backupFiles, func(i, j int) bool {
+		return backupFiles[i].modTime.Before(backupFiles[j].modTime)
+	})
+
+	// Cleanup by max age
+	if w.cfg.MaxAge > 0 {
+		maxAgeDuration := time.Duration(w.cfg.MaxAge) * 24 * time.Hour
+		now := time.Now()
+		var filesToKeep []backupFile
+		for _, f := range backupFiles {
+			if now.Sub(f.modTime) > maxAgeDuration {
+				os.Remove(f.path)
+			} else {
+				filesToKeep = append(filesToKeep, f)
+			}
+		}
+		backupFiles = filesToKeep
+	}
+
+	// Cleanup by max backups
+	if w.cfg.MaxBackups > 0 && len(backupFiles) > w.cfg.MaxBackups {
+		filesToRemove := backupFiles[:len(backupFiles)-w.cfg.MaxBackups]
+		for _, f := range filesToRemove {
+			os.Remove(f.path)
+		}
+	}
 }
 
 // convertDatePatternToRegex converts a date pattern to a regex pattern.

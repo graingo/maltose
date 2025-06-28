@@ -9,18 +9,24 @@ import (
 type Config struct {
 	// Level is the log level.
 	Level Level `mconv:"level"`
-	// Path is the log file path.
-	Path string `mconv:"path"`
-	// File is the log file name.
-	File string `mconv:"file"`
 	// TimeFormat is the log time format.
 	TimeFormat string `mconv:"time_format"`
 	// Format is the log format.
 	Format string `mconv:"format"`
+	// Path is the log file path.
+	// e.g., /var/log/app.log or /var/log/app.{YYYYmmdd}.log
+	Filepath string `mconv:"filepath"`
+	// MaxSize is the maximum size in megabytes of the log file before it gets rotated.
+	// It is only applicable for 'size' rotation type.
+	MaxSize int `mconv:"max_size"` // (MB)
+	// MaxBackups is the maximum number of old log files to retain.
+	// It is only applicable for 'size' rotation type.
+	MaxBackups int `mconv:"max_backups"` // (files)
+	// MaxAge is the maximum number of days to retain old log files.
+	// It is applicable for both 'size' and 'date' rotation types.
+	MaxAge int `mconv:"max_age"` // (days)
 	// Stdout is the stdout print.
 	Stdout bool `mconv:"stdout"`
-	// AutoClean is the auto clean days.
-	AutoClean int `mconv:"auto_clean"`
 	// CtxKeys is the context keys to extract.
 	CtxKeys []string `mconv:"ctx_keys"`
 }
@@ -28,10 +34,12 @@ type Config struct {
 func defaultConfig() *Config {
 	return &Config{
 		Level:      defaultLevel,
-		Path:       defaultPath,
-		File:       defaultFile,
 		TimeFormat: defaultTimeFormat,
 		Format:     defaultFormat,
+		Filepath:   defaultFile,
+		MaxSize:    100,
+		MaxAge:     7,
+		MaxBackups: 10,
 		Stdout:     true,
 		CtxKeys:    []string{},
 	}
