@@ -13,6 +13,9 @@ type Config struct {
 	TimeFormat string `mconv:"time_format"`
 	// Format is the log format.
 	Format string `mconv:"format"`
+	// Caller is the add caller.
+	// If true, the caller will be added to the log.
+	Caller bool `mconv:"caller"`
 	// Path is the log file path.
 	// e.g., /var/log/app.log or /var/log/app.{YYYYmmdd}.log
 	Filepath string `mconv:"filepath"`
@@ -36,6 +39,7 @@ func defaultConfig() *Config {
 		Level:      defaultLevel,
 		TimeFormat: defaultTimeFormat,
 		Format:     defaultFormat,
+		Caller:     false,
 		Filepath:   defaultFile,
 		MaxSize:    100,
 		MaxAge:     7,

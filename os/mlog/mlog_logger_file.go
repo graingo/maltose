@@ -41,21 +41,28 @@ type fileWriter struct {
 }
 
 // newFileWriter creates a new fileWriter based on the provided rotation config.
-func newFileWriter(filepath string, cfg *rotationConfig) (*fileWriter, error) {
-	if filepath == "" {
+func newFileWriter(path string, cfg *rotationConfig) (*fileWriter, error) {
+	if path == "" {
 		return nil, merror.New("filepath for log rotation cannot be empty")
 	}
 
-	isDateMode := isDatePattern(filepath)
+	// It's a good practice to use absolute path for logging,
+	// to avoid CWD problems.
+	absPath, err := filepath.Abs(path)
+	if err != nil {
+		return nil, merror.Wrapf(err, `failed to get absolute path for "%s"`, path)
+	}
 
-	// Ensure directory exists
-	dir := logDir(filepath)
+	isDateMode := isDatePattern(absPath)
+
+	// Ensure directory exists.
+	dir := filepath.Dir(absPath)
 	if err := os.MkdirAll(dir, 0755); err != nil {
 		return nil, merror.Wrapf(err, "failed to create log directory: %s", dir)
 	}
 
 	w := &fileWriter{
-		pathPattern: filepath,
+		pathPattern: absPath,
 		cfg:         cfg,
 		lastCheck:   time.Now(),
 		lastCleanup: time.Now(),
@@ -236,7 +243,7 @@ func (w *fileWriter) cleanup() {
 		}
 	}
 
-	dir := logDir(w.pathPattern)
+	dir := filepath.Dir(w.pathPattern)
 	files, err := os.ReadDir(dir)
 	if err != nil {
 		fmt.Printf("Failed to read directory for cleanup: %s, error: %v\n", dir, err)
@@ -357,15 +364,4 @@ func convertDatePatternToRegex(pattern string) string {
 // isDatePattern checks if a file pattern contains date placeholders.
 func isDatePattern(pattern string) bool {
 	return strings.Contains(pattern, "{") && strings.Contains(pattern, "}")
-}
-
-// logDir determines the directory for the log files.
-// If basePath is a simple name like "logs" without any path separators or extension,
-// it's treated as a directory. Otherwise, we extract the directory part.
-// This helps avoid `filepath.Dir("logs")` returning ".", which would place logs in the current directory.
-func logDir(basePath string) string {
-	if !strings.ContainsAny(basePath, `/\`) && filepath.Ext(basePath) == "" {
-		return basePath
-	}
-	return filepath.Dir(basePath)
 }

@@ -26,6 +26,10 @@ func (l *Logger) loadConfig(config *Config) error {
 		l.AddHook(&ctxHook{keys: config.CtxKeys})
 	}
 
+	if config.Caller {
+		l.parent.SetReportCaller(true)
+	}
+
 	// Set output
 	var outputs []io.Writer
 	if config.Stdout {
