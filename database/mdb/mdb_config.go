@@ -45,7 +45,7 @@ type Config struct {
 func defaultConfig() *Config {
 	return &Config{
 		Type:              "mysql",
-		Host:              "3306",
+		Port:              "3306",
 		MaxIdleTime:       10 * time.Second,
 		MaxIdleConnection: 10,
 		MaxOpenConnection: 100,
