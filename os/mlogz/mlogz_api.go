@@ -91,10 +91,17 @@ func Panicw(ctx context.Context, err error, msg string, attrs ...Attr) {
 	defaultLogger.Panicw(ctx, err, msg, attrs...)
 }
 
+// With returns a new logger with the added attributes.
 func With(attrs ...Attr) *Logger {
 	return defaultLogger.With(attrs...)
 }
 
+// AddHook adds a hook to the logger.
 func AddHook(hook Hook) {
 	defaultLogger.AddHook(hook)
+}
+
+// Close closes the logger and its underlying resources.
+func Close() error {
+	return defaultLogger.Close()
 }

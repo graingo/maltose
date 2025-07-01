@@ -5,10 +5,10 @@ func SetConfig(config *Config) error {
 	return defaultLogger.SetConfig(config)
 }
 
-// SetPath sets the log file path.
-func SetPath(path string) {
+// SetFilepath sets the log file path.
+func SetFilepath(path string) {
 	defaultLogger.SetConfigWithMap(map[string]any{
-		"path": path,
+		"filepath": path,
 	})
 }
 
@@ -26,24 +26,31 @@ func SetFormat(format string) {
 	})
 }
 
-// SetStdoutPrint sets the stdout print.
-func SetStdoutPrint(enabled bool) {
+// SetStdout sets the stdout print.
+func SetStdout(enabled bool) {
 	defaultLogger.SetConfigWithMap(map[string]any{
 		"stdout": enabled,
 	})
 }
 
-// SetFile sets the log file name, supporting date patterns.
-func SetFile(file string) {
+// SetMaxSize sets the max size of the log file.
+func SetMaxSize(maxSize int) {
 	defaultLogger.SetConfigWithMap(map[string]any{
-		"file": file,
+		"max_size": maxSize,
 	})
 }
 
-// SetAutoClean sets the number of days to keep log files.
-func SetAutoClean(days int) {
+// SetMaxBackups sets the max backups of the log file.
+func SetMaxBackups(maxBackups int) {
 	defaultLogger.SetConfigWithMap(map[string]any{
-		"auto_clean": days,
+		"max_backups": maxBackups,
+	})
+}
+
+// SetMaxAge sets the max age of the log file.
+func SetMaxAge(maxAge int) {
+	defaultLogger.SetConfigWithMap(map[string]any{
+		"max_age": maxAge,
 	})
 }
 
@@ -54,10 +61,12 @@ func SetCtxKeys(keys []string) {
 	})
 }
 
+// SetLevel sets the log level.
 func SetLevel(level Level) {
 	defaultLogger.SetLevel(level)
 }
 
+// GetLevel returns the log level.
 func GetLevel() Level {
 	return defaultLogger.GetLevel()
 }

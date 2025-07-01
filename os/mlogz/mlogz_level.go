@@ -32,16 +32,12 @@ func AllLevels() []Level {
 
 // SetLevel sets the logging level.
 func (l *Logger) SetLevel(level Level) {
-	l.mu.Lock()
-	defer l.mu.Unlock()
-	l.level = level
+	l.level.SetLevel(zapcore.Level(level))
 }
 
 // GetLevel returns the logging level value.
 func (l *Logger) GetLevel() Level {
-	l.mu.RLock()
-	defer l.mu.RUnlock()
-	return l.level
+	return Level(l.level.Level())
 }
 
 // ParseLevel parses a string level and returns the Level value.
@@ -64,7 +60,22 @@ func ParseLevel(level string) (Level, error) {
 	}
 }
 
-// toZapLevel converts Level to zapcore.Level.
-func (l Level) toZapLevel() zapcore.Level {
-	return zapcore.Level(l)
+// String returns the string representation of the level.
+func (l Level) String() string {
+	switch l {
+	case DebugLevel:
+		return "debug"
+	case InfoLevel:
+		return "info"
+	case WarnLevel:
+		return "warn"
+	case ErrorLevel:
+		return "error"
+	case FatalLevel:
+		return "fatal"
+	case PanicLevel:
+		return "panic"
+	default:
+		return "unknown"
+	}
 }
