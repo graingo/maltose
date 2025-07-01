@@ -72,12 +72,17 @@ func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel, io.WriteClose
 
 // log logs the message with the given level and attributes.
 func (l *Logger) log(ctx context.Context, level Level, msg string, fields ...Field) {
-	// Create entry.
-	entry := &Entry{
-		ctx:    ctx,
-		msg:    msg,
-		fields: fields,
-	}
+	// Get entry from the pool.
+	entry := entryPool.Get().(*Entry)
+	entry.ctx = ctx
+	entry.msg = msg
+	entry.fields = append(entry.fields[:0], fields...)
+
+	// Reset entry and put it back to the pool.
+	defer func() {
+		entry.reset()
+		entryPool.Put(entry)
+	}()
 
 	// Fire hooks.
 	for _, hook := range l.hooks {

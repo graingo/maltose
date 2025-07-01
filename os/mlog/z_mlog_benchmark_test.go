@@ -2,6 +2,7 @@ package mlog_test
 
 import (
 	"context"
+	"path/filepath"
 	"testing"
 
 	"github.com/graingo/maltose/os/mlog"
@@ -31,12 +32,14 @@ var (
 // effectively isolating the benchmark to the logger's processing overhead by eliminating I/O.
 func setupBenchmarkLogger(b *testing.B) *mlog.Logger {
 	b.Helper()
+	tempDir := b.TempDir()
+	logPath := filepath.Join(tempDir, "benchmark.log")
 	// Redirecting output to /dev/null is a standard technique for benchmarking I/O components
 	// without measuring the actual I/O performance. This is necessary because mlog does not
 	// currently provide a public API to set the output writer directly to io.Discard.
 	cfg := mlog.Config{
 		Level:    mlog.DebugLevel,
-		Filepath: "", // Write to the null device to discard output.
+		Filepath: logPath, // Write to the null device to discard output.
 		Stdout:   false,
 		Format:   "json",
 	}
@@ -107,6 +110,35 @@ func BenchmarkMlog_WithLogger10Fields(b *testing.B) {
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
 			withLogger.Infow(ctx, "message from a contextual logger")
+		}
+	})
+}
+
+type benchmarkHook struct{}
+
+func (h *benchmarkHook) Name() string { return "benchmark_hook" }
+
+func (h *benchmarkHook) Levels() []mlog.Level { return mlog.AllLevels() }
+
+func (h *benchmarkHook) Fire(entry *mlog.Entry) {
+	if value := entry.GetContext().Value("request_id"); value != nil {
+		if str, ok := value.(string); ok {
+			entry.AddField(mlog.String("request_id", str))
+		}
+	}
+}
+
+func BenchmarkMlog_WithHooks(b *testing.B) {
+	logger := setupBenchmarkLogger(b)
+	logger.AddHook(&benchmarkHook{})
+
+	// Create a context with a value that the hook will extract.
+	requestCtx := context.WithValue(context.Background(), "request_id", "req-12345")
+
+	b.ResetTimer()
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			logger.Infow(requestCtx, "message that will trigger the hook")
 		}
 	})
 }
