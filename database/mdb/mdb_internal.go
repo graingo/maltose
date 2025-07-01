@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/graingo/maltose"
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/os/mlog"
 	"gorm.io/driver/mysql"
@@ -138,7 +139,7 @@ func configureReplicas(db *gorm.DB, cfg *Config) error {
 	})
 	if err := db.Use(resolver); err != nil {
 		if cfg.Logger != nil {
-			cfg.Logger.WithComponent("mdb").Errorf(context.Background(), "Failed to configure db resolver: %v", err)
+			cfg.Logger.With(mlog.String(maltose.COMPONENT, "mdb")).Errorf(context.Background(), err, "Failed to configure db resolver")
 		}
 		return merror.Wrap(err, "failed to configure db resolver")
 	}

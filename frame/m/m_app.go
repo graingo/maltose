@@ -86,7 +86,7 @@ func (a *App) Run() error {
 		// Execute shutdown hooks in reverse order
 		for i := len(a.shutdownHooks) - 1; i >= 0; i-- {
 			if err := a.shutdownHooks[i](shutdownCtx); err != nil {
-				Log().Errorf(shutdownCtx, "Shutdown hook failed: %v", err)
+				Log().Errorf(shutdownCtx, err, "Shutdown hook failed")
 				if anError == nil {
 					anError = err
 				}
@@ -102,7 +102,7 @@ func (a *App) Run() error {
 			})
 		}
 		if err := stopGroup.Wait(); err != nil {
-			Log().Errorf(shutdownCtx, "Application stop error: %v", err)
+			Log().Errorf(shutdownCtx, err, "Application stop error")
 			if anError == nil {
 				anError = err
 			}

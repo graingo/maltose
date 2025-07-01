@@ -272,14 +272,14 @@ import (
 	}
 
 	// FindList retrieves a list of records based on conditions, with ordering.
-	func (d *{{.DaoName}}) FindList(ctx context.Context, condition map[string]any, orderBy string) ([]*entity.{{.StructName}}, error) {
+	func (d *{{.DaoName}}) FindList(ctx context.Context, condition map[string]any, orderBy ...string) ([]*entity.{{.StructName}}, error) {
 		var list  []*entity.{{.StructName}}
 		
 		db := d.DB.WithContext(ctx).Model(&entity.{{.StructName}}{}).Where(condition)
 
 		// Apply ordering and pagination
-		if orderBy != "" {
-			db = db.Order(orderBy)
+		if len(orderBy) > 0 {
+			db = db.Order(orderBy[0])
 		}
 
 		// Execute the query
@@ -292,7 +292,7 @@ import (
 	}
 
 	// FindPageList retrieves a list of records based on conditions, with pagination and ordering.
-	func (d *{{.DaoName}}) FindPageList(ctx context.Context, condition map[string]any, page, pageSize int, orderBy string) ([]*entity.{{.StructName}}, int64, error) {
+	func (d *{{.DaoName}}) FindPageList(ctx context.Context, condition map[string]any, page, pageSize int, orderBy ...string) ([]*entity.{{.StructName}}, int64, error) {
 		var (
 			list  []*entity.{{.StructName}}
 			total int64
@@ -307,8 +307,8 @@ import (
 		}
 
 		// Apply ordering and pagination
-		if orderBy != "" {
-			db = db.Order(orderBy)
+		if len(orderBy) > 0 {
+			db = db.Order(orderBy[0])
 		}
 		if page > 0 && pageSize > 0 {
 			db = db.Offset((page - 1) * pageSize).Limit(pageSize)

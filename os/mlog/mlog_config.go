@@ -31,9 +31,10 @@ type Config struct {
 	// Stdout is the stdout print.
 	Stdout bool `mconv:"stdout"`
 	// CtxKeys is the context keys to extract.
-	CtxKeys []string `mconv:"ctx_keys"`
+	CtxKeys map[string]any `mconv:"ctx_keys"`
 }
 
+// defaultConfig returns the default configuration.
 func defaultConfig() *Config {
 	return &Config{
 		Level:      defaultLevel,
@@ -45,7 +46,7 @@ func defaultConfig() *Config {
 		MaxAge:     7,
 		MaxBackups: 10,
 		Stdout:     true,
-		CtxKeys:    []string{},
+		CtxKeys:    map[string]any{},
 	}
 }
 
@@ -54,6 +55,7 @@ func (c *Config) SetConfigWithMap(configMap map[string]any) error {
 	return mconv.ToStructE(configMap, c, stringToLevelHookFunc)
 }
 
+// stringToLevelHookFunc is a hook function that converts a string to a Level.
 func stringToLevelHookFunc(from reflect.Type, to reflect.Type, data any) (any, error) {
 	if from.Kind() != reflect.String {
 		return data, nil

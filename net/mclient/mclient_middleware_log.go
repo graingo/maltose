@@ -5,6 +5,7 @@ import (
 	"io"
 	"time"
 
+	"github.com/graingo/maltose"
 	"github.com/graingo/maltose/os/mlog"
 )
 
@@ -25,7 +26,7 @@ func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 			ctx := req.Context()
 
 			// Add component to logger for this middleware instance
-			l := logger.WithComponent("mclient")
+			l := logger.With(mlog.String(maltose.COMPONENT, "mclient"))
 
 			// Execute request
 			resp, err := next(req)
@@ -34,14 +35,14 @@ func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 			fields := buildLogFields(req, resp, duration)
 
 			if err != nil {
-				l.Errorf(ctx, "http client request error: %v", err, fields)
+				l.Errorw(ctx, err, "http client request error", fields...)
 				return resp, err
 			}
 
 			if resp.StatusCode >= 400 {
-				l.Error(ctx, "http client request finished with error status", fields)
+				l.Errorw(ctx, err, "http client request finished with error status", fields...)
 			} else {
-				l.Info(ctx, "http client request finished", fields)
+				l.Infow(ctx, "http client request finished", fields...)
 			}
 
 			return resp, nil
@@ -52,13 +53,13 @@ func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 // buildLogFields extracts and builds a map of fields for logging.
 func buildLogFields(r *Request, resp *Response, duration time.Duration) mlog.Fields {
 	fields := mlog.Fields{
-		"duration_ms": float64(duration.Nanoseconds()) / 1e6,
-		"method":      r.Method,
-		"url":         "<no url>",
+		mlog.Float64("duration_ms", float64(duration.Nanoseconds())/1e6),
+		mlog.String("method", r.Request.Method),
+		mlog.String("url", "<no url>"),
 	}
 
 	if r.Request != nil && r.Request.URL != nil {
-		fields["url"] = r.Request.URL.String()
+		fields = append(fields, mlog.String("url", r.Request.URL.String()))
 	}
 
 	// Safely read and log the request body
@@ -69,11 +70,11 @@ func buildLogFields(r *Request, resp *Response, duration time.Duration) mlog.Fie
 		if len(bodyStr) > maxBodySize {
 			bodyStr = bodyStr[:maxBodySize] + "..."
 		}
-		fields["request_body"] = bodyStr
+		fields = append(fields, mlog.String("request_body", bodyStr))
 	}
 
 	if resp != nil {
-		fields["status"] = resp.StatusCode
+		fields = append(fields, mlog.Int("status", resp.StatusCode))
 		// Safely read and log the response body
 		if resp.Body != nil {
 			bodyBytes, _ := io.ReadAll(resp.Body)
@@ -82,7 +83,7 @@ func buildLogFields(r *Request, resp *Response, duration time.Duration) mlog.Fie
 			if len(bodyStr) > maxBodySize {
 				bodyStr = bodyStr[:maxBodySize] + "..."
 			}
-			fields["response_body"] = bodyStr
+			fields = append(fields, mlog.String("response_body", bodyStr))
 		}
 	}
 

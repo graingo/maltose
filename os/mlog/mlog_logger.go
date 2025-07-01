@@ -2,25 +2,24 @@ package mlog
 
 import (
 	"context"
-	"time"
+	"fmt"
+	"io"
+	"sync"
+	"unsafe"
 
-	"github.com/graingo/maltose"
-	"github.com/sirupsen/logrus"
+	"github.com/graingo/maltose/internal/intlog"
+	"go.uber.org/zap"
 )
 
 // Logger is the struct for logging management.
 type Logger struct {
-	parent *logrus.Logger
-	entry  *logrus.Entry
-	config *Config
+	parent     *zap.Logger
+	hooks      []Hook
+	config     *Config
+	level      zap.AtomicLevel
+	fileWriter io.WriteCloser
+	mu         sync.RWMutex
 }
-
-const (
-	defaultFile       = "logs/app.log"
-	defaultTimeFormat = time.DateTime
-	defaultFormat     = "json"
-	defaultLevel      = InfoLevel
-)
 
 // New creates a new Logger instance.
 func New(cfg ...*Config) *Logger {
@@ -30,150 +29,136 @@ func New(cfg ...*Config) *Logger {
 	}
 
 	l := &Logger{
-		parent: logrus.New(),
 		config: config,
+		hooks:  make([]Hook, 0),
 	}
-	l.loadConfig(config)
-
-	// Add default hooks
+	// build zap logger
+	l.parent, l.level, l.fileWriter = buildZapLogger(l.config)
+	// add hooks
 	l.AddHook(&traceHook{})
+	if len(l.config.CtxKeys) > 0 {
+		l.AddHook(&ctxHook{keys: l.config.CtxKeys})
+	}
 
 	return l
 }
 
-// clone creates a new logger object with a copy of the current logger's properties.
-func (l *Logger) clone() *Logger {
-	newLogger := *l
-	return &newLogger
-}
-
-// getEntry returns the current logrus entry, creating one if it doesn't exist.
-func (l *Logger) getEntry(ctx context.Context) *logrus.Entry {
-	entry := l.entry
-	if entry == nil {
-		entry = l.parent.WithContext(ctx)
-	} else {
-		entry = entry.WithContext(ctx)
+// Close closes the logger and its underlying resources.
+func (l *Logger) Close() error {
+	var err error
+	// Sync flushes any buffered log entries.
+	if syncErr := l.parent.Sync(); syncErr != nil {
+		err = syncErr
 	}
-	return entry
-}
-
-// extractFieldsFromArgs separates a map of fields from other logging arguments
-// and returns the remaining arguments and a new logrus.Entry with the fields.
-func (l *Logger) extractFieldsFromArgs(ctx context.Context, v []any) ([]any, *logrus.Entry) {
-	var others []any
-	entry := l.getEntry(ctx)
-	for _, arg := range v {
-		if m, ok := arg.(Fields); ok {
-			entry = entry.WithFields(logrus.Fields(m))
-		} else if m, ok := arg.(map[string]any); ok {
-			entry = entry.WithFields(m)
-		} else {
-			others = append(others, arg)
+	// Close the writer.
+	if l.fileWriter != nil {
+		if closeErr := l.fileWriter.Close(); closeErr != nil && err == nil {
+			err = closeErr
 		}
 	}
-	return others, entry
+	return err
 }
 
-// WithComponent adds a component field to the logger.
-func (l *Logger) WithComponent(component string) *Logger {
-	return l.WithField(maltose.COMPONENT, component)
+// SetConfigWithMap sets the logger configuration using a map.
+func (l *Logger) SetConfigWithMap(configMap map[string]any) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if err := l.Close(); err != nil {
+		intlog.Errorf(context.Background(), "failed to close logger: %v", err)
+	}
+
+	if err := l.config.SetConfigWithMap(configMap); err != nil {
+		return err
+	}
+	l.parent, l.level, l.fileWriter = buildZapLogger(l.config)
+	l.refreshHooks()
+
+	return nil
 }
 
-// WithField adds a field to the logger.
-func (l *Logger) WithField(key string, value any) *Logger {
-	newLogger := l.clone()
-	newLogger.entry = newLogger.getEntry(context.Background()).WithField(key, value)
-	return newLogger
+// SetConfig sets the logger configuration.
+func (l *Logger) SetConfig(config *Config) error {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	if err := l.Close(); err != nil {
+		intlog.Errorf(context.Background(), "failed to close logger: %v", err)
+	}
+
+	l.config = config
+	l.parent, l.level, l.fileWriter = buildZapLogger(l.config)
+	l.refreshHooks()
+
+	return nil
 }
 
-// WithFields adds multiple fields to the logger.
-func (l *Logger) WithFields(fields logrus.Fields) *Logger {
-	newLogger := l.clone()
-	newLogger.entry = newLogger.getEntry(context.Background()).WithFields(fields)
-	return newLogger
+// With adds a field to the logger.
+func (l *Logger) With(fields ...Field) *Logger {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+
+	zapFields := *(*[]zap.Field)(unsafe.Pointer(&fields))
+
+	// zap's With is immutable and returns a new logger.
+	newZapLogger := l.parent.With(zapFields...)
+
+	return &Logger{
+		parent:     newZapLogger,
+		hooks:      l.hooks,
+		config:     l.config,
+		level:      l.level,
+		fileWriter: l.fileWriter,
+	}
 }
 
-// Print prints `v` with newline using fmt.Sprintln.
-func (l *Logger) Print(ctx context.Context, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Print(others...)
-}
-
-// Printf prints `v` with format `format` using fmt.Sprintf.
-func (l *Logger) Printf(ctx context.Context, format string, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Printf(format, others...)
-}
-
-// Debug prints the logging content with [DEBUG] header and newline.
-func (l *Logger) Debug(ctx context.Context, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Debug(others...)
-}
-
-// Debugf prints the logging content with [DEBUG] header and format `format`.
 func (l *Logger) Debugf(ctx context.Context, format string, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Debugf(format, others...)
+	l.log(ctx, DebugLevel, fmt.Sprintf(format, v...))
 }
 
-// Info prints the logging content with [INFO] header and newline.
-func (l *Logger) Info(ctx context.Context, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Info(others...)
+func (l *Logger) Debugw(ctx context.Context, msg string, fields ...Field) {
+	l.log(ctx, DebugLevel, msg, fields...)
 }
 
-// Infof prints the logging content with [INFO] header and format `format`.
 func (l *Logger) Infof(ctx context.Context, format string, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Infof(format, others...)
+	l.log(ctx, InfoLevel, fmt.Sprintf(format, v...))
 }
 
-// Warn prints the logging content with [WARN] header and newline.
-func (l *Logger) Warn(ctx context.Context, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Warn(others...)
+func (l *Logger) Infow(ctx context.Context, msg string, fields ...Field) {
+	l.log(ctx, InfoLevel, msg, fields...)
 }
 
-// Warnf prints the logging content with [WARN] header and format `format`.
 func (l *Logger) Warnf(ctx context.Context, format string, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Warnf(format, others...)
+	l.log(ctx, WarnLevel, fmt.Sprintf(format, v...))
 }
 
-// Error prints the logging content with [ERROR] header and newline.
-func (l *Logger) Error(ctx context.Context, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Error(others...)
+func (l *Logger) Warnw(ctx context.Context, msg string, fields ...Field) {
+	l.log(ctx, WarnLevel, msg, fields...)
 }
 
-// Errorf prints the logging content with [ERROR] header and format `format`.
-func (l *Logger) Errorf(ctx context.Context, format string, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Errorf(format, others...)
+func (l *Logger) Errorf(ctx context.Context, err error, format string, v ...any) {
+	l.log(ctx, ErrorLevel, fmt.Sprintf(format, v...), Err(err))
 }
 
-// Fatal prints the logging content with [FATAL] header and newline.
-func (l *Logger) Fatal(ctx context.Context, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Fatal(others...)
+func (l *Logger) Errorw(ctx context.Context, err error, msg string, fields ...Field) {
+	fields = append(fields, Err(err))
+	l.log(ctx, ErrorLevel, msg, fields...)
 }
 
-// Fatalf prints the logging content with [FATAL] header and format `format`.
-func (l *Logger) Fatalf(ctx context.Context, format string, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Fatalf(format, others...)
+func (l *Logger) Fatalf(ctx context.Context, err error, format string, v ...any) {
+	l.log(ctx, FatalLevel, fmt.Sprintf(format, v...), Err(err))
 }
 
-// Panic prints the logging content with [PANIC] header and newline.
-func (l *Logger) Panic(ctx context.Context, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Panic(others...)
+func (l *Logger) Fatalw(ctx context.Context, err error, msg string, fields ...Field) {
+	fields = append(fields, Err(err))
+	l.log(ctx, FatalLevel, msg, fields...)
 }
 
-// Panicf prints the logging content with [PANIC] header and format `format`.
-func (l *Logger) Panicf(ctx context.Context, format string, v ...any) {
-	others, entry := l.extractFieldsFromArgs(ctx, v)
-	entry.Panicf(format, others...)
+func (l *Logger) Panicf(ctx context.Context, err error, format string, v ...any) {
+	l.log(ctx, PanicLevel, fmt.Sprintf(format, v...), Err(err))
+}
+
+func (l *Logger) Panicw(ctx context.Context, err error, msg string, fields ...Field) {
+	fields = append(fields, Err(err))
+	l.log(ctx, PanicLevel, msg, fields...)
 }

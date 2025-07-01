@@ -4,18 +4,19 @@ import (
 	"strings"
 
 	"github.com/graingo/maltose/errors/merror"
-	"github.com/sirupsen/logrus"
+	"go.uber.org/zap/zapcore"
 )
 
-type Level int
+// Level is the log level.
+type Level int8
 
 const (
-	PanicLevel Level = iota
-	FatalLevel
-	ErrorLevel
-	WarnLevel
-	InfoLevel
-	DebugLevel
+	DebugLevel Level = Level(zapcore.DebugLevel)
+	InfoLevel  Level = Level(zapcore.InfoLevel)
+	WarnLevel  Level = Level(zapcore.WarnLevel)
+	ErrorLevel Level = Level(zapcore.ErrorLevel)
+	FatalLevel Level = Level(zapcore.FatalLevel)
+	PanicLevel Level = Level(zapcore.PanicLevel)
 )
 
 func AllLevels() []Level {
@@ -31,12 +32,12 @@ func AllLevels() []Level {
 
 // SetLevel sets the logging level.
 func (l *Logger) SetLevel(level Level) {
-	l.parent.SetLevel(logrus.Level(level))
+	l.level.SetLevel(zapcore.Level(level))
 }
 
 // GetLevel returns the logging level value.
 func (l *Logger) GetLevel() Level {
-	return Level(l.parent.GetLevel())
+	return Level(l.level.Level())
 }
 
 // ParseLevel parses a string level and returns the Level value.
@@ -56,5 +57,25 @@ func ParseLevel(level string) (Level, error) {
 		return PanicLevel, nil
 	default:
 		return 0, merror.Newf("invalid log level: %s", level)
+	}
+}
+
+// String returns the string representation of the level.
+func (l Level) String() string {
+	switch l {
+	case DebugLevel:
+		return "debug"
+	case InfoLevel:
+		return "info"
+	case WarnLevel:
+		return "warn"
+	case ErrorLevel:
+		return "error"
+	case FatalLevel:
+		return "fatal"
+	case PanicLevel:
+		return "panic"
+	default:
+		return "unknown"
 	}
 }

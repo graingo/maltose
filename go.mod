@@ -12,7 +12,6 @@ require (
 	github.com/graingo/mconv v1.1.3
 	github.com/redis/go-redis/extra/redisotel/v9 v9.10.0
 	github.com/redis/go-redis/v9 v9.10.0
-	github.com/sirupsen/logrus v1.9.3
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
 	github.com/uptrace/opentelemetry-go-extra/otelgorm v0.3.2
@@ -21,6 +20,7 @@ require (
 	go.opentelemetry.io/otel/sdk v1.36.0
 	go.opentelemetry.io/otel/sdk/metric v1.36.0
 	go.opentelemetry.io/otel/trace v1.36.0
+	go.uber.org/zap v1.21.0
 	golang.org/x/sync v0.10.0
 	gorm.io/driver/mysql v1.5.7
 	gorm.io/driver/postgres v1.5.11
