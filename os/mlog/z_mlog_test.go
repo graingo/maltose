@@ -1,4 +1,4 @@
-package mlogz_test
+package mlog_test
 
 import (
 	"context"
@@ -11,7 +11,7 @@ import (
 
 	"github.com/graingo/maltose/net/mtrace"
 	"github.com/graingo/maltose/os/mctx"
-	"github.com/graingo/maltose/os/mlogz"
+	"github.com/graingo/maltose/os/mlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -19,20 +19,20 @@ import (
 // setupTestLogger creates a logger that writes to a temporary file,
 // returning the logger instance and the log file path.
 // It automatically registers a cleanup function to close the logger after the test.
-func setupTestLogger(t *testing.T, cfg mlogz.Config) (*mlogz.Logger, string) {
+func setupTestLogger(t *testing.T, cfg mlog.Config) (*mlog.Logger, string) {
 	t.Helper()
 	tempDir := t.TempDir()
 	logPath := filepath.Join(tempDir, "test.log")
 
 	// Set default values for testing to ensure logs are written to our specified file.
 	if cfg.Level.String() == "unknown" { // Check for the default zero value.
-		cfg.Level = mlogz.DebugLevel
+		cfg.Level = mlog.DebugLevel
 	}
 	cfg.Filepath = logPath
 	cfg.Stdout = false  // Disable stdout in tests to avoid noisy output.
 	cfg.Format = "json" // Explicitly set format to json for predictable test output.
 
-	logger := mlogz.New(&cfg)
+	logger := mlog.New(&cfg)
 
 	// Use t.Cleanup to register a deferred function that will execute after each test (or subtest).
 	// This ensures that resources are correctly released even if the test fails.
@@ -59,9 +59,9 @@ func readLogFile(t *testing.T, path string) string {
 
 // TestLogger_BasicOutput verifies basic log output and structured fields.
 func TestLogger_BasicOutput(t *testing.T) {
-	logger, logPath := setupTestLogger(t, mlogz.Config{})
+	logger, logPath := setupTestLogger(t, mlog.Config{})
 
-	logger.Infow(context.Background(), "user logged in", mlogz.String("username", "test"), mlogz.Int("user_id", 123))
+	logger.Infow(context.Background(), "user logged in", mlog.String("username", "test"), mlog.Int("user_id", 123))
 
 	// The t.Cleanup function will handle closing the logger.
 	// We no longer call logger.Close() manually here.
@@ -79,13 +79,13 @@ func TestLogger_BasicOutput(t *testing.T) {
 
 // TestLogger_DynamicLevelChange verifies dynamic log level changes.
 func TestLogger_DynamicLevelChange(t *testing.T) {
-	logger, logPath := setupTestLogger(t, mlogz.Config{Level: mlogz.DebugLevel})
+	logger, logPath := setupTestLogger(t, mlog.Config{Level: mlog.DebugLevel})
 
 	// 1. Initial level is Debug, so a debug message should be logged.
 	logger.Debugf(context.Background(), "this is a debug message")
 
 	// 2. Raise the level to Info; subsequent debug messages should not be logged.
-	logger.SetLevel(mlogz.InfoLevel)
+	logger.SetLevel(mlog.InfoLevel)
 	logger.Debugf(context.Background(), "this should not be logged")
 	logger.Infof(context.Background(), "this is an info message")
 
@@ -102,7 +102,7 @@ func TestLogger_Hooks(t *testing.T) {
 	type contextKey string
 	const requestIDKey contextKey = "request_id"
 
-	logger, logPath := setupTestLogger(t, mlogz.Config{
+	logger, logPath := setupTestLogger(t, mlog.Config{
 		CtxKeys: map[string]any{
 			"request_id": requestIDKey,
 		},
@@ -132,17 +132,17 @@ func TestLogger_Hooks(t *testing.T) {
 
 // TestLogger_With verifies that the With method correctly adds persistent structured fields to the logger.
 func TestLogger_With(t *testing.T) {
-	baseLogger, logPath := setupTestLogger(t, mlogz.Config{})
+	baseLogger, logPath := setupTestLogger(t, mlog.Config{})
 
 	serviceLogger := baseLogger.With(
-		mlogz.String("service", "payment-service"),
-		mlogz.String("version", "1.2.3"),
+		mlog.String("service", "payment-service"),
+		mlog.String("version", "1.2.3"),
 	)
 
 	// First log should contain the 'With' fields.
 	serviceLogger.Infof(context.Background(), "processing payment")
 	// Second log should also contain the 'With' fields, plus its own.
-	serviceLogger.Errorw(context.Background(), nil, "payment failed", mlogz.Int("order_id", 456))
+	serviceLogger.Errorw(context.Background(), nil, "payment failed", mlog.Int("order_id", 456))
 
 	time.Sleep(10 * time.Millisecond)
 
@@ -170,20 +170,20 @@ func (h *customHookForTest) Name() string {
 	return "custom_app_hook"
 }
 
-func (h *customHookForTest) Levels() []mlogz.Level {
+func (h *customHookForTest) Levels() []mlog.Level {
 	// Apply to all log levels.
-	return mlogz.AllLevels()
+	return mlog.AllLevels()
 }
 
-func (h *customHookForTest) Fire(_ context.Context, msg string, fields []mlogz.Field) (string, []mlogz.Field) {
+func (h *customHookForTest) Fire(_ context.Context, msg string, fields mlog.Fields) (string, mlog.Fields) {
 	// Add a static app_name field to every log entry.
-	fields = append(fields, mlogz.String("app_name", h.AppName))
+	fields = append(fields, mlog.String("app_name", h.AppName))
 	return msg, fields
 }
 
 // TestLogger_CustomHook verifies that a user-defined hook can be added and correctly fires.
 func TestLogger_CustomHook(t *testing.T) {
-	logger, logPath := setupTestLogger(t, mlogz.Config{})
+	logger, logPath := setupTestLogger(t, mlog.Config{})
 
 	// Add our custom hook to the logger instance.
 	customHook := &customHookForTest{AppName: "my-test-app"}
@@ -208,7 +208,7 @@ func TestLogger_CustomHook(t *testing.T) {
 
 // TestLogger_RemoveHook verifies that a hook can be correctly removed.
 func TestLogger_RemoveHook(t *testing.T) {
-	logger, logPath := setupTestLogger(t, mlogz.Config{})
+	logger, logPath := setupTestLogger(t, mlog.Config{})
 
 	// Add a custom hook.
 	customHook := &customHookForTest{AppName: "my-removable-app"}

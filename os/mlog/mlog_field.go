@@ -1,4 +1,4 @@
-package mlogz
+package mlog
 
 import (
 	"math"

@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/graingo/maltose"
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/net/mtrace"
 	"go.opentelemetry.io/otel"
@@ -23,7 +24,7 @@ const (
 	tracingEventHttpBaggage               = "http.baggage"
 	tracingEventHttpResponse              = "http.response"
 	tracingMiddlewareHandled   contextKey = "tracing-middleware-handled"
-	version                               = "v1.0.0"
+	version                               = maltose.VERSION
 )
 
 type contextKey string

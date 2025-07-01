@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/graingo/maltose"
 	"github.com/graingo/maltose/net/mtrace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -20,7 +21,7 @@ const (
 	tracingEventHttpBaggage               = "http.baggage"
 	tracingEventHttpResponse              = "http.response"
 	tracingMiddlewareHandled   contextKey = "tracing-middleware-handled"
-	version                               = "v1.0.0"
+	version                               = maltose.VERSION
 )
 
 // internalMiddlewareDefaultResponse internal default response processing middleware
@@ -64,7 +65,7 @@ func internalMiddlewareRecovery() MiddlewareFunc {
 		defer func() {
 			if err := recover(); err != nil {
 				// record error log
-				r.Logger().Errorf(r.Request.Context(), "Panic recovered: %v", err)
+				r.Logger().Errorf(r.Request.Context(), nil, fmt.Sprintf("Panic recovered: %s", err))
 				// return 500 error
 				r.String(500, "Internal Server Error")
 			}

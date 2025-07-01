@@ -44,7 +44,7 @@ func WithLogLevel(level logger.LogLevel) Option {
 // NewGormLogger creates a new GormLogger.
 func NewGormLogger(mlogger *mlog.Logger, opts ...Option) *GormLogger {
 	l := &GormLogger{
-		logger:                mlogger.WithComponent("mdb"),
+		logger:                mlogger,
 		gormLogLevel:          logger.Warn,
 		slowThreshold:         200 * time.Millisecond,
 		skipErrRecordNotFound: true,
@@ -79,7 +79,7 @@ func (l *GormLogger) Warn(ctx context.Context, msg string, args ...any) {
 // Error logs an error message.
 func (l *GormLogger) Error(ctx context.Context, msg string, args ...any) {
 	if l.gormLogLevel >= logger.Error {
-		l.logger.Errorf(ctx, msg, args...)
+		l.logger.Errorf(ctx, nil, msg, args...)
 	}
 }
 
@@ -92,23 +92,23 @@ func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 	elapsed := time.Since(begin)
 	sql, rows := fc()
 	fields := mlog.Fields{
-		"sql":        sql,
-		"rows":       rows,
-		"elapsed_ms": float64(elapsed.Nanoseconds()) / 1e6,
+		mlog.String("sql", sql),
+		mlog.Int64("rows", rows),
+		mlog.Float64("elapsed_ms", float64(elapsed.Nanoseconds())/1e6),
 	}
 
 	switch {
 	case err != nil && l.gormLogLevel >= logger.Error:
 		if errors.Is(err, logger.ErrRecordNotFound) && l.skipErrRecordNotFound {
 			if l.gormLogLevel >= logger.Info {
-				l.logger.Info(ctx, "sql not found", fields)
+				l.logger.Infow(ctx, "sql not found", fields...)
 			}
 			return
 		}
-		l.logger.Errorf(ctx, "sql error: %v", err, fields)
+		l.logger.Errorw(ctx, err, "sql error", fields...)
 	case l.slowThreshold != 0 && elapsed > l.slowThreshold && l.gormLogLevel >= logger.Warn:
-		l.logger.Warn(ctx, "sql slow", fields)
+		l.logger.Warnw(ctx, "sql slow", fields...)
 	case l.gormLogLevel >= logger.Info:
-		l.logger.Info(ctx, "sql trace", fields)
+		l.logger.Infow(ctx, "sql trace", fields...)
 	}
 }

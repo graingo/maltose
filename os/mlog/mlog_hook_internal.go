@@ -1,4 +1,4 @@
-package mlogz
+package mlog
 
 import (
 	"context"
@@ -19,7 +19,7 @@ func (h *traceHook) Name() string { return traceHookName }
 
 func (h *traceHook) Levels() []Level { return AllLevels() }
 
-func (h *traceHook) Fire(ctx context.Context, msg string, fields []Field) (string, []Field) {
+func (h *traceHook) Fire(ctx context.Context, msg string, fields Fields) (string, Fields) {
 	if traceID := mtrace.GetTraceID(ctx); traceID != "" {
 		fields = append(fields, String("trace_id", traceID))
 	}
@@ -38,7 +38,7 @@ func (h *ctxHook) Name() string { return ctxHookName }
 
 func (h *ctxHook) Levels() []Level { return AllLevels() }
 
-func (h *ctxHook) Fire(ctx context.Context, msg string, fields []Field) (string, []Field) {
+func (h *ctxHook) Fire(ctx context.Context, msg string, fields Fields) (string, Fields) {
 	if ctx == nil {
 		return msg, fields
 	}

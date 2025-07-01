@@ -64,21 +64,21 @@ func MiddlewareLog() MiddlewareFunc {
 		resBodyBytes := writer.body.Bytes()
 
 		fields := mlog.Fields{
-			"ip":         r.ClientIP(),
-			"method":     r.Request.Method,
-			"path":       r.Request.URL.Path,
-			"status":     status,
-			"latency_ms": float64(duration.Nanoseconds()) / 1e6,
+			mlog.String("ip", r.ClientIP()),
+			mlog.String("method", r.Request.Method),
+			mlog.String("path", r.Request.URL.Path),
+			mlog.Int("status", status),
+			mlog.Float64("latency_ms", float64(duration.Nanoseconds())/1e6),
 		}
 
 		if raw := r.Request.URL.RawQuery; raw != "" {
-			fields["query"] = raw
+			fields = append(fields, mlog.String("query", raw))
 		}
 		if len(reqBodyBytes) > 0 {
-			fields["request_body"] = getBodyString(reqBodyBytes, 512)
+			fields = append(fields, mlog.String("request_body", getBodyString(reqBodyBytes, 512)))
 		}
 		if len(resBodyBytes) > 0 {
-			fields["response_body"] = getBodyString(resBodyBytes, 512)
+			fields = append(fields, mlog.String("response_body", getBodyString(resBodyBytes, 512)))
 		}
 
 		logger := r.Logger()
@@ -86,12 +86,13 @@ func MiddlewareLog() MiddlewareFunc {
 
 		// Decide log level based on errors or status code
 		if len(r.Errors) > 0 {
-			fields["errors"] = r.Errors.String()
-			logger.Error(r.Request.Context(), msg, fields)
+			msg += " with errors"
+			logger.Errorw(r.Request.Context(), r.Errors[0], msg, fields...)
 		} else if status >= 400 {
-			logger.Error(r.Request.Context(), msg, fields)
+			msg += " with error status"
+			logger.Errorw(r.Request.Context(), nil, msg, fields...)
 		} else {
-			logger.Info(r.Request.Context(), msg, fields)
+			logger.Infow(r.Request.Context(), msg, fields...)
 		}
 	}
 }

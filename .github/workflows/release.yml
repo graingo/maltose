@@ -42,8 +42,17 @@ jobs:
             exit 1
           fi
 
-          # --- [1/3] 更新子模块依赖 ---
-          echo "===== [1/3] 正在更新子模块依赖... ====="
+          # --- [1/4] 更新 version.go ---
+          echo "===== [1/4] 正在更新 version.go... ====="
+          # 使用 sed 更新 maltose/version.go 中的版本号
+          # 该文件路径相对于仓库根目录
+          sed -i "s/^\s*VERSION = \".*\"/\tVERSION = \"$VERSION\"/" maltose/version.go
+          echo "-> maltose/version.go 已更新为版本 $VERSION"
+          echo "==================================="
+          echo ""
+
+          # --- [2/4] 更新子模块依赖 ---
+          echo "===== [2/4] 正在更新子模块依赖... ====="
           find . -name go.mod | while read -r mod_file; do
             dir=$(dirname "$mod_file")
             if [ "$dir" == "." ]; then
@@ -73,8 +82,8 @@ jobs:
           echo "=========================================="
           echo ""
 
-          # --- [2/3] 提交变更 ---
-          echo "===== [2/3] 正在提交变更... ====="
+          # --- [3/4] 提交变更 ---
+          echo "===== [3/4] 正在提交变更... ====="
           # 检查是否有文件变更需要提交
           if [[ -z $(git status -s --untracked-files=no) ]]; then
             echo "-> 没有文件变更需要提交。"
@@ -86,8 +95,8 @@ jobs:
           echo "================================"
           echo ""
 
-          # --- [3/3] 创建并推送标签 ---
-          echo "===== [3/3] 正在创建并推送标签... ====="
+          # --- [4/4] 创建并推送标签 ---
+          echo "===== [4/4] 正在创建并推送标签... ====="
           echo "-> 正在为根模块打标签: $VERSION"
           git tag "$VERSION"
 

@@ -1,4 +1,4 @@
-package mlogz
+package mlog
 
 import (
 	"context"
@@ -12,7 +12,7 @@ type Hook interface {
 	// Level returns the level of the hook.
 	Levels() []Level
 	// Fire is called when the log is written.
-	Fire(ctx context.Context, msg string, fields []Field) (string, []Field)
+	Fire(ctx context.Context, msg string, fields Fields) (string, Fields)
 }
 
 // AddHook adds a hook to the logger.

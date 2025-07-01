@@ -3,6 +3,7 @@ package mredis
 import (
 	"time"
 
+	"github.com/graingo/maltose"
 	"github.com/graingo/maltose/os/mlog"
 	"github.com/graingo/mconv"
 )
@@ -64,7 +65,10 @@ func (c *Config) SetConfigWithMap(config map[string]any) error {
 }
 
 func (c *Config) SetLogger(logger *mlog.Logger) {
-	c.Logger = logger
+	if logger == nil {
+		logger = mlog.New()
+	}
+	c.Logger = logger.With(mlog.String(maltose.COMPONENT, "mredis"))
 }
 
 func (c *Config) AddHook(hook Hook) {

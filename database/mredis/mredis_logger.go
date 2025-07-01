@@ -20,7 +20,7 @@ var _ redis.Hook = (*loggerHook)(nil)
 // newLoggerHook creates and returns a new LoggerHook.
 func newLoggerHook(logger *mlog.Logger, slowThreshold time.Duration) *loggerHook {
 	return &loggerHook{
-		logger:        logger.WithComponent("mredis"),
+		logger:        logger,
 		slowThreshold: slowThreshold,
 	}
 }
@@ -40,17 +40,17 @@ func (h *loggerHook) ProcessHook(next redis.ProcessHook) redis.ProcessHook {
 		duration := time.Since(startTime)
 
 		fields := mlog.Fields{
-			"command":     cmd.Name(),
-			"args":        cmd.Args(),
-			"duration_ms": float64(duration.Nanoseconds()) / 1e6,
+			mlog.String("command", cmd.Name()),
+			mlog.Any("args", cmd.Args()),
+			mlog.Float64("duration_ms", float64(duration.Nanoseconds())/1e6),
 		}
 
 		if err != nil && err != redis.Nil {
-			h.logger.Errorf(ctx, "redis command error: %v", err, fields)
+			h.logger.Errorw(ctx, err, "redis command error", fields...)
 		} else if h.slowThreshold > 0 && duration > h.slowThreshold {
-			h.logger.Warn(ctx, "redis slow command", fields)
+			h.logger.Warnw(ctx, "redis slow command", fields...)
 		} else {
-			h.logger.Info(ctx, "redis command", fields)
+			h.logger.Infow(ctx, "redis command", fields...)
 		}
 		return err
 	}
@@ -73,17 +73,17 @@ func (h *loggerHook) ProcessPipelineHook(next redis.ProcessPipelineHook) redis.P
 		}
 
 		fields := mlog.Fields{
-			"commands":    cmdNames,
-			"args":        cmdArgs,
-			"duration_ms": float64(duration.Nanoseconds()) / 1e6,
+			mlog.Any("commands", cmdNames),
+			mlog.Any("args", cmdArgs),
+			mlog.Float64("duration_ms", float64(duration.Nanoseconds())/1e6),
 		}
 
 		if err != nil && err != redis.Nil {
-			h.logger.Errorf(ctx, "redis pipeline error: %v", err, fields)
+			h.logger.Errorw(ctx, err, "redis pipeline error", fields...)
 		} else if h.slowThreshold > 0 && duration > h.slowThreshold {
-			h.logger.Warn(ctx, "redis slow pipeline", fields)
+			h.logger.Warnw(ctx, "redis slow pipeline", fields...)
 		} else {
-			h.logger.Info(ctx, "redis pipeline", fields)
+			h.logger.Infow(ctx, "redis pipeline", fields...)
 		}
 		return err
 	}

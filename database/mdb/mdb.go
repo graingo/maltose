@@ -20,6 +20,8 @@ func New(config ...*Config) (*DB, error) {
 		cfg = config[0]
 	}
 
+	ctx := context.Background()
+
 	// Create GORM config
 	gormConfig := createGormConfig(cfg)
 
@@ -33,7 +35,7 @@ func New(config ...*Config) (*DB, error) {
 	db, err := gorm.Open(driver, gormConfig)
 	if err != nil {
 		if cfg.Logger != nil {
-			cfg.Logger.Errorf(context.Background(), "failed to connect database: %v", err)
+			cfg.Logger.Errorf(ctx, err, "failed to connect database")
 		}
 		return nil, merror.Wrap(err, "failed to open database connection")
 	}
@@ -41,7 +43,7 @@ func New(config ...*Config) (*DB, error) {
 	// Configure connection pool
 	if err := configureConnectionPool(db, cfg); err != nil {
 		if cfg.Logger != nil {
-			cfg.Logger.Errorf(context.Background(), "failed to configure database connection pool: %v", err)
+			cfg.Logger.Errorf(ctx, err, "failed to configure database connection pool")
 		}
 		return nil, merror.Wrap(err, "failed to configure database connection pool")
 	}
@@ -49,7 +51,7 @@ func New(config ...*Config) (*DB, error) {
 	// Configure replicas
 	if err := configureReplicas(db, cfg); err != nil {
 		if cfg.Logger != nil {
-			cfg.Logger.Errorf(context.Background(), "failed to configure database replicas: %v", err)
+			cfg.Logger.Errorf(ctx, err, "failed to configure database replicas")
 		}
 		return nil, merror.Wrap(err, "failed to configure database replicas")
 	}

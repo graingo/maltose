@@ -3,6 +3,7 @@ package mhttp
 import (
 	"time"
 
+	"github.com/graingo/maltose"
 	"github.com/graingo/maltose/os/mlog"
 	"github.com/graingo/mconv"
 )
@@ -105,7 +106,7 @@ func (s *Server) SetLogger(logger *mlog.Logger) {
 
 // Logger gets the logger instance.
 func (s *Server) Logger() *mlog.Logger {
-	return s.config.Logger.WithComponent("mhttp")
+	return s.config.Logger.With(mlog.String(maltose.COMPONENT, "mhttp"))
 }
 
 // SetConfigWithMap sets the server config.

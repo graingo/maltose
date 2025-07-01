@@ -67,7 +67,7 @@ func (s *Server) Run() {
 
 	select {
 	case err := <-errChan:
-		s.Logger().Errorf(ctx, "HTTP server %s start failed: %v", s.config.ServerName, err)
+		s.Logger().Errorf(ctx, err, "HTTP server %s start failed", s.config.ServerName)
 	case <-quit:
 		s.Logger().Infof(ctx, "Shutting down server...")
 
@@ -85,7 +85,7 @@ func (s *Server) Run() {
 		}
 
 		if err := s.srv.Shutdown(ctx); err != nil {
-			s.Logger().Errorf(ctx, "HTTP server %s forced to shutdown: %v", s.config.ServerName, err)
+			s.Logger().Errorf(ctx, err, "HTTP server %s forced to shutdown", s.config.ServerName)
 		}
 	}
 }
@@ -123,7 +123,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	if err != nil && err != http.ErrServerClosed {
-		s.Logger().Errorf(ctx, "HTTP server %s start failed: %v", s.config.ServerName, err)
+		s.Logger().Errorf(ctx, err, "HTTP server %s start failed", s.config.ServerName)
 		return err
 	}
 
