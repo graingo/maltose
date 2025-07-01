@@ -44,10 +44,10 @@ jobs:
 
           # --- [1/4] 更新 version.go ---
           echo "===== [1/4] 正在更新 version.go... ====="
-          # 使用 sed 更新 maltose/version.go 中的版本号
+          # 使用 sed 更新 version.go 中的版本号
           # 该文件路径相对于仓库根目录
-          sed -i "s/^\s*VERSION = \".*\"/\tVERSION = \"$VERSION\"/" maltose/version.go
-          echo "-> maltose/version.go 已更新为版本 $VERSION"
+          sed -i "s/^\s*VERSION = \".*\"/\tVERSION = \"$VERSION\"/" version.go
+          echo "-> version.go 已更新为版本 $VERSION"
           echo "==================================="
           echo ""
 
