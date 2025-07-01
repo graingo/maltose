@@ -2,7 +2,6 @@ package mlog_test
 
 import (
 	"context"
-	"os"
 	"testing"
 
 	"github.com/graingo/maltose/os/mlog"
@@ -37,7 +36,7 @@ func setupBenchmarkLogger(b *testing.B) *mlog.Logger {
 	// currently provide a public API to set the output writer directly to io.Discard.
 	cfg := mlog.Config{
 		Level:    mlog.DebugLevel,
-		Filepath: os.DevNull, // Write to the null device to discard output.
+		Filepath: "", // Write to the null device to discard output.
 		Stdout:   false,
 		Format:   "json",
 	}

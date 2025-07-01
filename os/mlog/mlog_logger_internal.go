@@ -72,27 +72,33 @@ func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel, io.WriteClose
 
 // log logs the message with the given level and attributes.
 func (l *Logger) log(ctx context.Context, level Level, msg string, fields ...Field) {
-	// Fire hooks before logging.
+	// Create entry.
+	entry := &Entry{
+		ctx:    ctx,
+		msg:    msg,
+		fields: fields,
+	}
+
+	// Fire hooks.
 	for _, hook := range l.hooks {
-		// Fire the hook if the message level is at or above the hook's level.
 		if slices.Contains(hook.Levels(), level) {
-			msg, fields = hook.Fire(ctx, msg, fields)
+			hook.Fire(entry)
 		}
 	}
 
-	zapFields := *(*[]zap.Field)(unsafe.Pointer(&fields))
+	zapFields := *(*[]zap.Field)(unsafe.Pointer(&entry.fields))
 	switch level {
 	case DebugLevel:
-		l.parent.Debug(msg, zapFields...)
+		l.parent.Debug(entry.msg, zapFields...)
 	case InfoLevel:
-		l.parent.Info(msg, zapFields...)
+		l.parent.Info(entry.msg, zapFields...)
 	case WarnLevel:
-		l.parent.Warn(msg, zapFields...)
+		l.parent.Warn(entry.msg, zapFields...)
 	case ErrorLevel:
-		l.parent.Error(msg, zapFields...)
+		l.parent.Error(entry.msg, zapFields...)
 	case FatalLevel:
-		l.parent.Fatal(msg, zapFields...)
+		l.parent.Fatal(entry.msg, zapFields...)
 	case PanicLevel:
-		l.parent.Panic(msg, zapFields...)
+		l.parent.Panic(entry.msg, zapFields...)
 	}
 }

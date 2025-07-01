@@ -7,7 +7,6 @@ import (
 	"sync"
 	"unsafe"
 
-	"github.com/graingo/maltose/internal/intlog"
 	"go.uber.org/zap"
 )
 
@@ -19,6 +18,7 @@ type Logger struct {
 	level      zap.AtomicLevel
 	fileWriter io.WriteCloser
 	mu         sync.RWMutex
+	hookMu     sync.RWMutex
 }
 
 // New creates a new Logger instance.
@@ -64,10 +64,6 @@ func (l *Logger) SetConfigWithMap(configMap map[string]any) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	if err := l.Close(); err != nil {
-		intlog.Errorf(context.Background(), "failed to close logger: %v", err)
-	}
-
 	if err := l.config.SetConfigWithMap(configMap); err != nil {
 		return err
 	}
@@ -81,10 +77,6 @@ func (l *Logger) SetConfigWithMap(configMap map[string]any) error {
 func (l *Logger) SetConfig(config *Config) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
-
-	if err := l.Close(); err != nil {
-		intlog.Errorf(context.Background(), "failed to close logger: %v", err)
-	}
 
 	l.config = config
 	l.parent, l.level, l.fileWriter = buildZapLogger(l.config)

@@ -9,6 +9,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/net/mtrace"
 	"github.com/graingo/maltose/os/mctx"
 	"github.com/graingo/maltose/os/mlog"
@@ -45,6 +46,33 @@ func setupTestLogger(t *testing.T, cfg mlog.Config) (*mlog.Logger, string) {
 	})
 
 	return logger, logPath
+}
+
+// setupDefaultLogger configures the package-level default logger for testing.
+func setupDefaultLogger(t *testing.T, cfg mlog.Config) string {
+	t.Helper()
+	tempDir := t.TempDir()
+	logPath := filepath.Join(tempDir, "api_test.log")
+
+	// Apply test-specific defaults.
+	cfg.Filepath = logPath
+	cfg.Stdout = false
+	if cfg.Format == "" {
+		cfg.Format = "json"
+	}
+	if cfg.Level.String() == "unknown" {
+		cfg.Level = mlog.DebugLevel
+	}
+
+	err := mlog.SetConfig(&cfg)
+	require.NoError(t, err, "failed to configure default logger for API test")
+
+	t.Cleanup(func() {
+		time.Sleep(10 * time.Millisecond)
+		mlog.Close()
+	})
+
+	return logPath
 }
 
 // readLogFile is a helper function to read the content of a log file.
@@ -175,10 +203,9 @@ func (h *customHookForTest) Levels() []mlog.Level {
 	return mlog.AllLevels()
 }
 
-func (h *customHookForTest) Fire(_ context.Context, msg string, fields mlog.Fields) (string, mlog.Fields) {
+func (h *customHookForTest) Fire(entry *mlog.Entry) {
 	// Add a static app_name field to every log entry.
-	fields = append(fields, mlog.String("app_name", h.AppName))
-	return msg, fields
+	entry.AddField(mlog.String("app_name", h.AppName))
 }
 
 // TestLogger_CustomHook verifies that a user-defined hook can be added and correctly fires.
@@ -240,4 +267,54 @@ func TestLogger_RemoveHook(t *testing.T) {
 	err = json.Unmarshal([]byte(lines[1]), &logMap2)
 	require.NoError(t, err)
 	assert.Nil(t, logMap2["app_name"], "app_name field should not exist after hook is removed")
+}
+
+// TestMLogAPI_Functions verifies that the package-level API functions (e.g., mlog.Infof) work correctly.
+func TestMLogAPI_Functions(t *testing.T) {
+	logPath := setupDefaultLogger(t, mlog.Config{})
+
+	// Test a `*f` style function
+	mlog.Infof(context.Background(), "API test: %s", "hello")
+	// Test a `*w` style function
+	mlog.Warnw(context.Background(), "API warning", mlog.String("reason", "test-case"))
+	// Test error logging
+	testErr := merror.New("this is a test error")
+	mlog.Errorw(context.Background(), testErr, "API error occurred")
+
+	logStr := readLogFile(t, logPath)
+	lines := strings.Split(strings.TrimSpace(logStr), "\n")
+	require.GreaterOrEqual(t, len(lines), 3, "expected at least 3 log lines from API calls")
+
+	assert.Contains(t, lines[0], `"level":"info"`)
+	assert.Contains(t, lines[0], `"msg":"API test: hello"`)
+
+	assert.Contains(t, lines[1], `"level":"warn"`)
+	assert.Contains(t, lines[1], `"msg":"API warning"`)
+	assert.Contains(t, lines[1], `"reason":"test-case"`)
+
+	assert.Contains(t, lines[2], `"level":"error"`)
+	assert.Contains(t, lines[2], `"msg":"API error occurred"`)
+	assert.Contains(t, lines[2], `"error":"this is a test error"`)
+}
+
+// TestMLogAPI_LevelChange verifies that package-level level setting works.
+func TestMLogAPI_LevelChange(t *testing.T) {
+	logPath := setupDefaultLogger(t, mlog.Config{Level: mlog.InfoLevel})
+
+	// This should not be logged
+	mlog.Debugf(context.Background(), "you can't see me")
+	// This should be logged
+	mlog.Infof(context.Background(), "initial message")
+
+	// Change level via API
+	mlog.SetLevel(mlog.DebugLevel)
+	assert.Equal(t, mlog.DebugLevel, mlog.GetLevel())
+
+	// This should now be logged
+	mlog.Debugf(context.Background(), "now you can see me")
+
+	logStr := readLogFile(t, logPath)
+	assert.NotContains(t, logStr, "you can't see me")
+	assert.Contains(t, logStr, "initial message")
+	assert.Contains(t, logStr, "now you can see me")
 }
