@@ -12,7 +12,7 @@ type Hook interface {
 	// Level returns the level of the hook.
 	Levels() []Level
 	// Fire is called when the log is written.
-	Fire(ctx context.Context, msg string, attrs []Attr) (string, []Attr)
+	Fire(ctx context.Context, msg string, fields []Field) (string, []Field)
 }
 
 // AddHook adds a hook to the logger.

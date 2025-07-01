@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"sync"
+	"unsafe"
 
 	"github.com/graingo/maltose/internal/intlog"
 	"go.uber.org/zap"
@@ -93,85 +94,71 @@ func (l *Logger) SetConfig(config *Config) error {
 }
 
 // With adds a field to the logger.
-func (l *Logger) With(attrs ...Attr) *Logger {
+func (l *Logger) With(fields ...Field) *Logger {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	l.parent = l.parent.With(l.toZapFields(attrs)...)
-	return l
-}
+	zapFields := *(*[]zap.Field)(unsafe.Pointer(&fields))
 
-func (l *Logger) Debug(ctx context.Context, msg string) {
-	l.log(ctx, DebugLevel, msg)
+	// zap's With is immutable and returns a new logger.
+	newZapLogger := l.parent.With(zapFields...)
+
+	return &Logger{
+		parent:     newZapLogger,
+		hooks:      l.hooks,
+		config:     l.config,
+		level:      l.level,
+		fileWriter: l.fileWriter,
+	}
 }
 
 func (l *Logger) Debugf(ctx context.Context, format string, v ...any) {
 	l.log(ctx, DebugLevel, fmt.Sprintf(format, v...))
 }
 
-func (l *Logger) Debugw(ctx context.Context, msg string, attrs ...Attr) {
-	l.log(ctx, DebugLevel, msg, attrs...)
-}
-
-func (l *Logger) Info(ctx context.Context, msg string) {
-	l.log(ctx, InfoLevel, msg)
+func (l *Logger) Debugw(ctx context.Context, msg string, fields ...Field) {
+	l.log(ctx, DebugLevel, msg, fields...)
 }
 
 func (l *Logger) Infof(ctx context.Context, format string, v ...any) {
 	l.log(ctx, InfoLevel, fmt.Sprintf(format, v...))
 }
 
-func (l *Logger) Infow(ctx context.Context, msg string, attrs ...Attr) {
-	l.log(ctx, InfoLevel, msg, attrs...)
-}
-
-func (l *Logger) Warn(ctx context.Context, msg string) {
-	l.log(ctx, WarnLevel, msg)
+func (l *Logger) Infow(ctx context.Context, msg string, fields ...Field) {
+	l.log(ctx, InfoLevel, msg, fields...)
 }
 
 func (l *Logger) Warnf(ctx context.Context, format string, v ...any) {
 	l.log(ctx, WarnLevel, fmt.Sprintf(format, v...))
 }
 
-func (l *Logger) Warnw(ctx context.Context, msg string, attrs ...Attr) {
-	l.log(ctx, WarnLevel, msg, attrs...)
-}
-
-func (l *Logger) Error(ctx context.Context, err error, msg string) {
-	l.log(ctx, ErrorLevel, msg, Err(err))
+func (l *Logger) Warnw(ctx context.Context, msg string, fields ...Field) {
+	l.log(ctx, WarnLevel, msg, fields...)
 }
 
 func (l *Logger) Errorf(ctx context.Context, err error, format string, v ...any) {
 	l.log(ctx, ErrorLevel, fmt.Sprintf(format, v...), Err(err))
 }
 
-func (l *Logger) Errorw(ctx context.Context, err error, msg string, attrs ...Attr) {
-	attrs = append(attrs, Err(err))
-	l.log(ctx, ErrorLevel, msg, attrs...)
-}
-
-func (l *Logger) Fatal(ctx context.Context, err error, msg string) {
-	l.log(ctx, FatalLevel, msg, Err(err))
+func (l *Logger) Errorw(ctx context.Context, err error, msg string, fields ...Field) {
+	fields = append(fields, Err(err))
+	l.log(ctx, ErrorLevel, msg, fields...)
 }
 
 func (l *Logger) Fatalf(ctx context.Context, err error, format string, v ...any) {
 	l.log(ctx, FatalLevel, fmt.Sprintf(format, v...), Err(err))
 }
 
-func (l *Logger) Fatalw(ctx context.Context, err error, msg string, attrs ...Attr) {
-	attrs = append(attrs, Err(err))
-	l.log(ctx, FatalLevel, msg, attrs...)
-}
-
-func (l *Logger) Panic(ctx context.Context, err error, msg string) {
-	l.log(ctx, PanicLevel, msg, Err(err))
+func (l *Logger) Fatalw(ctx context.Context, err error, msg string, fields ...Field) {
+	fields = append(fields, Err(err))
+	l.log(ctx, FatalLevel, msg, fields...)
 }
 
 func (l *Logger) Panicf(ctx context.Context, err error, format string, v ...any) {
 	l.log(ctx, PanicLevel, fmt.Sprintf(format, v...), Err(err))
 }
 
-func (l *Logger) Panicw(ctx context.Context, err error, msg string, attrs ...Attr) {
-	attrs = append(attrs, Err(err))
-	l.log(ctx, PanicLevel, msg, attrs...)
+func (l *Logger) Panicw(ctx context.Context, err error, msg string, fields ...Field) {
+	fields = append(fields, Err(err))
+	l.log(ctx, PanicLevel, msg, fields...)
 }

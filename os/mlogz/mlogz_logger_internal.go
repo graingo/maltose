@@ -5,6 +5,7 @@ import (
 	"io"
 	"os"
 	"slices"
+	"unsafe"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -70,36 +71,28 @@ func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel, io.WriteClose
 }
 
 // log logs the message with the given level and attributes.
-func (l *Logger) log(ctx context.Context, level Level, msg string, attrs ...Attr) {
+func (l *Logger) log(ctx context.Context, level Level, msg string, fields ...Field) {
 	// Fire hooks before logging.
 	for _, hook := range l.hooks {
 		// Fire the hook if the message level is at or above the hook's level.
 		if slices.Contains(hook.Levels(), level) {
-			msg, attrs = hook.Fire(ctx, msg, attrs)
+			msg, fields = hook.Fire(ctx, msg, fields)
 		}
 	}
 
-	fields := l.toZapFields(attrs)
+	zapFields := *(*[]zap.Field)(unsafe.Pointer(&fields))
 	switch level {
 	case DebugLevel:
-		l.parent.Debug(msg, fields...)
+		l.parent.Debug(msg, zapFields...)
 	case InfoLevel:
-		l.parent.Info(msg, fields...)
+		l.parent.Info(msg, zapFields...)
 	case WarnLevel:
-		l.parent.Warn(msg, fields...)
+		l.parent.Warn(msg, zapFields...)
 	case ErrorLevel:
-		l.parent.Error(msg, fields...)
+		l.parent.Error(msg, zapFields...)
 	case FatalLevel:
-		l.parent.Fatal(msg, fields...)
+		l.parent.Fatal(msg, zapFields...)
 	case PanicLevel:
-		l.parent.Panic(msg, fields...)
+		l.parent.Panic(msg, zapFields...)
 	}
-}
-
-func (l *Logger) toZapFields(fields []Attr) []zapcore.Field {
-	zapFields := make([]zapcore.Field, 0, len(fields))
-	for _, f := range fields {
-		zapFields = append(zapFields, zap.Any(f.Key, f.Value))
-	}
-	return zapFields
 }

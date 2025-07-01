@@ -19,14 +19,14 @@ func (h *traceHook) Name() string { return traceHookName }
 
 func (h *traceHook) Levels() []Level { return AllLevels() }
 
-func (h *traceHook) Fire(ctx context.Context, msg string, attrs []Attr) (string, []Attr) {
+func (h *traceHook) Fire(ctx context.Context, msg string, fields []Field) (string, []Field) {
 	if traceID := mtrace.GetTraceID(ctx); traceID != "" {
-		attrs = append(attrs, String("trace_id", traceID))
+		fields = append(fields, String("trace_id", traceID))
 	}
 	if spanID := mtrace.GetSpanID(ctx); spanID != "" {
-		attrs = append(attrs, String("span_id", spanID))
+		fields = append(fields, String("span_id", spanID))
 	}
-	return msg, attrs
+	return msg, fields
 }
 
 // ctxHook is a hook that extracts values from context.
@@ -38,14 +38,14 @@ func (h *ctxHook) Name() string { return ctxHookName }
 
 func (h *ctxHook) Levels() []Level { return AllLevels() }
 
-func (h *ctxHook) Fire(ctx context.Context, msg string, attrs []Attr) (string, []Attr) {
+func (h *ctxHook) Fire(ctx context.Context, msg string, fields []Field) (string, []Field) {
 	if ctx == nil {
-		return msg, attrs
+		return msg, fields
 	}
 	for attrKey, ctxKey := range h.keys {
 		if value := ctx.Value(ctxKey); value != nil {
-			attrs = append(attrs, Any(attrKey, value))
+			fields = append(fields, Any(attrKey, value))
 		}
 	}
-	return msg, attrs
+	return msg, fields
 }

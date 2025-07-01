@@ -7,24 +7,18 @@ import (
 
 // ILogger is the interface for the logger.
 type ILogger interface {
-	Debug(ctx context.Context, msg string)                            // Debug logs a message at level Debug.
-	Debugf(ctx context.Context, format string, v ...any)              // Debugf logs a message at level Debug.
-	Debugw(ctx context.Context, msg string, attrs ...Attr)            // Debugw logs a message at level Debug.
-	Info(ctx context.Context, msg string)                             // Info logs a message at level Info.
-	Infof(ctx context.Context, format string, v ...any)               // Infof logs a message at level Info.
-	Infow(ctx context.Context, msg string, attrs ...Attr)             // Infow logs a message at level Info.
-	Warn(ctx context.Context, msg string)                             // Warn logs a message at level Warn.
-	Warnf(ctx context.Context, format string, v ...any)               // Warnf logs a message at level Warn.
-	Warnw(ctx context.Context, msg string, attrs ...Attr)             // Warnw logs a message at level Warn.
-	Error(ctx context.Context, err error, msg string)                 // Error logs a message at level Error.
-	Errorf(ctx context.Context, err error, format string, v ...any)   // Errorf logs a message at level Error.
-	Errorw(ctx context.Context, err error, msg string, attrs ...Attr) // Errorw logs a message at level Error.
-	Fatal(ctx context.Context, err error, msg string)                 // Fatal logs a message at level Fatal.
-	Fatalf(ctx context.Context, err error, format string, v ...any)   // Fatalf logs a message at level Fatal.
-	Fatalw(ctx context.Context, err error, msg string, attrs ...Attr) // Fatalw logs a message at level Fatal.
-	Panic(ctx context.Context, err error, msg string)                 // Panic logs a message at level Panic.
-	Panicf(ctx context.Context, err error, format string, v ...any)   // Panicf logs a message at level Panic.
-	Panicw(ctx context.Context, err error, msg string, attrs ...Attr) // Panicw logs a message at level Panic.
+	Debugf(ctx context.Context, format string, v ...any)                // Debugf logs a message at level Debug.
+	Debugw(ctx context.Context, msg string, fields ...Field)            // Debugw logs a message at level Debug.
+	Infof(ctx context.Context, format string, v ...any)                 // Infof logs a message at level Info.
+	Infow(ctx context.Context, msg string, fields ...Field)             // Infow logs a message at level Info.
+	Warnf(ctx context.Context, format string, v ...any)                 // Warnf logs a message at level Warn.
+	Warnw(ctx context.Context, msg string, fields ...Field)             // Warnw logs a message at level Warn.
+	Errorf(ctx context.Context, err error, format string, v ...any)     // Errorf logs a message at level Error.
+	Errorw(ctx context.Context, err error, msg string, fields ...Field) // Errorw logs a message at level Error.
+	Fatalf(ctx context.Context, err error, format string, v ...any)     // Fatalf logs a message at level Fatal.
+	Fatalw(ctx context.Context, err error, msg string, fields ...Field) // Fatalw logs a message at level Fatal.
+	Panicf(ctx context.Context, err error, format string, v ...any)     // Panicf logs a message at level Panic.
+	Panicw(ctx context.Context, err error, msg string, fields ...Field) // Panicw logs a message at level Panic.
 }
 
 const (

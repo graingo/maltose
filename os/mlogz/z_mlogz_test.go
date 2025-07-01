@@ -82,12 +82,12 @@ func TestLogger_DynamicLevelChange(t *testing.T) {
 	logger, logPath := setupTestLogger(t, mlogz.Config{Level: mlogz.DebugLevel})
 
 	// 1. Initial level is Debug, so a debug message should be logged.
-	logger.Debug(context.Background(), "this is a debug message")
+	logger.Debugf(context.Background(), "this is a debug message")
 
 	// 2. Raise the level to Info; subsequent debug messages should not be logged.
 	logger.SetLevel(mlogz.InfoLevel)
-	logger.Debug(context.Background(), "this should not be logged")
-	logger.Info(context.Background(), "this is an info message")
+	logger.Debugf(context.Background(), "this should not be logged")
+	logger.Infof(context.Background(), "this is an info message")
 
 	time.Sleep(10 * time.Millisecond)
 
@@ -140,7 +140,7 @@ func TestLogger_With(t *testing.T) {
 	)
 
 	// First log should contain the 'With' fields.
-	serviceLogger.Info(context.Background(), "processing payment")
+	serviceLogger.Infof(context.Background(), "processing payment")
 	// Second log should also contain the 'With' fields, plus its own.
 	serviceLogger.Errorw(context.Background(), nil, "payment failed", mlogz.Int("order_id", 456))
 
@@ -175,10 +175,10 @@ func (h *customHookForTest) Levels() []mlogz.Level {
 	return mlogz.AllLevels()
 }
 
-func (h *customHookForTest) Fire(_ context.Context, msg string, attrs []mlogz.Attr) (string, []mlogz.Attr) {
+func (h *customHookForTest) Fire(_ context.Context, msg string, fields []mlogz.Field) (string, []mlogz.Field) {
 	// Add a static app_name field to every log entry.
-	attrs = append(attrs, mlogz.String("app_name", h.AppName))
-	return msg, attrs
+	fields = append(fields, mlogz.String("app_name", h.AppName))
+	return msg, fields
 }
 
 // TestLogger_CustomHook verifies that a user-defined hook can be added and correctly fires.
@@ -190,7 +190,7 @@ func TestLogger_CustomHook(t *testing.T) {
 	logger.AddHook(customHook)
 
 	// Log a message that should be processed by the hook.
-	logger.Warn(context.Background(), "this is a warning with a custom hook")
+	logger.Warnf(context.Background(), "this is a warning with a custom hook")
 
 	time.Sleep(10 * time.Millisecond)
 
@@ -215,13 +215,13 @@ func TestLogger_RemoveHook(t *testing.T) {
 	logger.AddHook(customHook)
 
 	// Log a message, the hook should fire.
-	logger.Info(context.Background(), "message with hook")
+	logger.Infof(context.Background(), "message with hook")
 
 	// Remove the hook by its name.
 	logger.RemoveHook(customHook.Name())
 
 	// Log another message, the hook should NOT fire.
-	logger.Info(context.Background(), "message without hook")
+	logger.Infof(context.Background(), "message without hook")
 
 	time.Sleep(10 * time.Millisecond)
 
