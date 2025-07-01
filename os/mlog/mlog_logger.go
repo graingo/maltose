@@ -88,9 +88,9 @@ func (l *Logger) WithField(key string, value any) *Logger {
 }
 
 // WithFields adds multiple fields to the logger.
-func (l *Logger) WithFields(fields logrus.Fields) *Logger {
+func (l *Logger) WithFields(fields Fields) *Logger {
 	newLogger := l.clone()
-	newLogger.entry = newLogger.getEntry(context.Background()).WithFields(fields)
+	newLogger.entry = newLogger.getEntry(context.Background()).WithFields(logrus.Fields(fields))
 	return newLogger
 }
 
