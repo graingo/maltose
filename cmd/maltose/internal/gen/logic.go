@@ -131,11 +131,11 @@ func (g *LogicGenerator) genFromFile(file string) (string, error) {
 
 	// Check if file exists
 	if _, err := os.Stat(logicOutputPath); err == nil && !g.Overwrite {
-		// File exists and we are in append mode (default)
-		_, err := g.appendToFile(logicOutputPath, genInfo)
-		if err != nil {
+		// File exists and we are in append mode (default), try to append if new methods are found.
+		if _, err := g.appendToFile(logicOutputPath, genInfo); err != nil {
 			return "", err
 		}
+		// Whether new methods were appended or not, the service is valid and should be in the manifest.
 		return pkgPath, nil
 	}
 
