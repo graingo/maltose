@@ -24,6 +24,8 @@ func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel, io.WriteClose
 	// TimeFormat
 	if config.TimeFormat != "" {
 		encoderCfg.EncodeTime = zapcore.TimeEncoderOfLayout(config.TimeFormat)
+	} else {
+		encoderCfg.EncodeTime = zapcore.ISO8601TimeEncoder
 	}
 
 	// Encoder

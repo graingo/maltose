@@ -15,5 +15,5 @@ func (s *Server) registerHealthCheck(ctx context.Context) {
 			"status": "ok",
 		})
 	})
-	s.Logger().Infof(ctx, "Health check endpoint registered at /health")
+	s.logger().Infof(ctx, "Health check endpoint registered at /health")
 }

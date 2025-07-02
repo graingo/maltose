@@ -55,7 +55,7 @@ func (r *Request) GetServerName() string {
 
 // Logger gets the logger instance.
 func (r *Request) Logger() *mlog.Logger {
-	return r.server.Logger()
+	return r.server.logger()
 }
 
 // GetHandlerResponse gets the handler response.

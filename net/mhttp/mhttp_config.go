@@ -101,12 +101,15 @@ func (s *Server) SetServerName(name string) {
 
 // SetLogger sets the logger instance.
 func (s *Server) SetLogger(logger *mlog.Logger) {
-	s.config.Logger = logger
+	if logger == nil {
+		logger = mlog.New()
+	}
+	s.config.Logger = logger.With(mlog.String(maltose.COMPONENT, "mhttp"))
 }
 
-// Logger gets the logger instance.
-func (s *Server) Logger() *mlog.Logger {
-	return s.config.Logger.With(mlog.String(maltose.COMPONENT, "mhttp"))
+// logger gets the logger instance.
+func (s *Server) logger() *mlog.Logger {
+	return s.config.Logger
 }
 
 // SetConfigWithMap sets the server config.

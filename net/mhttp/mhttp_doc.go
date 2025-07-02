@@ -12,12 +12,12 @@ func (s *Server) registerDoc(ctx context.Context) {
 
 	if s.config.OpenapiPath != "" {
 		s.GET(s.config.OpenapiPath, s.openapiHandler)
-		s.Logger().Infof(ctx, "OpenAPI specification registered at %s", s.config.OpenapiPath)
+		s.logger().Infof(ctx, "OpenAPI specification registered at %s", s.config.OpenapiPath)
 	}
 
 	if s.config.SwaggerPath != "" {
 		s.GET(s.config.SwaggerPath, s.swaggerHandler)
-		s.Logger().Infof(ctx, "Swagger UI registered at %s", s.config.SwaggerPath)
+		s.logger().Infof(ctx, "Swagger UI registered at %s", s.config.SwaggerPath)
 	}
 }
 
