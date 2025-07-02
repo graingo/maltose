@@ -127,18 +127,13 @@ func TestLogger_DynamicLevelChange(t *testing.T) {
 
 // TestLogger_Hooks verifies that Trace and CtxKeys hooks correctly inject fields.
 func TestLogger_Hooks(t *testing.T) {
-	type contextKey string
-	const requestIDKey contextKey = "request_id"
-
 	logger, logPath := setupTestLogger(t, mlog.Config{
-		CtxKeys: map[string]any{
-			"request_id": requestIDKey,
-		},
+		CtxKeys: []string{"request_id"},
 	})
 
 	ctx := mctx.New()
 	ctx, _ = mtrace.WithTraceID(ctx, "12345678901234567890123456789012")
-	ctx = context.WithValue(ctx, requestIDKey, "req-abcde")
+	ctx = context.WithValue(ctx, "request_id", "req-abcde")
 
 	logger.Infow(ctx, "testing hooks")
 	time.Sleep(10 * time.Millisecond)

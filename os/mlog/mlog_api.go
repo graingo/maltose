@@ -71,6 +71,11 @@ func AddHook(hook Hook) {
 	defaultLogger.AddHook(hook)
 }
 
+// RemoveHook removes a hook from the logger.
+func RemoveHook(hookName string) {
+	defaultLogger.RemoveHook(hookName)
+}
+
 // Close closes the logger and its underlying resources.
 func Close() error {
 	return defaultLogger.Close()

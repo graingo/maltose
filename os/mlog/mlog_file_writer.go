@@ -40,6 +40,31 @@ type fileWriter struct {
 	cleanupRegex *regexp.Regexp
 }
 
+var (
+	// layoutReplacer is used to convert user-friendly date patterns to Go's time.Format layout.
+	layoutReplacer = strings.NewReplacer(
+		"YYYY", "2006",
+		"YY", "06",
+		"MM", "01",
+		"DD", "02",
+		"HH", "15",
+		"mm", "04",
+		"ss", "05",
+	)
+	// regexReplacer is used to convert user-friendly date patterns to a regex string for file cleanup.
+	regexReplacer = strings.NewReplacer(
+		"YYYY", `\d{4}`,
+		"YY", `\d{2}`,
+		"MM", `\d{2}`,
+		"DD", `\d{2}`,
+		"HH", `\d{2}`,
+		"mm", `\d{2}`,
+		"ss", `\d{2}`,
+	)
+	// patternRegex is used to find all placeholders like {YYYYMMDD}.
+	patternRegex = regexp.MustCompile(`\{([^}]+)\}`)
+)
+
 // newFileWriter creates a new fileWriter based on the provided rotation config.
 func newFileWriter(path string, cfg *rotationConfig) (*fileWriter, error) {
 	if path == "" {
@@ -198,17 +223,13 @@ func (w *fileWriter) checkAndRotate() error {
 
 // formatFilePath formats the file path based on the current date.
 func (w *fileWriter) formatFilePath(t time.Time) string {
-	// Replace date placeholders
-	pattern := w.pathPattern
-	pattern = strings.ReplaceAll(pattern, "{Y}", t.Format("2006"))
-	pattern = strings.ReplaceAll(pattern, "{y}", t.Format("06"))
-	pattern = strings.ReplaceAll(pattern, "{m}", t.Format("01"))
-	pattern = strings.ReplaceAll(pattern, "{d}", t.Format("02"))
-	pattern = strings.ReplaceAll(pattern, "{H}", t.Format("15"))
-	pattern = strings.ReplaceAll(pattern, "{i}", t.Format("04"))
-	pattern = strings.ReplaceAll(pattern, "{s}", t.Format("05"))
-
-	return pattern
+	layout := w.pathPattern
+	// E.g., "app-{YYYYMMDD}.log" => "app-20060102.log"
+	layout = patternRegex.ReplaceAllStringFunc(layout, func(s string) string {
+		// s is "{YYYYMMDD}", strip braces to get "YYYYMMDD"
+		return layoutReplacer.Replace(s[1 : len(s)-1])
+	})
+	return t.Format(layout)
 }
 
 // cleanupRoutine periodically cleans up old log files.
@@ -350,15 +371,13 @@ func (w *fileWriter) cleanupSizeMode(files []os.DirEntry, dir string) {
 
 // convertDatePatternToRegex converts a date pattern to a regex pattern.
 func convertDatePatternToRegex(pattern string) string {
-	pattern = regexp.QuoteMeta(pattern)
-	pattern = strings.ReplaceAll(pattern, "\\{Y\\}", "\\d{4}")
-	pattern = strings.ReplaceAll(pattern, "\\{y\\}", "\\d{2}")
-	pattern = strings.ReplaceAll(pattern, "\\{m\\}", "\\d{2}")
-	pattern = strings.ReplaceAll(pattern, "\\{d\\}", "\\d{2}")
-	pattern = strings.ReplaceAll(pattern, "\\{H\\}", "\\d{2}")
-	pattern = strings.ReplaceAll(pattern, "\\{i\\}", "\\d{2}")
-	pattern = strings.ReplaceAll(pattern, "\\{s\\}", "\\d{2}")
-	return "^" + pattern + "$"
+	regexPattern := regexp.QuoteMeta(pattern)
+	// E.g., "app-\{YYYYMMDD\}\.log" => "app-\d{4}\d{2}\d{2}\.log"
+	regexPattern = patternRegex.ReplaceAllStringFunc(regexPattern, func(s string) string {
+		// s is "\{YYYYMMDD\}", strip braces to get "YYYYMMDD"
+		return regexReplacer.Replace(s[2 : len(s)-2])
+	})
+	return "^" + regexPattern + "$"
 }
 
 // isDatePattern checks if a file pattern contains date placeholders.

@@ -91,6 +91,8 @@ func (l *Logger) log(ctx context.Context, level Level, msg string, fields ...Fie
 		}
 	}
 
+	// NOTE: This is a zero-cost cast that relies on mlog.Field having the same memory layout as zapcore.Field.
+	// Be cautious when upgrading zap or changing mlog.Field definition.
 	zapFields := *(*[]zap.Field)(unsafe.Pointer(&entry.fields))
 	switch level {
 	case DebugLevel:

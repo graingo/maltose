@@ -19,6 +19,9 @@ type Field struct {
 	Interface any
 }
 
+// Fields is a slice of Field.
+type Fields []Field
+
 // Any takes a key and an arbitrary value and chooses the best way to represent
 // them as a field.
 func Any(key string, value any) Field {

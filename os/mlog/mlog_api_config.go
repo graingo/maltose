@@ -61,6 +61,13 @@ func SetCtxKeys(keys []string) {
 	})
 }
 
+// SetCaller sets the caller.
+func SetCaller(enabled bool) {
+	defaultLogger.SetConfigWithMap(map[string]any{
+		"caller": enabled,
+	})
+}
+
 // SetLevel sets the log level.
 func SetLevel(level Level) {
 	defaultLogger.SetLevel(level)
