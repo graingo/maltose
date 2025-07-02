@@ -3,10 +3,12 @@ package otlptrace
 import (
 	"context"
 
+	"github.com/graingo/maltose"
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/frame/m"
 	"github.com/graingo/maltose/net/mipv4"
 	"github.com/graingo/maltose/net/mtrace"
+	"github.com/graingo/maltose/os/mlog"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace"
 	"go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc"
@@ -71,10 +73,11 @@ func Init(endpoint string, opts ...Option) (func(context.Context), error) {
 		ctx, cancel := context.WithTimeout(ctx, o.timeout)
 		defer cancel()
 		if tp, ok := tracerProvider.(*sdktrace.TracerProvider); ok {
+			log := m.Log().With(mlog.String(maltose.COMPONENT, "otlptrace"))
 			if err := tp.Shutdown(ctx); err != nil {
-				m.Log().WithComponent("otlptrace").Errorf(ctx, "failed to shutdown tracer provider: %+v", err)
+				log.Errorf(ctx, err, "failed to shutdown tracer provider")
 			} else {
-				m.Log().WithComponent("otlptrace").Info(ctx, "tracer provider shutdown successfully")
+				log.Infow(ctx, "tracer provider shutdown successfully")
 			}
 		}
 	}, nil
