@@ -156,7 +156,7 @@ func (rg *RouterGroup) bindObject(object any) *RouterGroup {
 
 		// check method signature
 		if err := checkMethodSignature(method.Type); err != nil {
-			rg.server.Logger().Warnf(context.Background(),
+			rg.server.logger().Warnf(context.Background(),
 				"method [%s.%s] ignored, %s",
 				typ.String(), method.Name, err.Error(),
 			)

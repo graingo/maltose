@@ -67,9 +67,9 @@ func (s *Server) Run() {
 
 	select {
 	case err := <-errChan:
-		s.Logger().Errorf(ctx, err, "HTTP server %s start failed", s.config.ServerName)
+		s.logger().Errorf(ctx, err, "HTTP server %s start failed", s.config.ServerName)
 	case <-quit:
-		s.Logger().Infof(ctx, "Shutting down server...")
+		s.logger().Infof(ctx, "Shutting down server...")
 
 		timeout := 5 * time.Second
 		if s.config.GracefulEnable {
@@ -85,7 +85,7 @@ func (s *Server) Run() {
 		}
 
 		if err := s.srv.Shutdown(ctx); err != nil {
-			s.Logger().Errorf(ctx, err, "HTTP server %s forced to shutdown", s.config.ServerName)
+			s.logger().Errorf(ctx, err, "HTTP server %s forced to shutdown", s.config.ServerName)
 		}
 	}
 }
@@ -123,7 +123,7 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 
 	if err != nil && err != http.ErrServerClosed {
-		s.Logger().Errorf(ctx, err, "HTTP server %s start failed", s.config.ServerName)
+		s.logger().Errorf(ctx, err, "HTTP server %s start failed", s.config.ServerName)
 		return err
 	}
 
@@ -131,7 +131,7 @@ func (s *Server) Start(ctx context.Context) error {
 }
 
 func (s *Server) Shutdown(ctx context.Context) error {
-	s.Logger().Infof(ctx, "HTTP server %s is stopping", s.config.ServerName)
+	s.logger().Infof(ctx, "HTTP server %s is stopping", s.config.ServerName)
 	if s.srv == nil {
 		return nil
 	}

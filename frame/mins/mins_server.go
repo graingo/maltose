@@ -7,6 +7,7 @@ import (
 	"github.com/graingo/maltose/errors/mcode"
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/net/mhttp"
+	"github.com/graingo/maltose/os/mlog"
 )
 
 const (
@@ -62,9 +63,11 @@ func Server(name ...string) *mhttp.Server {
 
 					// apply logger config
 					if len(loggerConfigMap) > 0 {
-						if err := server.Logger().SetConfigWithMap(loggerConfigMap); err != nil {
+						serverLogger := mlog.New()
+						if err := serverLogger.SetConfigWithMap(loggerConfigMap); err != nil {
 							panic(merror.NewCodef(mcode.CodeInvalidConfiguration, "set server logger config failed: %v", err))
 						}
+						server.SetLogger(serverLogger)
 					} else {
 						// if no logger config, use global logger
 						server.SetLogger(Log())

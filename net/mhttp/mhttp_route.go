@@ -33,103 +33,93 @@ func (s *Server) Routes() []Route {
 
 func (s *Server) printRoute(ctx context.Context) {
 	// print server info
-	s.Logger().Infof(ctx, "HTTP server %s is running on %s", s.config.ServerName, s.config.Address)
+	s.logger().Infof(ctx, "HTTP server %s is running on %s", s.config.ServerName, s.config.Address)
 
 	if !s.config.PrintRoutes || len(s.routes) == 0 {
 		return
 	}
 
-	// Group routes by prefix and subpath
-	// groups[prefix][subpath] = []Route
-	groups := make(map[string]map[string][]Route)
-	for _, route := range s.routes {
+	// Prepare data for the table
+	type tableRoute struct {
+		Method  string
+		Path    string
+		Handler string
+	}
+	tableRoutes := make([]tableRoute, 0, len(s.routes))
+
+	// Define column widths
+	maxMethod := 6
+	maxPath := 4
+	maxHandler := 7
+
+	for _, r := range s.routes {
 		// skip doc route
-		if route.Path == s.config.OpenapiPath || route.Path == s.config.SwaggerPath {
+		if r.Path == s.config.OpenapiPath || r.Path == s.config.SwaggerPath {
 			continue
 		}
-
 		// skip health check route
-		if s.config.HealthCheck && route.Path == "/health" {
+		if s.config.HealthCheck && r.Path == "/health" {
 			continue
 		}
 
-		parts := strings.Split(strings.Trim(route.Path, "/"), "/")
-		prefix := "/" + parts[0]
-		subpath := "/"
-
-		if len(parts) > 1 {
-			subpath += strings.Join(parts[1:], "/")
+		// Handler
+		handlerType := "Handler"
+		if r.Type == routeTypeController {
+			controllerName := reflect.TypeOf(r.Controller).Elem().Name()
+			handlerType = fmt.Sprintf("%s.%s", controllerName, r.ControllerMethod.Name)
 		}
-
-		if _, ok := groups[prefix]; !ok {
-			groups[prefix] = make(map[string][]Route)
+		reqTypeName := "nil"
+		if r.ReqType != nil {
+			reqTypeName = r.ReqType.String()
 		}
-		groups[prefix][subpath] = append(groups[prefix][subpath], route)
+		respTypeName := "nil"
+		if r.RespType != nil {
+			respTypeName = r.RespType.String()
+		}
+		handlerStr := fmt.Sprintf("%s(%s → %s)", handlerType, reqTypeName, respTypeName)
+
+		// Create table row
+		tr := tableRoute{
+			Method:  r.Method,
+			Path:    r.Path,
+			Handler: handlerStr,
+		}
+		tableRoutes = append(tableRoutes, tr)
+
+		// Update max widths
+		if len(tr.Method) > maxMethod {
+			maxMethod = len(tr.Method)
+		}
+		if len(tr.Path) > maxPath {
+			maxPath = len(tr.Path)
+		}
+		if len(tr.Handler) > maxHandler {
+			maxHandler = len(tr.Handler)
+		}
 	}
 
-	// Sort and print routes
-	sortedPrefixes := make([]string, 0, len(groups))
-	for p := range groups {
-		sortedPrefixes = append(sortedPrefixes, p)
-	}
-	sort.Strings(sortedPrefixes)
+	// Sort routes by path
+	sort.Slice(tableRoutes, func(i, j int) bool {
+		return tableRoutes[i].Path < tableRoutes[j].Path
+	})
+
+	// Print table
+	fmt.Printf("\n┌─ Routes ─%s%s%s\n", strings.Repeat("─", maxMethod), strings.Repeat("─", maxPath), strings.Repeat("─", maxHandler))
 
 	// Header
-	fmt.Printf("\n ┌── Routes ──────────────────────────────────────────────────────────────────────\n")
-	fmt.Printf(" │\n")
+	headerFormat := fmt.Sprintf("│ %%-%ds │ %%-%ds │ %%-%ds │\n", maxMethod, maxPath, maxHandler)
+	fmt.Printf(headerFormat, "METHOD", "PATH", "HANDLER")
 
-	for _, prefix := range sortedPrefixes {
-		fmt.Printf(" │  ▼ %s\n", prefix)
-		subRoutes := groups[prefix]
-		sortedSubPaths := make([]string, 0, len(subRoutes))
-		for sp := range subRoutes {
-			sortedSubPaths = append(sortedSubPaths, sp)
-		}
-		sort.Strings(sortedSubPaths)
+	// Separator
+	separator := fmt.Sprintf("├─%s─┼─%s─┼─%s─┤\n", strings.Repeat("─", maxMethod), strings.Repeat("─", maxPath), strings.Repeat("─", maxHandler))
+	fmt.Print(separator)
 
-		for i, subpath := range sortedSubPaths {
-			isLastSubPath := (i == len(sortedSubPaths)-1)
-			subPathSymbol := "├"
-			routeLinePrefix := "│    │"
-			if isLastSubPath {
-				subPathSymbol = "└"
-				routeLinePrefix = "│     "
-			}
-			fmt.Printf(" │    %s── %s\n", subPathSymbol, subpath)
-
-			routes := subRoutes[subpath]
-			sort.Slice(routes, func(i, j int) bool {
-				return routes[i].Method < routes[j].Method
-			})
-
-			for j, route := range routes {
-				isLastRoute := (j == len(routes)-1)
-				routeSymbol := "├"
-				if isLastRoute {
-					routeSymbol = "└"
-				}
-
-				handlerType := "Handler"
-				if route.Type == routeTypeController {
-					controllerName := reflect.TypeOf(route.Controller).Elem().Name()
-					handlerType = fmt.Sprintf("%s.%s", controllerName, route.ControllerMethod.Name)
-				}
-				reqTypeName := "nil"
-				if route.ReqType != nil {
-					reqTypeName = route.ReqType.String()
-				}
-				respTypeName := "nil"
-				if route.RespType != nil {
-					respTypeName = route.RespType.String()
-				}
-
-				handlerStr := fmt.Sprintf("%s(%s → %s)", handlerType, reqTypeName, respTypeName)
-				fmt.Printf(" %s %s─ %-7s → %s\n", routeLinePrefix, routeSymbol, route.Method, handlerStr)
-			}
-		}
+	// Body
+	for _, tr := range tableRoutes {
+		fmt.Printf(headerFormat, tr.Method, tr.Path, tr.Handler)
 	}
 
 	// Footer
-	fmt.Printf(" │\n")
-	fmt.Printf(" └──────────────────────────────────────────────────────────────────────────────────\n\n")
+	footer := fmt.Sprintf("└─%s─┴─%s─┴─%s─┘\n\n", strings.Repeat("─", maxMethod), strings.Repeat("─", maxPath), strings.Repeat("─", maxHandler))
+	fmt.Print(footer)
 }
