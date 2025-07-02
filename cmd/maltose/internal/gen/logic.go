@@ -131,14 +131,11 @@ func (g *LogicGenerator) genFromFile(file string) (string, error) {
 
 	// Check if file exists
 	if _, err := os.Stat(logicOutputPath); err == nil && !g.Overwrite {
-		// File exists and we are in append mode (default)
-		appended, err := g.appendToFile(logicOutputPath, genInfo)
-		if err != nil {
+		// File exists and we are in append mode (default), try to append if new methods are found.
+		if _, err := g.appendToFile(logicOutputPath, genInfo); err != nil {
 			return "", err
 		}
-		if !appended {
-			return "", nil
-		}
+		// Whether new methods were appended or not, the service is valid and should be in the manifest.
 		return pkgPath, nil
 	}
 
@@ -325,11 +322,11 @@ func (p *LogicParser) Parse(filePath string) (*logicTplData, error) {
 					}
 
 					// --- Response Parsing (if it exists) ---
-					var resName string
+					var resPkg, resName string
 					var resIsPointer bool
 					if results.NumFields() == 2 {
 						resField := results.List[0]
-						_, resName, resIsPointer = parseType(resField.Type)
+						resPkg, resName, resIsPointer = parseType(resField.Type)
 					}
 
 					functions = append(functions, logicFunction{
@@ -341,8 +338,13 @@ func (p *LogicParser) Parse(filePath string) (*logicTplData, error) {
 					})
 
 					if apiPkg == "" {
-						apiPkg = reqPkg
-						apiModule = imports[apiPkg]
+						if reqPkg != "" {
+							apiPkg = reqPkg
+							apiModule = imports[reqPkg]
+						} else if resPkg != "" {
+							apiPkg = resPkg
+							apiModule = imports[resPkg]
+						}
 					}
 				}
 				return false // Stop after finding the first interface
