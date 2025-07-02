@@ -58,5 +58,7 @@
   "not_have_service_interface": "The file does not contain a service interface, skipping logic generation.",
   "logic_file_uptodate": "⏩ Logic file {{.File}} is up to date, skipping.",
   "logic_methods_appended": "✅ Appended {{.Count}} new methods to {{.File}}.",
-  "logic_gen_skip_method_bad_signature": "⚠️ Skipping method '{{.Method}}' in service '{{.Service}}' due to unsupported signature. Supported formats are:\n  - Method(ctx context.Context) error\n  - Method(ctx context.Context) (*Res, error)\n  - Method(ctx context.Context, req *Req) error\n  - Method(ctx context.Context, req *Req) (*Res, error)"
+  "logic_manifest_generated": "Generated logic manifest file: {{.Path}}",
+  "logic_manifest_hint": "Hint: Please add `_ \"{{.ModulePath}}/internal/logic\"` to your main.go to enable automatic service registration.",
+  "logic_gen_skip_method_bad_signature": "⚠️ Skipping method '{{.Method}}' in service '{{.Service}}' due to unsupported signature. Supported formats are:\n  - Method(context.Context) error\n  - Method(context.Context) (*Output, error)\n  - Method(context.Context, *Input) error\n  - Method(context.Context, *Input) (*Output, error)"
 }

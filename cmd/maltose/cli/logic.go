@@ -27,7 +27,6 @@ var logicCmd = &cobra.Command{
 			return merror.Wrap(err, "failed to generate logic file")
 		}
 
-		utils.PrintSuccess("logic_generation_success", nil)
 		return nil
 	},
 }

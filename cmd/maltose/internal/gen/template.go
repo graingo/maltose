@@ -345,4 +345,17 @@ type {{.DaoName}} struct {
 		}
 	}
 	`
+
+	// TplGenLogicManifest is the template for the main logic file that imports all logic packages.
+	TplGenLogicManifest = `// =================================================================================
+// Code generated and maintained by Maltose tool. DO NOT EDIT.
+// =================================================================================
+package logic
+
+import (
+	{{- range .Packages }}
+	_ "{{.}}"
+	{{- end }}
+)
+`
 )
