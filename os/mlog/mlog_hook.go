@@ -36,5 +36,4 @@ func (l *Logger) RemoveHook(hookName string) {
 			break
 		}
 	}
-
 }

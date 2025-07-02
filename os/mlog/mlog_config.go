@@ -11,12 +11,12 @@ type Config struct {
 	Level Level `mconv:"level"`
 	// TimeFormat is the log time format.
 	TimeFormat string `mconv:"time_format"`
-	// Format is the log format.
+	// Format is the log format. Only support "json" and "text".
 	Format string `mconv:"format"`
 	// Caller is the add caller.
 	// If true, the caller will be added to the log.
 	Caller bool `mconv:"caller"`
-	// Path is the log file path.
+	// Filepath is the log file path.
 	// e.g., /var/log/app.log or /var/log/app.{YYYYmmdd}.log
 	Filepath string `mconv:"filepath"`
 	// MaxSize is the maximum size in megabytes of the log file before it gets rotated.
@@ -31,7 +31,7 @@ type Config struct {
 	// Stdout is the stdout print.
 	Stdout bool `mconv:"stdout"`
 	// CtxKeys is the context keys to extract.
-	CtxKeys map[string]any `mconv:"ctx_keys"`
+	CtxKeys []string `mconv:"ctx_keys"`
 }
 
 // defaultConfig returns the default configuration.
@@ -46,7 +46,7 @@ func defaultConfig() *Config {
 		MaxAge:     7,
 		MaxBackups: 10,
 		Stdout:     true,
-		CtxKeys:    map[string]any{},
+		CtxKeys:    []string{},
 	}
 }
 

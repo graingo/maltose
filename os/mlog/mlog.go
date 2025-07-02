@@ -28,9 +28,6 @@ const (
 	defaultLevel      = InfoLevel
 )
 
-// Fields is a map of string keys to any values.
-type Fields []Field
-
 var (
 	// Ensure Logger implements ILogger interface
 	_ ILogger = &Logger{}
