@@ -7,7 +7,9 @@ import (
 	"go/parser"
 	"go/token"
 	"os"
+	"path"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -66,18 +68,45 @@ func NewLogicGenerator(src, dst string, overwrite bool) (*LogicGenerator, error)
 // Gen generates the logic file from a service interface file.
 func (g *LogicGenerator) Gen() error {
 	utils.PrintInfo("scanning_directory", utils.TplData{"Path": g.Src})
-	return filepath.Walk(g.Src, func(path string, info os.FileInfo, err error) error {
+	generatedPackages := make(map[string]struct{})
+
+	walkErr := filepath.Walk(g.Src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() && strings.HasSuffix(info.Name(), ".go") {
-			return g.genFromFile(path)
+			pkgPath, err := g.genFromFile(path)
+			if err != nil {
+				return err // A real error happened, stop the walk
+			}
+			if pkgPath != "" {
+				generatedPackages[pkgPath] = struct{}{}
+			}
 		}
 		return nil
 	})
+
+	if walkErr != nil {
+		return walkErr
+	}
+
+	if len(generatedPackages) > 0 {
+		packages := make([]string, 0, len(generatedPackages))
+		for p := range generatedPackages {
+			packages = append(packages, p)
+		}
+		sort.Strings(packages) // for stable order
+		if err := g.generateLogicManifest(packages); err != nil {
+			return err
+		}
+	}
+
+	utils.PrintSuccess("logic_generation_success", nil)
+	utils.PrintNotice("logic_manifest_hint", utils.TplData{"ModulePath": g.ModuleName})
+	return nil
 }
 
-func (g *LogicGenerator) genFromFile(file string) error {
+func (g *LogicGenerator) genFromFile(file string) (string, error) {
 	p := &LogicParser{
 		fset:   token.NewFileSet(),
 		module: g.ModuleName,
@@ -87,35 +116,65 @@ func (g *LogicGenerator) genFromFile(file string) error {
 	if err != nil {
 		// Log other errors for debugging, but don't fail the whole process.
 		// log.Printf("failed to parse file %s: %v", file, err)
-		return nil
+		return "", nil
 	}
 	if genInfo == nil || len(genInfo.Functions) == 0 {
 		// Not a valid service interface with methods, skip.
-		return nil
+		return "", nil
 	}
 
 	// Logic file goes into internal/logic/<module>/<file>.go
 	logicDir := filepath.Join(g.ModuleRoot, g.Dst, "logic", genInfo.Module)
 	logicOutputPath := filepath.Join(logicDir, genInfo.FileName)
 
+	pkgPath := path.Join(g.ModuleName, g.Dst, "logic", genInfo.Module)
+
 	// Check if file exists
 	if _, err := os.Stat(logicOutputPath); err == nil && !g.Overwrite {
 		// File exists and we are in append mode (default)
-		return g.appendToFile(logicOutputPath, genInfo)
+		appended, err := g.appendToFile(logicOutputPath, genInfo)
+		if err != nil {
+			return "", err
+		}
+		if !appended {
+			return "", nil
+		}
+		return pkgPath, nil
 	}
 
 	// If we are here, it means file doesn't exist, OR it exists and we want to overwrite.
 	if err := os.MkdirAll(logicDir, os.ModePerm); err != nil {
-		return merror.Wrapf(err, "failed to create logic directory %s", logicDir)
+		return "", merror.Wrapf(err, "failed to create logic directory %s", logicDir)
 	}
 
-	return generateFile(logicOutputPath, "serviceLogic", TplGenServiceLogic, genInfo)
+	if err := generateFile(logicOutputPath, "serviceLogic", TplGenServiceLogic, genInfo); err != nil {
+		return "", err
+	}
+	utils.PrintInfo("logic_manifest_generated", utils.TplData{"Path": logicOutputPath})
+	return pkgPath, nil
 }
 
-func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) error {
+func (g *LogicGenerator) generateLogicManifest(packages []string) error {
+	logicFilePath := filepath.Join(g.ModuleRoot, g.Dst, "logic", "logic.go")
+	err := generateFile(logicFilePath, "logicManifest", TplGenLogicManifest, map[string]interface{}{
+		"Packages": packages,
+	})
+	if err != nil {
+		return merror.Wrap(err, "failed to generate logic manifest file")
+	}
+
+	displayPath := logicFilePath
+	if relPath, err := filepath.Rel(g.ModuleRoot, logicFilePath); err == nil {
+		displayPath = relPath
+	}
+	utils.PrintInfo("logic_manifest_generated", utils.TplData{"Path": displayPath})
+	return nil
+}
+
+func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) (bool, error) {
 	existingMethods, err := parseExistingLogicMethods(path)
 	if err != nil {
-		return err // Or maybe just warn and skip? Better to return error.
+		return false, err // Or maybe just warn and skip? Better to return error.
 	}
 
 	var methodsToAppend []logicFunction
@@ -132,7 +191,7 @@ func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) error 
 
 	if len(methodsToAppend) == 0 {
 		utils.PrintNotice("logic_file_uptodate", utils.TplData{"File": displayPath})
-		return nil
+		return false, nil
 	}
 
 	// We have methods to append.
@@ -143,21 +202,21 @@ func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) error 
 	var buffer bytes.Buffer
 	tpl, err := template.New("serviceLogicAppend").Parse(TplGenServiceLogicAppend)
 	if err != nil {
-		return merror.Wrap(err, "failed to parse append template")
+		return false, merror.Wrap(err, "failed to parse append template")
 	}
 	if err = tpl.Execute(&buffer, appendData); err != nil {
-		return merror.Wrap(err, "failed to execute append template")
+		return false, merror.Wrap(err, "failed to execute append template")
 	}
 
 	// Append to file
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
-		return merror.Wrap(err, "failed to open logic file for appending")
+		return false, merror.Wrap(err, "failed to open logic file for appending")
 	}
 	defer f.Close()
 
 	if _, err = f.Write(buffer.Bytes()); err != nil {
-		return merror.Wrap(err, "failed to append new methods to logic file")
+		return false, merror.Wrap(err, "failed to append new methods to logic file")
 	}
 
 	utils.PrintSuccess("logic_methods_appended", utils.TplData{
@@ -165,7 +224,7 @@ func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) error 
 		"File":  displayPath,
 	})
 
-	return nil
+	return true, nil
 }
 
 func parseExistingLogicMethods(filePath string) (map[string]struct{}, error) {

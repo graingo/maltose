@@ -5,6 +5,8 @@ import (
 	"time"
 
 	"github.com/graingo/maltose"
+	"github.com/graingo/maltose/errors/mcode"
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/net/mtrace"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
@@ -67,7 +69,7 @@ func internalMiddlewareRecovery() MiddlewareFunc {
 				// record error log
 				r.Logger().Errorf(r.Request.Context(), nil, fmt.Sprintf("Panic recovered: %s", err))
 				// return 500 error
-				r.String(500, "Internal Server Error")
+				r.SetHandlerResponse(merror.NewCodef(mcode.CodeInternalError, "Panic recovered: %s", err))
 			}
 		}()
 		r.Next()
