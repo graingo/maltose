@@ -12,7 +12,8 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/fatih/color"
+	"go/format"
+
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/iancoleman/strcase"
@@ -90,7 +91,10 @@ func (g *ServiceGenerator) Gen() error {
 			return err
 		}
 		if !info.IsDir() && strings.HasSuffix(info.Name(), ".go") {
-			return g.genFromFile(path)
+			if err := g.genFromFile(path); err != nil {
+				// A real error occurred, stop the walk.
+				return merror.Wrap(err, "failed to generate service file")
+			}
 		}
 		return nil
 	})
@@ -126,50 +130,57 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 		moduleRoot: g.ModuleRoot,
 	}
 
-	genInfo, err := parser.Parse()
+	info, err := parser.Parse()
 	if err != nil {
-		return err
+		return merror.Wrapf(err, "failed to parse file %s", file)
+	}
+
+	if info == nil {
+		// This happens when a file is parsed but contains no valid Req/Res structs.
+		// It's not an error, we just skip it by returning nil.
+		utils.PrintWarn("no_api_definitions_found_skipping", utils.TplData{"File": filepath.Base(file)})
+		return nil
 	}
 
 	// The package for the controller to import is always ".../internal/service".
-	genInfo.SvcPackage = strings.ReplaceAll(filepath.Join(g.ModuleName, "internal", "service"), "\\", "/")
+	info.SvcPackage = strings.ReplaceAll(filepath.Join(g.ModuleName, "internal", "service"), "\\", "/")
 
 	// --- Service File Generation (Create if not exist, skip if exist) ---
-	svcOutputPath := filepath.Join(g.Dst, "service", genInfo.FileName)
+	svcOutputPath := filepath.Join(g.Dst, "service", info.FileName)
 	if _, err := os.Stat(svcOutputPath); os.IsNotExist(err) {
 		// File does not exist, generate skeleton.
 		templateName := TplGenService
 		if g.InterfaceMode {
 			templateName = TplGenServiceInterface
 		}
-		if err := generateFile(svcOutputPath, "service", templateName, genInfo); err != nil {
+		if err := generateFile(svcOutputPath, "service", templateName, info); err != nil {
 			return merror.Wrap(err, "failed to generate service skeleton")
 		}
 	} else {
 		// File exists, skip with a warning.
-		color.Yellow("Warning: Service file [%s] already exists, skipping generation.", genInfo.FileName)
+		utils.PrintWarn("service_file_exist_skip", utils.TplData{"Path": info.FileName})
 	}
 
 	// --- Controller Generation (Create or Append) ---
 	// Case 1: Professional layout like api/<module>/<version>/...
-	if genInfo.Version != "" && !strings.EqualFold(genInfo.Module, genInfo.Version) {
+	if info.Version != "" && !strings.EqualFold(info.Module, info.Version) {
 		// Handle controller struct file (create if not exist, otherwise skip)
-		controllerStructPath := filepath.Join(g.Dst, "controller", genInfo.Module, genInfo.Module+".go")
+		controllerStructPath := filepath.Join(g.Dst, "controller", info.Module, info.Module+".go")
 		if _, err := os.Stat(controllerStructPath); os.IsNotExist(err) {
-			if err := generateFile(controllerStructPath, "controllerStruct", TplGenControllerStruct, genInfo); err != nil {
+			if err := generateFile(controllerStructPath, "controllerStruct", TplGenControllerStruct, info); err != nil {
 				return merror.Wrap(err, "failed to generate controller struct")
 			}
 		}
 
 		// Handle controller method file (create or append)
-		methodFileName := fmt.Sprintf("%s_%s.go", genInfo.Module, strings.ToLower(genInfo.Version))
-		controllerMethodPath := filepath.Join(g.Dst, "controller", genInfo.Module, methodFileName)
-		return g.generateOrAppend(controllerMethodPath, TplGenControllerMethod, TplGenControllerMethodOnly, genInfo)
+		methodFileName := fmt.Sprintf("%s_%s.go", info.Module, strings.ToLower(info.Version))
+		controllerMethodPath := filepath.Join(g.Dst, "controller", info.Module, methodFileName)
+		return g.generateOrAppend(controllerMethodPath, TplGenControllerMethod, TplGenControllerMethodOnly, info)
 	}
 
 	// Case 2: Simple layout like api/<version>/...
-	controllerPath := filepath.Join(g.Dst, "controller", genInfo.VersionLower, genInfo.FileName)
-	return g.generateOrAppend(controllerPath, TplGenController, TplGenControllerMethodOnly, genInfo)
+	controllerPath := filepath.Join(g.Dst, "controller", info.VersionLower, info.FileName)
+	return g.generateOrAppend(controllerPath, TplGenController, TplGenControllerMethodOnly, info)
 }
 
 // generateOrAppend handles the logic of creating a new file or appending to an existing one.
@@ -193,7 +204,10 @@ func (g *ServiceGenerator) generateOrAppend(filePath, fullTpl, appendTpl string,
 	}
 
 	if len(methodsToAppend) > 0 {
-		color.Yellow("Warning: Appending %d new method(s) to existing controller file: %s", len(methodsToAppend), filePath)
+		utils.PrintSuccess("service_methods_appended", utils.TplData{
+			"Count": len(methodsToAppend),
+			"Path":  filePath,
+		})
 		appendData := *data
 		appendData.Functions = methodsToAppend
 		return appendToFile(filePath, appendTpl, &appendData)
@@ -213,13 +227,21 @@ func appendToFile(filePath, tplContent string, data *serviceTplData) error {
 		return merror.Wrap(err, "failed to execute append template")
 	}
 
+	// Format the generated code before appending.
+	formatted, err := format.Source(buffer.Bytes())
+	if err != nil {
+		// This is unlikely to happen with well-formed templates, but handle it.
+		utils.PrintWarn("format_source_failed", utils.TplData{"Path": filePath, "Error": err})
+		formatted = buffer.Bytes() // Append unformatted code on error
+	}
+
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
 		return merror.Wrap(err, "failed to open file for appending")
 	}
 	defer f.Close()
 
-	if _, err := f.Write(buffer.Bytes()); err != nil {
+	if _, err := f.Write(formatted); err != nil {
 		return merror.Wrap(err, "failed to append to file")
 	}
 	return nil
@@ -256,7 +278,12 @@ func (p *Parser) Parse() (*serviceTplData, error) {
 
 	// --- Enhanced Path Parsing Logic ---
 	fullPath := p.fset.File(p.file.Pos()).Name()
-	relPath, err := filepath.Rel(p.moduleRoot, fullPath)
+	absPath, err := filepath.Abs(fullPath)
+	if err != nil {
+		return nil, merror.Wrapf(err, "could not get absolute path for %s", fullPath)
+	}
+
+	relPath, err := filepath.Rel(p.moduleRoot, absPath)
 	if err != nil {
 		return nil, merror.Wrap(err, "could not determine file path relative to module root")
 	}
@@ -308,11 +335,6 @@ func (p *Parser) Parse() (*serviceTplData, error) {
 		info.Controller = "c" + strcase.ToCamel(structBaseName)
 	}
 
-	absPath, err := filepath.Abs(fullPath)
-	if err != nil {
-		return nil, merror.Wrapf(err, "could not get absolute path for %s", fullPath)
-	}
-
 	if p.moduleRoot != "" {
 		relDir, err := filepath.Rel(p.moduleRoot, filepath.Dir(absPath))
 		if err != nil {
@@ -359,8 +381,11 @@ func (p *Parser) Parse() (*serviceTplData, error) {
 		}
 	}
 
+	// After iterating through all declarations, if no functions were found,
+	// it means the file might be a support file (e.g., defining shared types)
+	// and not an API entrypoint file, so we should skip it.
 	if len(functions) == 0 {
-		return nil, merror.Newf("no matching Req/Res struct pairs found in %s", fileName)
+		return nil, nil
 	}
 
 	info.Functions = functions

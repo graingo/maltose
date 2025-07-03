@@ -35,14 +35,13 @@ func NewDaoGenerator(dst string) (*DaoGenerator, error) {
 
 // daoTplData holds all the template variables for generating DAO and entity files.
 type daoTplData struct {
-	TableName       string
-	StructName      string
-	PackageName     string
-	InternalDaoName string
-	DaoName         string
-	Columns         []gorm.ColumnType
-	HasTime         bool
-	HasDecimal      bool
+	TableName   string
+	StructName  string
+	PackageName string
+	DaoName     string
+	Columns     []gorm.ColumnType
+	HasTime     bool
+	HasDecimal  bool
 }
 
 // Gen generates only the DAO files.

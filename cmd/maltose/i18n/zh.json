@@ -40,7 +40,7 @@
   "new_project_get_started": "\n开始使用:",
   "new_project_get_started_cd": "  cd {{.ProjectName}}",
   "new_project_get_started_tidy": "  go mod tidy",
-  "new_project_get_started_run": "  go run .",
+  "new_project_get_started_run": "go run main.go",
   "dao_generation_success": "✅ DAO 层已成功生成。",
   "generic_error": "{{.Error}}",
   "dao_files_generation_start": "> 正在生成 dao 文件...",
@@ -60,5 +60,6 @@
   "logic_methods_appended": "✅ 已向 {{.File}} 追加 {{.Count}} 个新方法。",
   "logic_manifest_generated": "已生成 logic 清单文件: {{.Path}}",
   "logic_manifest_hint": "提示: 请在你的 main.go 文件中添加 `_ \"{{.ModulePath}}/internal/logic\"` 来启用服务自动注册。",
-  "logic_gen_skip_method_bad_signature": "⚠️ 因方法 '{{.Method}}' (服务 '{{.Service}}') 签名不支持，已跳过。支持的格式为:\n  - Method(context.Context) error\n  - Method(context.Context) (*Output, error)\n  - Method(context.Context, *Input) error\n  - Method(context.Context, *Req) (*Res, error)"
+  "logic_gen_skip_method_bad_signature": "⚠️ 因方法 '{{.Method}}' (服务 '{{.Service}}') 签名不支持，已跳过。支持的格式为:\n  - Method(context.Context) error\n  - Method(context.Context) (*Output, error)\n  - Method(context.Context, *Input) error\n  - Method(context.Context, *Req) (*Res, error)",
+  "no_api_definitions_found_skipping": "在 {{.File}} 中未找到有效的 API 定义，已跳过。"
 }

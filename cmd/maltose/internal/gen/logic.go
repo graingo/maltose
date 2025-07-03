@@ -13,6 +13,8 @@ import (
 	"strings"
 	"text/template"
 
+	"go/format"
+
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/graingo/maltose/errors/merror"
 )
@@ -205,6 +207,13 @@ func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) (bool,
 		return false, merror.Wrap(err, "failed to execute append template")
 	}
 
+	// Format the generated code before appending.
+	formatted, err := format.Source(buffer.Bytes())
+	if err != nil {
+		utils.PrintWarn("format_source_failed", utils.TplData{"Path": path, "Error": err})
+		formatted = buffer.Bytes() // Append unformatted code on error
+	}
+
 	// Append to file
 	f, err := os.OpenFile(path, os.O_APPEND|os.O_WRONLY, 0644)
 	if err != nil {
@@ -212,7 +221,7 @@ func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) (bool,
 	}
 	defer f.Close()
 
-	if _, err = f.Write(buffer.Bytes()); err != nil {
+	if _, err = f.Write(formatted); err != nil {
 		return false, merror.Wrap(err, "failed to append new methods to logic file")
 	}
 

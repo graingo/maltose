@@ -14,6 +14,7 @@ import (
 	"gorm.io/gorm/logger"
 )
 
+// ErrEnvFileNeedUpdate indicates that the .env file is missing and needs to be created from .env.example.
 var ErrEnvFileNeedUpdate = errors.New("env file need update")
 
 // shared state for generation

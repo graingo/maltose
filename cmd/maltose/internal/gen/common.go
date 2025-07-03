@@ -29,7 +29,7 @@ func generateFile(path, tplName, tplContent string, data interface{}) error {
 
 	// Ensure the directory exists
 	dir := filepath.Dir(path)
-	if err := os.MkdirAll(dir, os.ModePerm); err != nil {
+	if err := os.MkdirAll(dir, 0755); err != nil {
 		return merror.Wrapf(err, "failed to create directory %s", dir)
 	}
 
@@ -59,10 +59,6 @@ var funcMap = template.FuncMap{
 	"makeRemarks": makeRemarks,
 	"firstLower":  strcase.ToLowerCamel,
 	"toTitle":     cases.Title(language.English).String,
-	"trimPackage": func(pkgName string) string {
-		parts := strings.Split(pkgName, "/")
-		return parts[len(parts)-1]
-	},
 }
 
 // dbTypeToGo converts database column types to Go types.
@@ -115,7 +111,7 @@ func dbTypeToGo(column gorm.ColumnType) string {
 
 // makeTags creates gorm and json struct tags for a field.
 func makeTags(column gorm.ColumnType) string {
-	return fmt.Sprintf(`gorm:"column:%s"`, column.Name())
+	return fmt.Sprintf(`gorm:"column:%s" json:"%s"`, column.Name(), strcase.ToLowerCamel(column.Name()))
 }
 
 // makeRemarks creates remarks for a field.
