@@ -2,7 +2,6 @@ package mlog
 
 import (
 	"context"
-	"time"
 )
 
 // ILogger is the interface for the logger.
@@ -23,7 +22,7 @@ type ILogger interface {
 
 const (
 	defaultFile       = "logs/app.log"
-	defaultTimeFormat = time.DateTime
+	defaultTimeFormat = "2006-01-02T15:04:05.000"
 	defaultFormat     = "json"
 	defaultLevel      = InfoLevel
 )
