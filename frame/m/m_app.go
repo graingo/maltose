@@ -19,6 +19,8 @@ type App struct {
 	shutdownHooks []func(ctx context.Context) error
 	shutdownOnce  sync.Once
 	logger        *mlog.Logger
+	ctx           context.Context
+	cancel        context.CancelFunc
 }
 
 // An Option configures an App.
@@ -47,16 +49,24 @@ func WithLogger(logger *mlog.Logger) Option {
 
 // AppServer defines the interface for a server that can be managed by the App.
 type AppServer interface {
+	// Start starts the server and blocks.
+	// It is expected to return an error if the server fails to start.
+	// A call to Stop should cause Start to unblock and return nil.
 	Start(ctx context.Context) error
-	Shutdown(ctx context.Context) error
+	// Stop gracefully shuts down the server.
+	// It should be idempotent and is expected to be called by the app framework.
+	Stop(ctx context.Context) error
 }
 
 // NewApp creates a new App instance with the given options.
 func NewApp(opts ...Option) *App {
+	ctx, cancel := context.WithCancel(context.Background())
 	app := &App{
 		servers:       make([]AppServer, 0),
 		shutdownHooks: make([]func(ctx context.Context) error, 0),
 		logger:        mlog.New(),
+		ctx:           ctx,
+		cancel:        cancel,
 	}
 	for _, opt := range opts {
 		opt(app)
@@ -66,86 +76,71 @@ func NewApp(opts ...Option) *App {
 
 // Run starts the application and waits for a signal to gracefully shutdown.
 func (a *App) Run() error {
-	eg, ctx := errgroup.WithContext(context.Background())
+	eg, ctx := errgroup.WithContext(a.ctx)
 
-	// Start servers
+	// Start all servers and their corresponding stop listeners.
 	for _, s := range a.servers {
 		srv := s
+		// Start the server in a goroutine.
 		eg.Go(func() error {
 			return srv.Start(ctx)
 		})
+		// Start a corresponding stop listener for the server.
+		eg.Go(func() error {
+			// Wait for the context to be canceled.
+			<-ctx.Done()
+			// Call the server's Stop method.
+			// We use a background context because the parent `ctx` is already canceled.
+			return srv.Stop(context.Background())
+		})
 	}
 
-	// Wait for shutdown signal
+	// Start a goroutine to listen for OS signals.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
-
-	// This function triggers the shutdown process.
-	// Using sync.Once ensures that shutdown is only initiated once,
-	// even if multiple shutdown signals are received.
-	triggerShutdown := sync.OnceFunc(func() {
-		// We use a background context for the shutdown signal log, as it's a global event.
-		a.logger.Infof(context.Background(), "Shutdown process initiated...")
-		// Close the quit channel to signal the main goroutine to proceed with shutdown.
-		close(quit)
+	eg.Go(func() error {
+		select {
+		case <-ctx.Done():
+			// This can happen if another part of the group fails first.
+			return nil
+		case sig := <-quit:
+			a.logger.Infof(context.Background(), "Received signal %v, initiating shutdown.", sig)
+			// Trigger the graceful shutdown by canceling the main context.
+			// This will cause <-ctx.Done() to unblock in the server stop listeners.
+			a.cancel()
+			return nil
+		}
 	})
 
-	// This goroutine waits for a startup failure and triggers shutdown if one occurs.
-	go func() {
-		if err := eg.Wait(); err != nil {
-			triggerShutdown()
-		}
-	}()
+	startErr := eg.Wait()
 
-	select {
-	case sig := <-quit:
-		a.logger.Infof(context.Background(), "Received signal %v, initiating shutdown", sig)
-		triggerShutdown()
-	case <-ctx.Done():
-		// This case is hit if errgroup context is cancelled, usually due to a startup error.
-		// We trigger the shutdown process to ensure cleanup happens.
-		triggerShutdown()
+	// Log the startup error as soon as it's available. This is crucial for making
+	// the root cause of a shutdown clear, as the "stopping server..." logs from
+	// individual services may appear first due to the concurrent nature of shutdown.
+	if startErr != nil && !errors.Is(startErr, context.Canceled) {
+		a.logger.Warnf(context.Background(), "Shutdown initiated due to a service startup failure. You can see the error from return value.")
 	}
 
-	// Wait until the shutdown is triggered. This handles the case where eg.Wait() in the
-	// goroutine finishes, but the main select hasn't processed the closed quit channel yet.
-	<-quit
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer shutdownCancel()
 
-	// Graceful shutdown with a timeout
-	shutdownCtx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer cancel()
-
-	// Perform shutdown hooks and stop servers.
 	var shutdownErr error
 	a.shutdownOnce.Do(func() {
-		// Execute shutdown hooks in reverse order
+		// Execute shutdown hooks in reverse order.
 		for i := len(a.shutdownHooks) - 1; i >= 0; i-- {
 			if err := a.shutdownHooks[i](shutdownCtx); err != nil {
 				a.logger.Errorf(shutdownCtx, err, "Shutdown hook failed")
 				shutdownErr = errors.Join(shutdownErr, err)
 			}
 		}
-
-		// Stop the main applications in a separate error group
-		stopGroup, _ := errgroup.WithContext(shutdownCtx)
-		for _, srv := range a.servers {
-			s := srv
-			stopGroup.Go(func() error {
-				return s.Shutdown(shutdownCtx)
-			})
-		}
-		if err := stopGroup.Wait(); err != nil {
-			a.logger.Errorf(shutdownCtx, err, "Application stop error")
-			shutdownErr = errors.Join(shutdownErr, err)
-		}
 	})
 
-	// Finally, wait for the main errgroup and prioritize its error.
-	startErr := eg.Wait()
-	if startErr != nil && startErr != context.Canceled {
-		return startErr // Return the specific startup error.
+	// Determine the final error to return.
+	// A `context.Canceled` error from `startErr` is expected on a clean shutdown,
+	// so we don't treat it as a true error.
+	if startErr != nil && !errors.Is(startErr, context.Canceled) {
+		return startErr
 	}
 
-	// If no startup error, return any error from the shutdown process.
 	return shutdownErr
 }

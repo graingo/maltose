@@ -49,7 +49,7 @@ func setupServer(t *testing.T, configurator func(s *mhttp.Server)) func() {
 		serverCancel()
 		stopCtx, stopCancel := context.WithTimeout(context.Background(), 5*time.Second)
 		defer stopCancel()
-		err := s.Shutdown(stopCtx)
+		err := s.Stop(stopCtx)
 		assert.NoError(t, err, "Server should stop gracefully")
 		// Add a small delay to ensure the port is released
 		time.Sleep(100 * time.Millisecond)

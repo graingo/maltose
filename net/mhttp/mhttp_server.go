@@ -130,7 +130,7 @@ func (s *Server) Start(ctx context.Context) error {
 	return nil
 }
 
-func (s *Server) Shutdown(ctx context.Context) error {
+func (s *Server) Stop(ctx context.Context) error {
 	s.logger().Infof(ctx, "HTTP server %s is stopping", s.config.ServerName)
 	if s.srv == nil {
 		return nil

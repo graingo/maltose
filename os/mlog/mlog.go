@@ -21,9 +21,9 @@ type ILogger interface {
 }
 
 const (
-	defaultFile       = "logs/app.log"
+	defaultFile       = ""
 	defaultTimeFormat = "2006-01-02T15:04:05.000"
-	defaultFormat     = "json"
+	defaultFormat     = "text"
 	defaultLevel      = InfoLevel
 )
 
