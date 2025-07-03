@@ -69,7 +69,7 @@ func NewLogicGenerator(src, dst string, overwrite bool) (*LogicGenerator, error)
 
 // Gen generates the logic file from a service interface file.
 func (g *LogicGenerator) Gen() error {
-	utils.PrintInfo("🔍 Scanning directory: {{.Path}}", utils.TplData{"Path": g.Src})
+	utils.PrintInfo("🔍 Scanning directory: {{.Path}}", utils.TplData{"Path": filepath.Base(g.Src)})
 	generatedPackages := make(map[string]struct{})
 
 	walkErr := filepath.Walk(g.Src, func(path string, info os.FileInfo, err error) error {
@@ -149,7 +149,8 @@ func (g *LogicGenerator) genFromFile(file string) (string, error) {
 	if err := generateFile(logicOutputPath, "serviceLogic", TplGenServiceLogic, genInfo); err != nil {
 		return "", err
 	}
-	utils.PrintInfo("📄 Generated logic file: {{.Path}}", utils.TplData{"Path": logicOutputPath})
+	relPath, _ := filepath.Rel(g.ModuleRoot, logicOutputPath)
+	utils.PrintInfo("📄 Generated logic file: {{.Path}}", utils.TplData{"Path": relPath})
 	return pkgPath, nil
 }
 

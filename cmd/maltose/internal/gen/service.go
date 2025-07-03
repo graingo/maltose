@@ -105,7 +105,7 @@ func (g *ServiceGenerator) genSimpleService() error {
 	outputPath := filepath.Join(g.ModuleRoot, g.Dst, "service", fileName+".go")
 
 	if _, err := os.Stat(outputPath); !os.IsNotExist(err) {
-		utils.PrintWarn("  -> ⏩ Skipping {{.Path}} (already exists)", utils.TplData{"Path": outputPath})
+		utils.PrintWarn("  -> ⏩ Skipping service file {{.Path}} (already exists)", utils.TplData{"Path": outputPath})
 		return nil
 	}
 
@@ -158,7 +158,7 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 		}
 	} else {
 		// File exists, skip with a warning.
-		utils.PrintWarn("  -> ⏩ Skipping {{.Path}} (already exists)", utils.TplData{"Path": info.FileName})
+		utils.PrintWarn("  -> ⏩ Skipping service file {{.Path}} (already exists)", utils.TplData{"Path": info.FileName})
 	}
 
 	// --- Controller Generation (Create or Append) ---
