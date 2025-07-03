@@ -6,7 +6,7 @@ import (
 )
 
 func (s *Server) registerHealthCheck(ctx context.Context) {
-	if !s.config.HealthCheck {
+	if s.config.HealthCheck == "" {
 		return
 	}
 

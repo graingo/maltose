@@ -40,7 +40,7 @@
   "new_project_get_started": "\nTo get started:",
   "new_project_get_started_cd": "  cd {{.ProjectName}}",
   "new_project_get_started_tidy": "  go mod tidy",
-  "new_project_get_started_run": "  go run .",
+  "new_project_get_started_run": "go run main.go",
   "dao_generation_success": "✅ DAO layer generated successfully.",
   "generic_error": "{{.Error}}",
   "dao_files_generation_start": "> Generating dao files...",
@@ -60,5 +60,6 @@
   "logic_methods_appended": "✅ Appended {{.Count}} new methods to {{.File}}.",
   "logic_manifest_generated": "Generated logic manifest file: {{.Path}}",
   "logic_manifest_hint": "Hint: Please add `_ \"{{.ModulePath}}/internal/logic\"` to your main.go to enable automatic service registration.",
-  "logic_gen_skip_method_bad_signature": "⚠️ Skipping method '{{.Method}}' in service '{{.Service}}' due to unsupported signature. Supported formats are:\n  - Method(context.Context) error\n  - Method(context.Context) (*Output, error)\n  - Method(context.Context, *Input) error\n  - Method(context.Context, *Input) (*Output, error)"
+  "logic_gen_skip_method_bad_signature": "⚠️ Skipping method '{{.Method}}' in service '{{.Service}}' due to unsupported signature. Supported formats are:\n  - Method(context.Context) error\n  - Method(context.Context) (*Output, error)\n  - Method(context.Context, *Input) error\n  - Method(context.Context, *Input) (*Output, error)",
+  "no_api_definitions_found_skipping": "No valid API definitions found in {{.File}}, skipping."
 }
