@@ -3,6 +3,7 @@ package mcfg
 import (
 	"context"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -39,6 +40,19 @@ func (c *AdapterFile) SetFileName(name string) {
 	if name == "" {
 		name = DefaultConfigFileName
 	}
+
+	// Check if the name contains a path separator.
+	if strings.Contains(name, string(filepath.Separator)) {
+		// If it is a path, split it.
+		dir := filepath.Dir(name)
+		base := filepath.Base(name)
+
+		// Add the directory where the file is located to the viper search path.
+		c.v.AddConfigPath(dir)
+		// Update the internal fileName, so that viper can use it.
+		name = base
+	}
+
 	// Remove the file extension if it exists.
 	for _, ext := range supportedFileTypes {
 		if strings.HasSuffix(name, "."+ext) {
