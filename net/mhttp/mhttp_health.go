@@ -10,10 +10,10 @@ func (s *Server) registerHealthCheck(ctx context.Context) {
 		return
 	}
 
-	s.GET("/health", func(r *Request) {
+	s.GET(s.config.HealthCheck, func(r *Request) {
 		r.JSON(http.StatusOK, map[string]any{
 			"status": "ok",
 		})
 	})
-	s.logger().Infof(ctx, "Health check endpoint registered at /health")
+	s.logger().Infof(ctx, "Health check endpoint registered at %s", s.config.HealthCheck)
 }
