@@ -10,15 +10,20 @@ import (
 // serviceCmd represents the service command
 var serviceCmd = &cobra.Command{
 	Use:   "service",
-	Short: utils.Print("service_cmd_short"),
-	Long:  utils.Print("service_cmd_long"),
+	Short: "Generate controller and service files from api definitions",
+	Long: `Generate controller and service files based on Go files containing API
+definitions (structs for request and response).
+
+The command defaults to using 'api' as input and 'internal' as output.
+You can provide a single file or a directory as input. When a directory is provided,
+it will recursively find all .go files.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		name, _ := cmd.Flags().GetString("name")
 		src, _ := cmd.Flags().GetString("src")
 		dst, _ := cmd.Flags().GetString("dst")
 		mode, _ := cmd.Flags().GetString("mode")
 
-		utils.PrintInfo("service_generation_start", nil)
+		utils.PrintInfo("Starting controller and service generation...", nil)
 
 		generator, err := gen.NewServiceGenerator(src, dst, name, mode == "interface")
 		if err != nil {
@@ -28,7 +33,7 @@ var serviceCmd = &cobra.Command{
 			return merror.Wrap(err, "failed to generate service file")
 		}
 
-		utils.PrintSuccess("service_generation_success", nil)
+		utils.PrintSuccess("✅ Controller and Service files generated successfully.", nil)
 		return nil
 	},
 }

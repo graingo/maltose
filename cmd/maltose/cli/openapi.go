@@ -8,10 +8,11 @@ import (
 
 var openapiCmd = &cobra.Command{
 	Use:   "openapi",
-	Short: utils.Print("openapi_cmd_short"),
-	Long:  utils.Print("openapi_cmd_long"),
+	Short: "Generate OpenAPI v3 specification.",
+	Long: `This command generates an OpenAPI v3 specification file by parsing Go source files.
+It helps in documenting your API in a standard format.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		utils.PrintInfo("openapi_generation_start", nil)
+		utils.PrintInfo("Starting OpenAPI spec generation...", nil)
 
 		src, _ := cmd.Flags().GetString("src")
 		outputFile, _ := cmd.Flags().GetString("output")
@@ -20,7 +21,7 @@ var openapiCmd = &cobra.Command{
 			return err
 		}
 
-		utils.PrintSuccess("openapi_generation_success", utils.TplData{"Output": outputFile})
+		utils.PrintSuccess("✅ OpenAPI specification generated successfully.", utils.TplData{"Output": outputFile})
 		return nil
 	},
 }

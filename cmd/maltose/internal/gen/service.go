@@ -85,7 +85,7 @@ func (g *ServiceGenerator) Gen() error {
 		return g.genSimpleService()
 	}
 
-	utils.PrintInfo("scanning_directory", utils.TplData{"Path": filepath.Base(g.Src)})
+	utils.PrintInfo("Scanning directory: {{.Path}}", utils.TplData{"Path": filepath.Base(g.Src)})
 	return filepath.Walk(g.Src, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
@@ -105,7 +105,7 @@ func (g *ServiceGenerator) genSimpleService() error {
 	outputPath := filepath.Join(g.ModuleRoot, g.Dst, "service", fileName+".go")
 
 	if _, err := os.Stat(outputPath); !os.IsNotExist(err) {
-		utils.PrintWarn("skipping_file", utils.TplData{"Path": outputPath})
+		utils.PrintWarn("  -> Skipping {{.Path}} (already exists)", utils.TplData{"Path": outputPath})
 		return nil
 	}
 
@@ -138,7 +138,7 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	if info == nil {
 		// This happens when a file is parsed but contains no valid Req/Res structs.
 		// It's not an error, we just skip it by returning nil.
-		utils.PrintWarn("no_api_definitions_found_skipping", utils.TplData{"File": filepath.Base(file)})
+		utils.PrintWarn("No valid API definitions found in {{.File}}, skipping.", utils.TplData{"File": filepath.Base(file)})
 		return nil
 	}
 
@@ -158,7 +158,7 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 		}
 	} else {
 		// File exists, skip with a warning.
-		utils.PrintWarn("service_file_exist_skip", utils.TplData{"Path": info.FileName})
+		utils.PrintWarn("  -> Skipping {{.Path}} (already exists)", utils.TplData{"Path": info.FileName})
 	}
 
 	// --- Controller Generation (Create or Append) ---
@@ -204,7 +204,7 @@ func (g *ServiceGenerator) generateOrAppend(filePath, fullTpl, appendTpl string,
 	}
 
 	if len(methodsToAppend) > 0 {
-		utils.PrintSuccess("service_methods_appended", utils.TplData{
+		utils.PrintSuccess("✅ Appended {{.Count}} new methods to {{.File}}.", utils.TplData{
 			"Count": len(methodsToAppend),
 			"Path":  filePath,
 		})
@@ -231,7 +231,7 @@ func appendToFile(filePath, tplContent string, data *serviceTplData) error {
 	formatted, err := format.Source(buffer.Bytes())
 	if err != nil {
 		// This is unlikely to happen with well-formed templates, but handle it.
-		utils.PrintWarn("format_source_failed", utils.TplData{"Path": filePath, "Error": err})
+		utils.PrintWarn("failed to format source for {{.Path}}, writing unformatted code. Error: {{.Error}}", utils.TplData{"Path": filePath, "Error": err})
 		formatted = buffer.Bytes() // Append unformatted code on error
 	}
 

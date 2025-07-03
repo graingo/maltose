@@ -11,10 +11,10 @@ import (
 // daoCmd represents the dao command
 var daoCmd = &cobra.Command{
 	Use:   "dao",
-	Short: utils.Print("dao_cmd_short"),
-	Long:  utils.Print("dao_cmd_long"),
+	Short: "Generate DAO layer based on existing models.",
+	Long:  "This command scans for GORM models and generates a complete data access object (DAO) layer, including interfaces and implementations.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		utils.PrintInfo("dao_generation_start", nil)
+		utils.PrintInfo("Starting DAO layer generation...", nil)
 
 		dst, _ := cmd.Flags().GetString("dst")
 
@@ -29,7 +29,7 @@ var daoCmd = &cobra.Command{
 			return err
 		}
 
-		utils.PrintSuccess("dao_generation_success", nil)
+		utils.PrintSuccess("✅ DAO layer generated successfully.", nil)
 		return nil
 	},
 }

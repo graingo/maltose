@@ -50,7 +50,7 @@ func (g *DaoGenerator) Gen() error {
 		return err
 	}
 
-	utils.PrintInfo("dao_files_generation_start", nil)
+	utils.PrintInfo("> Generating dao files...", nil)
 
 	for _, table := range tables {
 		structName := strcase.ToCamel(inflection.Singular(table.Name))
@@ -63,7 +63,7 @@ func (g *DaoGenerator) Gen() error {
 		}
 
 		internalPath := filepath.Join(g.Dst, "internal", fmt.Sprintf("%s.go", table.Name))
-		utils.PrintInfo("generating_file", utils.TplData{"Path": internalPath})
+		utils.PrintInfo("  -> Generating {{.Path}}", utils.TplData{"Path": internalPath})
 		if err := generateFile(internalPath, "daoInternal", TplGenDaoInternal, data); err != nil {
 			return err
 		}
@@ -71,12 +71,12 @@ func (g *DaoGenerator) Gen() error {
 		daoPath := filepath.Join(g.Dst, fmt.Sprintf("%s.go", table.Name))
 
 		if _, err := os.Stat(daoPath); os.IsNotExist(err) {
-			utils.PrintInfo("generating_file", utils.TplData{"Path": daoPath})
+			utils.PrintInfo("  -> Generating {{.Path}}", utils.TplData{"Path": daoPath})
 			if err := generateFile(daoPath, "dao", TplGenDao, data); err != nil {
 				return err
 			}
 		} else {
-			utils.PrintInfo("skipping_file", utils.TplData{"Path": daoPath})
+			utils.PrintInfo("  -> Skipping {{.Path}} (already exists)", utils.TplData{"Path": daoPath})
 		}
 	}
 	return nil

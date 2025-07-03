@@ -11,10 +11,10 @@ import (
 // modelCmd represents the model command
 var modelCmd = &cobra.Command{
 	Use:   "model",
-	Short: utils.Print("model_cmd_short"),
-	Long:  utils.Print("model_cmd_long"),
+	Short: "Generate GORM models from database schema",
+	Long:  "Connects to a database and generates GORM model files based on the existing table schemas.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		utils.PrintInfo("gorm_model_generation_start", nil)
+		utils.PrintInfo("Starting GORM model generation...", nil)
 
 		dst, _ := cmd.Flags().GetString("dst")
 		table, _ := cmd.Flags().GetString("table")
@@ -32,7 +32,7 @@ var modelCmd = &cobra.Command{
 			return err
 		}
 
-		utils.PrintSuccess("gorm_model_generation_success", nil)
+		utils.PrintSuccess("✅ GORM models generated successfully.", nil)
 		return nil
 	},
 }

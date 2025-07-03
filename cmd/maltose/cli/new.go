@@ -18,15 +18,15 @@ var repoURLFlag string
 // newCmd represents the new command
 var newCmd = &cobra.Command{
 	Use:   "new [project-name]",
-	Short: utils.Print("new_cmd_short"),
-	Long:  utils.Print("new_cmd_long"),
+	Short: "Create a new Maltose project.",
+	Long:  "Creates a new Maltose project by cloning the quickstart template repository.\nIt automatically replaces the module path in the new project's go.mod file.",
 	Args:  cobra.ExactArgs(1),
 	RunE: func(cmd *cobra.Command, args []string) error {
 		projectName := args[0]
 		repoURL := "https://github.com/graingo/maltose-quickstart.git"
 
-		utils.PrintInfo("new_project_creation_start", utils.TplData{"ProjectName": projectName})
-		utils.PrintInfo("new_project_template", utils.TplData{"RepoURL": repoURL})
+		utils.PrintInfo("Creating a new Maltose project in './{{.ProjectName}}'...", utils.TplData{"ProjectName": projectName})
+		utils.PrintInfo("Using template from: {{.RepoURL}}", utils.TplData{"RepoURL": repoURL})
 
 		// 1. Clone the repository
 		cloneCmd := exec.Command("git", "clone", repoURL, projectName)
@@ -60,12 +60,12 @@ var newCmd = &cobra.Command{
 			return merror.Wrap(err, "failed to write updated go.mod")
 		}
 
-		utils.PrintSuccess("new_project_success", utils.TplData{"ProjectName": projectName})
-		utils.PrintInfo("new_project_module_path_set", utils.TplData{"ModulePath": modulePath})
-		fmt.Println(utils.Print("new_project_get_started"))
-		fmt.Println(utils.Printf("new_project_get_started_cd", utils.TplData{"ProjectName": projectName}))
-		fmt.Println(utils.Print("new_project_get_started_tidy"))
-		fmt.Println(utils.Print("new_project_get_started_run"))
+		utils.PrintSuccess("Project '{{.ProjectName}}' created successfully.", utils.TplData{"ProjectName": projectName})
+		utils.PrintInfo("Module path set to '{{.ModulePath}}'.", utils.TplData{"ModulePath": modulePath})
+		fmt.Println(utils.Print("\nTo get started:"))
+		fmt.Println(utils.Printf("  cd {{.ProjectName}}", utils.TplData{"ProjectName": projectName}))
+		fmt.Println(utils.Print("  go mod tidy"))
+		fmt.Println(utils.Print("go run main.go"))
 
 		return nil
 	},
