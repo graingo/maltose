@@ -8,7 +8,7 @@ require (
 	github.com/Xuanwo/go-locale v1.1.3
 	github.com/fatih/color v1.18.0
 	github.com/getkin/kin-openapi v0.132.0
-	github.com/graingo/maltose v0.1.11
+	github.com/graingo/maltose v0.1.12
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jinzhu/inflection v1.0.0
 	github.com/joho/godotenv v1.5.1
