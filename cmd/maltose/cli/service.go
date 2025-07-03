@@ -23,7 +23,7 @@ it will recursively find all .go files.`,
 		dst, _ := cmd.Flags().GetString("dst")
 		mode, _ := cmd.Flags().GetString("mode")
 
-		utils.PrintInfo("Starting controller and service generation...", nil)
+		utils.PrintInfo("✍️  Generating controller and service files...", nil)
 
 		generator, err := gen.NewServiceGenerator(src, dst, name, mode == "interface")
 		if err != nil {
@@ -33,7 +33,7 @@ it will recursively find all .go files.`,
 			return merror.Wrap(err, "failed to generate service file")
 		}
 
-		utils.PrintSuccess("✅ Controller and Service files generated successfully.", nil)
+		utils.PrintSuccess("✅ Successfully generated controller and service files.", nil)
 		return nil
 	},
 }

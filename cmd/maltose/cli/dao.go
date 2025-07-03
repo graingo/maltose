@@ -14,7 +14,7 @@ var daoCmd = &cobra.Command{
 	Short: "Generate DAO layer based on existing models.",
 	Long:  "This command scans for GORM models and generates a complete data access object (DAO) layer, including interfaces and implementations.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		utils.PrintInfo("Starting DAO layer generation...", nil)
+		utils.PrintInfo("✍️  Generating DAO layer...", nil)
 
 		dst, _ := cmd.Flags().GetString("dst")
 
@@ -29,7 +29,7 @@ var daoCmd = &cobra.Command{
 			return err
 		}
 
-		utils.PrintSuccess("✅ DAO layer generated successfully.", nil)
+		utils.PrintSuccess("✅ Successfully generated DAO layer.", nil)
 		return nil
 	},
 }

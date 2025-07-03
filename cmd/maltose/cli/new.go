@@ -25,8 +25,8 @@ var newCmd = &cobra.Command{
 		projectName := args[0]
 		repoURL := "https://github.com/graingo/maltose-quickstart.git"
 
-		utils.PrintInfo("Creating a new Maltose project in './{{.ProjectName}}'...", utils.TplData{"ProjectName": projectName})
-		utils.PrintInfo("Using template from: {{.RepoURL}}", utils.TplData{"RepoURL": repoURL})
+		utils.PrintInfo("🚀 Creating new Maltose project at './{{.ProjectName}}'...", utils.TplData{"ProjectName": projectName})
+		utils.PrintInfo("📥 Cloning project template from {{.RepoURL}}...", utils.TplData{"RepoURL": repoURL})
 
 		// 1. Clone the repository
 		cloneCmd := exec.Command("git", "clone", repoURL, projectName)
@@ -60,12 +60,12 @@ var newCmd = &cobra.Command{
 			return merror.Wrap(err, "failed to write updated go.mod")
 		}
 
-		utils.PrintSuccess("Project '{{.ProjectName}}' created successfully.", utils.TplData{"ProjectName": projectName})
-		utils.PrintInfo("Module path set to '{{.ModulePath}}'.", utils.TplData{"ModulePath": modulePath})
-		fmt.Println(utils.Print("\nTo get started:"))
+		utils.PrintSuccess("✅ Successfully created project '{{.ProjectName}}'.", utils.TplData{"ProjectName": projectName})
+		utils.PrintInfo("🔧 Module path has been set to '{{.ModulePath}}'.", utils.TplData{"ModulePath": modulePath})
+		fmt.Println(utils.Print("\n👉 To get started, run:\n"))
 		fmt.Println(utils.Printf("  cd {{.ProjectName}}", utils.TplData{"ProjectName": projectName}))
 		fmt.Println(utils.Print("  go mod tidy"))
-		fmt.Println(utils.Print("go run main.go"))
+		fmt.Println(utils.Print("  go run main.go"))
 
 		return nil
 	},

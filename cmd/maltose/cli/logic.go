@@ -13,7 +13,7 @@ var logicCmd = &cobra.Command{
 	Short: "Generate logic file from service definitions",
 	Long:  "Generate logic file based on Go files containing service interface definitions.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		utils.PrintInfo("Starting logic generation...", nil)
+		utils.PrintInfo("✍️  Generating logic files...", nil)
 
 		srcPath, _ := cmd.Flags().GetString("src")
 		dstPath, _ := cmd.Flags().GetString("dst")
@@ -27,6 +27,7 @@ var logicCmd = &cobra.Command{
 			return merror.Wrap(err, "failed to generate logic file")
 		}
 
+		utils.PrintSuccess("✅ Successfully generated logic files.", nil)
 		return nil
 	},
 }

@@ -14,7 +14,7 @@ var modelCmd = &cobra.Command{
 	Short: "Generate GORM models from database schema",
 	Long:  "Connects to a database and generates GORM model files based on the existing table schemas.",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		utils.PrintInfo("Starting GORM model generation...", nil)
+		utils.PrintInfo("✍️  Generating GORM models...", nil)
 
 		dst, _ := cmd.Flags().GetString("dst")
 		table, _ := cmd.Flags().GetString("table")
@@ -32,7 +32,7 @@ var modelCmd = &cobra.Command{
 			return err
 		}
 
-		utils.PrintSuccess("✅ GORM models generated successfully.", nil)
+		utils.PrintSuccess("✅ Successfully generated GORM models.", nil)
 		return nil
 	},
 }

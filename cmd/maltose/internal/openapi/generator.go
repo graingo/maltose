@@ -13,7 +13,7 @@ import (
 // Generate scans the given directory for Go files, parses them,
 // builds an OpenAPI specification, and writes it to the output file.
 func Generate(src, outputFile string) error {
-	utils.PrintInfo("Scanning directory: {{.Path}}", utils.TplData{"Path": src})
+	utils.PrintInfo("🔍 Scanning directory: {{.Path}}", utils.TplData{"Path": src})
 
 	// Step 1: Parse the source code in the directory.
 	// The parser will return a structured representation of the API definitions.
@@ -26,7 +26,7 @@ func Generate(src, outputFile string) error {
 		return merror.Newf("no API definitions (structs with m.Meta) found in %s", src)
 	}
 
-	utils.PrintInfo("Found {{.Count}} API endpoint definitions.", utils.TplData{"Count": len(apiDefs)})
+	utils.PrintInfo("ℹ️  Found {{.Count}} API endpoint definitions.", utils.TplData{"Count": len(apiDefs)})
 
 	moduleName, _, err := utils.GetModuleInfo(".")
 	if err != nil {

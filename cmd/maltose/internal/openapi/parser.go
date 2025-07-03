@@ -1,7 +1,6 @@
 package openapi
 
 import (
-	"fmt"
 	"go/ast"
 	"go/parser"
 	"go/token"
@@ -70,7 +69,7 @@ func ParseDir(dir string) ([]APIDefinition, error) {
 		if err != nil {
 			// In case of parsing errors, we can choose to log them and continue,
 			// or stop the process. For now, let's continue.
-			fmt.Fprintf(os.Stderr, "warn: could not parse %s: %v\n", path, err)
+			utils.PrintWarn("⚠️ Could not parse {{.Path}}: {{.Error}}", utils.TplData{"Path": path, "Error": err})
 			continue
 		}
 

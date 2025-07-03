@@ -69,7 +69,7 @@ func NewLogicGenerator(src, dst string, overwrite bool) (*LogicGenerator, error)
 
 // Gen generates the logic file from a service interface file.
 func (g *LogicGenerator) Gen() error {
-	utils.PrintInfo("Scanning directory: {{.Path}}", utils.TplData{"Path": g.Src})
+	utils.PrintInfo("🔍 Scanning directory: {{.Path}}", utils.TplData{"Path": g.Src})
 	generatedPackages := make(map[string]struct{})
 
 	walkErr := filepath.Walk(g.Src, func(path string, info os.FileInfo, err error) error {
@@ -103,8 +103,8 @@ func (g *LogicGenerator) Gen() error {
 		}
 	}
 
-	utils.PrintSuccess("✅ Logic file generated successfully.", nil)
-	utils.PrintNotice("Hint: Please add `_ \"{{.ModulePath}}/internal/logic\"` to your main.go to enable automatic service registration.", utils.TplData{"ModulePath": g.ModuleName})
+	utils.PrintSuccess("✅ Logic files generated successfully.", nil)
+	utils.PrintNotice("💡 Hint: Please add `_ \"{{.ModulePath}}/internal/logic\"` to your main.go to enable automatic service registration.", utils.TplData{"ModulePath": g.ModuleName})
 	return nil
 }
 
@@ -149,7 +149,7 @@ func (g *LogicGenerator) genFromFile(file string) (string, error) {
 	if err := generateFile(logicOutputPath, "serviceLogic", TplGenServiceLogic, genInfo); err != nil {
 		return "", err
 	}
-	utils.PrintInfo("Generated logic manifest file: {{.Path}}", utils.TplData{"Path": logicOutputPath})
+	utils.PrintInfo("📄 Generated logic file: {{.Path}}", utils.TplData{"Path": logicOutputPath})
 	return pkgPath, nil
 }
 
@@ -166,7 +166,7 @@ func (g *LogicGenerator) generateLogicManifest(packages []string) error {
 	if relPath, err := filepath.Rel(g.ModuleRoot, logicFilePath); err == nil {
 		displayPath = relPath
 	}
-	utils.PrintInfo("Generated logic manifest file: {{.Path}}", utils.TplData{"Path": displayPath})
+	utils.PrintInfo("📄 Generated logic manifest file: {{.Path}}", utils.TplData{"Path": displayPath})
 	return nil
 }
 
@@ -225,7 +225,7 @@ func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) (bool,
 		return false, merror.Wrap(err, "failed to append new methods to logic file")
 	}
 
-	utils.PrintSuccess("✅ Appended {{.Count}} new methods to {{.File}}.", utils.TplData{
+	utils.PrintSuccess("Appended {{.Count}} new methods to {{.File}}.", utils.TplData{
 		"Count": len(methodsToAppend),
 		"File":  displayPath,
 	})
