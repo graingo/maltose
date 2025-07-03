@@ -58,7 +58,7 @@ func (s *Server) printRoute(ctx context.Context) {
 			continue
 		}
 		// skip health check route
-		if s.config.HealthCheck && r.Path == "/health" {
+		if s.config.HealthCheck != "" && r.Path == s.config.HealthCheck {
 			continue
 		}
 

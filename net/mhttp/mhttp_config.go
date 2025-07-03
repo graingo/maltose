@@ -27,7 +27,7 @@ type Config struct {
 	// MaxHeaderBytes is the maximum number of bytes in the request header.
 	MaxHeaderBytes int `mconv:"max_header_bytes"`
 	// HealthCheck is the health check config.
-	HealthCheck bool `mconv:"health_check"`
+	HealthCheck string `mconv:"health_check"`
 	// TLSEnable is the tls config.
 	TLSEnable bool `mconv:"tls_enable"`
 	// TLSCertFile is the path to the tls certificate file.
@@ -66,7 +66,7 @@ func defaultConfig() *Config {
 		MaxHeaderBytes: 1 << 20, // 1MB
 
 		// Health check
-		HealthCheck: true,
+		HealthCheck: "/health",
 
 		// TLS default config
 		TLSEnable: false,
