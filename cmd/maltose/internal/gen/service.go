@@ -21,12 +21,13 @@ import (
 
 // ServiceGenerator holds the configuration for generating services.
 type ServiceGenerator struct {
-	Src           string // Source path for API definition files
-	Dst           string // Destination path for generated files
-	ServiceName   string // The name for single service generation.
-	ModuleName    string // Go module name
-	ModuleRoot    string // File system path to the module root
-	InterfaceMode bool   // Whether to generate service with interface
+	Src               string // Source path for API definition files
+	Dst               string // Destination path for generated files
+	ServiceName       string // The name for single service generation.
+	ModuleName        string // Go module name
+	ModuleRoot        string // File system path to the module root
+	InterfaceMode     bool   // Whether to generate service with interface
+	processedServices map[string]bool
 }
 
 // Function holds the parsed information of a function.
@@ -70,12 +71,13 @@ func NewServiceGenerator(src, dst, serviceName string, interfaceMode bool) (*Ser
 	}
 
 	return &ServiceGenerator{
-		Src:           src,
-		Dst:           dst,
-		ServiceName:   serviceName,
-		ModuleName:    moduleName,
-		ModuleRoot:    moduleRoot,
-		InterfaceMode: interfaceMode,
+		Src:               src,
+		Dst:               dst,
+		ServiceName:       serviceName,
+		ModuleName:        moduleName,
+		ModuleRoot:        moduleRoot,
+		InterfaceMode:     interfaceMode,
+		processedServices: make(map[string]bool),
 	}, nil
 }
 
@@ -147,6 +149,7 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 
 	// --- Service File Generation (Create if not exist, skip if exist) ---
 	svcOutputPath := filepath.Join(g.Dst, "service", info.FileName)
+	if !g.processedServices[svcOutputPath] {
 	if _, err := os.Stat(svcOutputPath); os.IsNotExist(err) {
 		// File does not exist, generate skeleton.
 		templateName := TplGenService
@@ -159,6 +162,8 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	} else {
 		// File exists, skip with a warning.
 		utils.PrintWarn("  -> ⏩ Skipping service file {{.Path}} (already exists)", utils.TplData{"Path": info.FileName})
+		}
+		g.processedServices[svcOutputPath] = true
 	}
 
 	// --- Controller Generation (Create or Append) ---
