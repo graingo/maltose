@@ -43,9 +43,18 @@ func (r *Request) doRequest(ctx context.Context, method string, urlPath string) 
 		// Create a new request for each attempt
 		resp, err = r.attemptRequest(ctx, method, urlPath)
 
-		// Break if we shouldn't retry
-		if !r.shouldRetry(resp.Response, err) || attempts >= maxAttempts {
-			break
+		// If an error occurred (like a timeout), resp might be nil.
+		// We must handle the error case first before accessing resp.
+		if err != nil {
+			// If we shouldn't retry based on the error, or we've exhausted attempts, break.
+			if !r.shouldRetry(nil, err) || attempts >= maxAttempts {
+				break
+			}
+		} else {
+			// If there's no error, check the response to see if we should retry.
+			if !r.shouldRetry(resp.Response, nil) || attempts >= maxAttempts {
+				break
+			}
 		}
 
 		// Close the response before retry if it exists

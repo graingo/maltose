@@ -62,6 +62,22 @@ func MiddlewareLog() MiddlewareFunc {
 		}
 		r.Writer = writer
 
+		// request fields
+		requestFields := mlog.Fields{
+			mlog.String("ip", r.ClientIP()),
+			mlog.String("method", r.Request.Method),
+			mlog.String("path", r.Request.URL.Path),
+		}
+		if raw := r.Request.URL.RawQuery; raw != "" {
+			requestFields = append(requestFields, mlog.String("query", raw))
+		}
+		if len(reqBodyBytes) > 0 {
+			requestFields = append(requestFields, mlog.String("request_body", getBodyString(reqBodyBytes, 512)))
+		}
+
+		// Log request
+		r.Logger().Infow(r.Request.Context(), "http server request started", requestFields...)
+
 		// Execute next middleware
 		r.Next()
 
@@ -70,36 +86,29 @@ func MiddlewareLog() MiddlewareFunc {
 		status := writer.Status()
 		resBodyBytes := writer.body.Bytes()
 
-		fields := mlog.Fields{
+		msg := "http server request finished"
+
+		responseFields := mlog.Fields{
 			mlog.String("ip", r.ClientIP()),
 			mlog.String("method", r.Request.Method),
 			mlog.String("path", r.Request.URL.Path),
 			mlog.Int("status", status),
 			mlog.Float64("latency_ms", float64(duration.Nanoseconds())/1e6),
 		}
-
-		if raw := r.Request.URL.RawQuery; raw != "" {
-			fields = append(fields, mlog.String("query", raw))
-		}
-		if len(reqBodyBytes) > 0 {
-			fields = append(fields, mlog.String("request_body", getBodyString(reqBodyBytes, 512)))
-		}
 		if len(resBodyBytes) > 0 {
-			fields = append(fields, mlog.String("response_body", getBodyString(resBodyBytes, 512)))
+			responseFields = append(responseFields, mlog.String("response_body", getBodyString(resBodyBytes, 512)))
 		}
-
-		logger := r.Logger()
-		msg := "http server request finished"
 
 		// Decide log level based on errors or status code
 		if len(r.Errors) > 0 {
 			msg += " with errors"
-			logger.Errorw(r.Request.Context(), r.Errors[0], msg, fields...)
+			// Log with the actual error from the context
+			r.Logger().Errorw(r.Request.Context(), r.Errors.Last().Err, msg, responseFields...)
 		} else if status >= 400 {
 			msg += " with error status"
-			logger.Errorw(r.Request.Context(), nil, msg, fields...)
+			r.Logger().Warnw(r.Request.Context(), msg, responseFields...)
 		} else {
-			logger.Infow(r.Request.Context(), msg, fields...)
+			r.Logger().Infow(r.Request.Context(), msg, responseFields...)
 		}
 	}
 }
