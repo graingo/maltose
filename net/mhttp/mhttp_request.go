@@ -58,6 +58,11 @@ func (r *Request) Logger() *mlog.Logger {
 	return r.server.logger()
 }
 
+// Conf gets the server config.
+func (r *Request) Conf() *Config {
+	return r.server.config
+}
+
 // GetHandlerResponse gets the handler response.
 func (r *Request) GetHandlerResponse() any {
 	res, _ := r.Get(string(ResponseKey))
