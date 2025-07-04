@@ -39,6 +39,13 @@ func (w *responseWriter) WriteString(s string) (int, error) {
 // MiddlewareLog is a middleware for logging HTTP requests.
 func MiddlewareLog() MiddlewareFunc {
 	return func(r *Request) {
+
+		// Skip health check
+		if r.Request.URL.Path == r.server.config.HealthCheck {
+			r.Next()
+			return
+		}
+
 		start := time.Now()
 
 		// Safely read and capture the request body

@@ -55,11 +55,12 @@ func buildLogFields(r *Request, resp *Response, duration time.Duration) mlog.Fie
 	fields := mlog.Fields{
 		mlog.Float64("duration_ms", float64(duration.Nanoseconds())/1e6),
 		mlog.String("method", r.Request.Method),
-		mlog.String("url", "<no url>"),
 	}
 
 	if r.Request != nil && r.Request.URL != nil {
 		fields = append(fields, mlog.String("url", r.Request.URL.String()))
+	} else {
+		fields = append(fields, mlog.String("url", "<no url>"))
 	}
 
 	// Safely read and log the request body

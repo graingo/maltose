@@ -102,6 +102,12 @@ func internalMiddlewareTrace() MiddlewareFunc {
 			return
 		}
 
+		// Skip health check
+		if r.Request.URL.Path == r.server.config.HealthCheck {
+			r.Next()
+			return
+		}
+
 		ctx := r.Request.Context()
 		tr := otel.GetTracerProvider().Tracer(
 			instrumentName,
