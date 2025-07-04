@@ -15,6 +15,7 @@ type RouterGroup struct {
 	path        string
 	ginGroup    *gin.RouterGroup
 	middlewares []MiddlewareFunc
+	parent      *RouterGroup
 }
 
 type RouterGroupOption func(*RouterGroup)
@@ -22,9 +23,11 @@ type RouterGroupOption func(*RouterGroup)
 // Group creates a new router group.
 func (rg *RouterGroup) Group(path string, handlers ...RouterGroupOption) *RouterGroup {
 	group := &RouterGroup{
-		server:   rg.server,
-		path:     joinPaths(rg.path, path),
-		ginGroup: rg.ginGroup.Group(path),
+		server:      rg.server,
+		path:        joinPaths(rg.path, path),
+		ginGroup:    rg.ginGroup.Group(path),
+		middlewares: nil, // Child group starts with its own empty middleware list
+		parent:      rg,  // Set parent to the current group
 	}
 
 	for _, handler := range handlers {
@@ -217,17 +220,25 @@ func joinPaths(absolutePath, relativePath string) string {
 	if relativePath == "" {
 		return absolutePath
 	}
-
-	finalPath := absolutePath
-	if absolutePath != "/" {
-		finalPath += "/"
+	if absolutePath == "" {
+		return relativePath
+	}
+	if absolutePath == "/" {
+		if relativePath[0] == '/' {
+			return relativePath
+		}
+		return "/" + relativePath
 	}
 
+	finalPath := absolutePath
+
+	if finalPath[len(finalPath)-1] != '/' {
+		finalPath += "/"
+	}
 	if relativePath[0] == '/' {
 		finalPath += relativePath[1:]
 	} else {
 		finalPath += relativePath
 	}
-
 	return finalPath
 }

@@ -51,9 +51,11 @@ func New(config ...*Config) *Server {
 
 	// initialize root RouterGroup
 	s.RouterGroup = RouterGroup{
-		server:   s,
-		path:     "/",
-		ginGroup: engine.Group("/"),
+		server:      s,
+		path:        "/",
+		ginGroup:    &s.engine.RouterGroup,
+		middlewares: make([]MiddlewareFunc, 0),
+		parent:      nil,
 	}
 
 	// add default middlewares
@@ -63,6 +65,7 @@ func New(config ...*Config) *Server {
 		internalMiddlewareMetric(),
 		internalMiddlewareDefaultResponse(),
 	)
+
 	if s.config.ServerLocale != "" {
 		// register translator
 		s.registerValidateTranslator(s.config.ServerLocale)
