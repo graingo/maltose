@@ -96,12 +96,6 @@ func internalMiddlewareMetric() MiddlewareFunc {
 // internalMiddlewareTrace returns a middleware for OpenTelemetry tracing
 func internalMiddlewareTrace() MiddlewareFunc {
 	return func(r *Request) {
-		// If the default trace provider is used, do nothing.
-		if !mtrace.IsUsingMaltoseProvider() {
-			r.Next()
-			return
-		}
-
 		// Skip health check
 		if r.Request.URL.Path == r.server.config.HealthCheck {
 			r.Next()
@@ -134,7 +128,7 @@ func internalMiddlewareTrace() MiddlewareFunc {
 		)
 		defer span.End()
 
-		// Inject the updated context into the request.
+		// Inject the updated context into both Request objects
 		r.Request = r.Request.WithContext(ctx)
 
 		// process request

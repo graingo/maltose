@@ -6,6 +6,8 @@ import (
 	"reflect"
 	"sort"
 	"strings"
+
+	"github.com/gin-gonic/gin"
 )
 
 type routeType int
@@ -122,4 +124,11 @@ func (s *Server) printRoute(ctx context.Context) {
 	// Footer
 	footer := fmt.Sprintf("└─%s─┴─%s─┴─%s─┘\n\n", strings.Repeat("─", maxMethod), strings.Repeat("─", maxPath), strings.Repeat("─", maxHandler))
 	fmt.Print(footer)
+}
+
+func (s *Server) SetNoRouteHandler(handler HandlerFunc) {
+	s.engine.NoRoute(func(c *gin.Context) {
+		r := newRequest(c, s)
+		handler(r)
+	})
 }
