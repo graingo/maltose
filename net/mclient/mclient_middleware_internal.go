@@ -78,12 +78,6 @@ func internalMiddlewareMetric() MiddlewareFunc {
 func internalMiddlewareTrace() MiddlewareFunc {
 	return func(next HandlerFunc) HandlerFunc {
 		return func(req *Request) (*Response, error) {
-			// if using default provider, skip complex tracing
-			if !mtrace.IsUsingMaltoseProvider() {
-				ctx := req.Request.Context()
-				req.Request = req.Request.WithContext(ctx)
-				return next(req)
-			}
 			ctx := req.Request.Context()
 
 			// create tracer
