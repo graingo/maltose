@@ -28,11 +28,17 @@ func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 			// Add component to logger for this middleware instance
 			l := logger.With(mlog.String(maltose.COMPONENT, "mclient"))
 
+			var reqBodyBytes []byte
+			if req.Body != nil {
+				reqBodyBytes, _ = io.ReadAll(req.Body)
+				req.Body = io.NopCloser(bytes.NewBuffer(reqBodyBytes))
+			}
+
 			// Execute request
 			resp, err := next(req)
 			duration := time.Since(start)
 
-			fields := buildLogFields(req, resp, duration)
+			fields := buildLogFields(req, resp, duration, reqBodyBytes)
 
 			if err != nil {
 				l.Errorw(ctx, err, "http client request error", fields...)
@@ -51,7 +57,7 @@ func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 }
 
 // buildLogFields extracts and builds a map of fields for logging.
-func buildLogFields(r *Request, resp *Response, duration time.Duration) mlog.Fields {
+func buildLogFields(r *Request, resp *Response, duration time.Duration, reqBodyBytes []byte) mlog.Fields {
 	fields := mlog.Fields{
 		mlog.Float64("duration_ms", float64(duration.Nanoseconds())/1e6),
 		mlog.String("method", r.Request.Method),
@@ -63,11 +69,9 @@ func buildLogFields(r *Request, resp *Response, duration time.Duration) mlog.Fie
 		fields = append(fields, mlog.String("url", "<no url>"))
 	}
 
-	// Safely read and log the request body
-	if r.Body != nil {
-		bodyBytes, _ := io.ReadAll(r.Body)
-		r.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Restore body
-		bodyStr := string(bodyBytes)
+	// Use the pre-read byte slice instead of trying to read the consumed stream.
+	if len(reqBodyBytes) > 0 {
+		bodyStr := string(reqBodyBytes)
 		if len(bodyStr) > maxBodySize {
 			bodyStr = bodyStr[:maxBodySize] + "..."
 		}
