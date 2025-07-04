@@ -6,7 +6,7 @@ toolchain go1.23.9
 
 require (
 	github.com/go-playground/validator/v10 v10.25.0
-	github.com/graingo/maltose v0.1.17
+	github.com/graingo/maltose v0.1.18
 	github.com/nacos-group/nacos-sdk-go/v2 v2.2.9
 	github.com/spf13/viper v1.19.0
 	github.com/stretchr/testify v1.10.0
