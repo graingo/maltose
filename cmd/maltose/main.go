@@ -4,7 +4,6 @@ import (
 	"os"
 
 	"github.com/graingo/maltose/cmd/maltose/cli"
-	_ "github.com/graingo/maltose/cmd/maltose/i18n"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 )
 

@@ -69,7 +69,7 @@ func NewLogicGenerator(src, dst string, overwrite bool) (*LogicGenerator, error)
 
 // Gen generates the logic file from a service interface file.
 func (g *LogicGenerator) Gen() error {
-	utils.PrintInfo("scanning_directory", utils.TplData{"Path": g.Src})
+	utils.PrintInfo("🔍 Scanning directory: {{.Path}}", utils.TplData{"Path": filepath.Base(g.Src)})
 	generatedPackages := make(map[string]struct{})
 
 	walkErr := filepath.Walk(g.Src, func(path string, info os.FileInfo, err error) error {
@@ -103,8 +103,8 @@ func (g *LogicGenerator) Gen() error {
 		}
 	}
 
-	utils.PrintSuccess("logic_generation_success", nil)
-	utils.PrintNotice("logic_manifest_hint", utils.TplData{"ModulePath": g.ModuleName})
+	utils.PrintSuccess("✅ Logic files generated successfully.", nil)
+	utils.PrintNotice("💡 Hint: Please add `_ \"{{.ModulePath}}/internal/logic\"` to your main.go to enable automatic service registration.", utils.TplData{"ModulePath": g.ModuleName})
 	return nil
 }
 
@@ -149,7 +149,8 @@ func (g *LogicGenerator) genFromFile(file string) (string, error) {
 	if err := generateFile(logicOutputPath, "serviceLogic", TplGenServiceLogic, genInfo); err != nil {
 		return "", err
 	}
-	utils.PrintInfo("logic_manifest_generated", utils.TplData{"Path": logicOutputPath})
+	relPath, _ := filepath.Rel(g.ModuleRoot, logicOutputPath)
+	utils.PrintInfo("📄 Generated logic file: {{.Path}}", utils.TplData{"Path": relPath})
 	return pkgPath, nil
 }
 
@@ -166,7 +167,7 @@ func (g *LogicGenerator) generateLogicManifest(packages []string) error {
 	if relPath, err := filepath.Rel(g.ModuleRoot, logicFilePath); err == nil {
 		displayPath = relPath
 	}
-	utils.PrintInfo("logic_manifest_generated", utils.TplData{"Path": displayPath})
+	utils.PrintInfo("📄 Generated logic manifest file: {{.Path}}", utils.TplData{"Path": displayPath})
 	return nil
 }
 
@@ -189,7 +190,7 @@ func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) (bool,
 	}
 
 	if len(methodsToAppend) == 0 {
-		utils.PrintNotice("logic_file_uptodate", utils.TplData{"File": displayPath})
+		utils.PrintNotice("⏩ Logic file {{.File}} is up to date, skipping.", utils.TplData{"File": displayPath})
 		return false, nil
 	}
 
@@ -210,7 +211,7 @@ func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) (bool,
 	// Format the generated code before appending.
 	formatted, err := format.Source(buffer.Bytes())
 	if err != nil {
-		utils.PrintWarn("format_source_failed", utils.TplData{"Path": path, "Error": err})
+		utils.PrintWarn("failed to format source for {{.Path}}, writing unformatted code. Error: {{.Error}}", utils.TplData{"Path": path, "Error": err})
 		formatted = buffer.Bytes() // Append unformatted code on error
 	}
 
@@ -225,7 +226,7 @@ func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) (bool,
 		return false, merror.Wrap(err, "failed to append new methods to logic file")
 	}
 
-	utils.PrintSuccess("logic_methods_appended", utils.TplData{
+	utils.PrintSuccess("Appended {{.Count}} new methods to {{.File}}.", utils.TplData{
 		"Count": len(methodsToAppend),
 		"File":  displayPath,
 	})
@@ -315,10 +316,8 @@ func (p *LogicParser) Parse(filePath string) (*logicTplData, error) {
 						results.NumFields() < 1 || results.NumFields() > 2 ||
 						!isContextContext(params.List[0]) ||
 						!isError(results.List[results.NumFields()-1]) {
-						utils.PrintWarn("logic_gen_skip_method_bad_signature", utils.TplData{
-							"Method":  methodName,
-							"Service": serviceName,
-						})
+						utils.PrintWarn("⚠️ Skipping method '{{.Method}}' in service '{{.Service}}' due to unsupported signature. Supported formats are:\n  - Method(context.Context) error\n  - Method(context.Context) (*Output, error)\n  - Method(context.Context, *Input) error\n  - Method(context.Context, *Input) (*Output, error)",
+							utils.TplData{"Method": methodName, "Service": serviceName})
 						continue
 					}
 

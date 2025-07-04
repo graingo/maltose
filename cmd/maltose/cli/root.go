@@ -5,7 +5,6 @@ import (
 	"fmt"
 
 	"github.com/graingo/maltose"
-	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
 )
 
@@ -15,8 +14,10 @@ var (
 
 var rootCmd = &cobra.Command{
 	Use:   "maltose",
-	Short: utils.Print("root_cmd_short"),
-	Long:  utils.Print("root_cmd_long"),
+	Short: "Maltose is a lightweight and powerful Go framework for building modern web applications.",
+	Long: `Maltose provides an elegant and concise way to build web services, 
+with a focus on high performance, scalability, and developer experience.
+It includes features like routing, middleware, configuration management, and more.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if versionFlag {
 			fmt.Printf("Maltose CLI version: %s\n", maltose.VERSION)

@@ -60,7 +60,7 @@ func (g *ModelGenerator) Gen() error {
 		filteredTables = tables
 	}
 
-	utils.PrintInfo("entity_files_generation_start", nil)
+	utils.PrintInfo("ℹ️  Generating entity files...", nil)
 	for _, table := range filteredTables {
 		structName := strcase.ToCamel(inflection.Singular(table.Name))
 
@@ -86,7 +86,7 @@ func (g *ModelGenerator) Gen() error {
 
 		outputPath := filepath.Join(g.Dst, "entity", fmt.Sprintf("%s.go", table.Name))
 
-		utils.PrintInfo("generating_file", utils.TplData{"Path": outputPath})
+		utils.PrintInfo("  -> 📄 Generating {{.Path}}", utils.TplData{"Path": outputPath})
 		if err := generateFile(outputPath, "entity", TplGenEntity, data); err != nil {
 			return err
 		}
