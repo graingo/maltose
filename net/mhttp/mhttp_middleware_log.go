@@ -9,7 +9,7 @@ import (
 	"github.com/graingo/maltose/os/mlog"
 )
 
-const maxBodySize = -1
+var LogMaxBodySize int = -1
 
 // responseWriter is a custom http.ResponseWriter that captures the response body and status.
 // It embeds gin.ResponseWriter to ensure full compatibility.
@@ -77,7 +77,7 @@ func MiddlewareLog() MiddlewareFunc {
 			requestFields = append(requestFields, mlog.String("query", raw))
 		}
 		if len(reqBodyBytes) > 0 {
-			requestFields = append(requestFields, mlog.String("request_body", getBodyString(reqBodyBytes, maxBodySize)))
+			requestFields = append(requestFields, mlog.String("request_body", getBodyString(reqBodyBytes, LogMaxBodySize)))
 		}
 
 		r.Logger().Infow(r.Request.Context(), "http server request started", requestFields...)
@@ -99,7 +99,7 @@ func MiddlewareLog() MiddlewareFunc {
 			mlog.Float64("latency_ms", float64(duration.Nanoseconds())/1e6),
 		)
 		if len(resBodyBytes) > 0 {
-			finalFields = append(finalFields, mlog.String("response_body", getBodyString(resBodyBytes, maxBodySize)))
+			finalFields = append(finalFields, mlog.String("response_body", getBodyString(resBodyBytes, LogMaxBodySize)))
 		}
 
 		// Decide log level based on errors or status code

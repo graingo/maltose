@@ -9,7 +9,7 @@ import (
 	"github.com/graingo/maltose/os/mlog"
 )
 
-const maxBodySize = -1
+var LogMaxBodySize int = -1
 
 // MiddlewareLog creates a middleware that logs request and response details in two steps:
 // 1. Before the request is sent ("started").
@@ -41,7 +41,7 @@ func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 				mlog.String("url", req.Request.URL.String()),
 			}
 			if len(reqBodyBytes) > 0 {
-				requestFields = append(requestFields, mlog.String("request_body", getBodyString(reqBodyBytes, maxBodySize)))
+				requestFields = append(requestFields, mlog.String("request_body", getBodyString(reqBodyBytes, LogMaxBodySize)))
 			}
 
 			l.Infow(ctx, "http client request started", requestFields...)
@@ -69,7 +69,7 @@ func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 				bodyBytes, _ := io.ReadAll(resp.Body)
 				resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Restore body for next handler
 				if len(bodyBytes) > 0 {
-					finalFields = append(finalFields, mlog.String("response_body", getBodyString(bodyBytes, maxBodySize)))
+					finalFields = append(finalFields, mlog.String("response_body", getBodyString(bodyBytes, LogMaxBodySize)))
 				}
 			}
 
