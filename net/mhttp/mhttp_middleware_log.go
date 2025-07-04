@@ -9,7 +9,7 @@ import (
 	"github.com/graingo/maltose/os/mlog"
 )
 
-const maxBodySize = 1024
+const maxBodySize = -1
 
 // responseWriter is a custom http.ResponseWriter that captures the response body and status.
 // It embeds gin.ResponseWriter to ensure full compatibility.
@@ -120,6 +120,9 @@ func MiddlewareLog() MiddlewareFunc {
 func getBodyString(body []byte, limit int) string {
 	if len(body) == 0 {
 		return ""
+	}
+	if limit < 0 { // no limit
+		return string(body)
 	}
 	if len(body) > limit {
 		return string(body[:limit]) + "..."

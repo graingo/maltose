@@ -9,7 +9,7 @@ import (
 	"github.com/graingo/maltose/os/mlog"
 )
 
-const maxBodySize = 1024
+const maxBodySize = -1
 
 // MiddlewareLog creates a middleware that logs request and response details in two steps:
 // 1. Before the request is sent ("started").
@@ -88,6 +88,9 @@ func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 func getBodyString(body []byte, limit int) string {
 	if len(body) == 0 {
 		return ""
+	}
+	if limit < 0 { // no limit
+		return string(body)
 	}
 	if len(body) > limit {
 		return string(body[:limit]) + "..."
