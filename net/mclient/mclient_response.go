@@ -83,13 +83,14 @@ func (r *Response) Parse(result interface{}) error {
 	if r.Response == nil || r.Response.Body == nil {
 		return errors.New("response or response body is nil")
 	}
-	defer r.Response.Body.Close()
 
 	// Read the response body
 	body, err := io.ReadAll(r.Response.Body)
 	if err != nil {
 		return err
 	}
+	// The original body is consumed, we need to close it.
+	r.Response.Body.Close()
 
 	// Reset Body for multiple reads
 	r.SetBodyContent(body)
