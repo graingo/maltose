@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/graingo/maltose/os/mlog"
+	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
@@ -99,7 +100,7 @@ func (l *GormLogger) Trace(ctx context.Context, begin time.Time, fc func() (sql 
 
 	switch {
 	case err != nil && l.gormLogLevel >= logger.Error:
-		if errors.Is(err, logger.ErrRecordNotFound) && l.skipErrRecordNotFound {
+		if errors.Is(err, gorm.ErrRecordNotFound) && l.skipErrRecordNotFound {
 			if l.gormLogLevel >= logger.Info {
 				l.logger.Infow(ctx, "sql not found", fields...)
 			}
