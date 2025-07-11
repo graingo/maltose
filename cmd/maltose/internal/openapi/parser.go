@@ -17,6 +17,7 @@ import (
 type APIDefinition struct {
 	Method      string
 	Path        string
+	Group       string // The group prefix for the path
 	Summary     string
 	Tag         string
 	Description string
@@ -44,15 +45,18 @@ type FieldInfo struct {
 // and extracts API definitions from files containing "m.Meta".
 func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 	fset := token.NewFileSet()
-	goFiles := make([]string, 0)
+	var apiDefs []APIDefinition
+	allStructs := make(map[string]*ast.StructType)
+	fileToPkgPath := make(map[string]string) // file path -> package path
 
-	utils.PrintInfo("scanning_directory", utils.TplData{"Path": filepath.Base(dir)})
+	// First pass: Walk files to get their package paths relative to the root `dir`
 	err := filepath.Walk(dir, func(path string, info os.FileInfo, err error) error {
 		if err != nil {
 			return err
 		}
 		if !info.IsDir() && strings.HasSuffix(info.Name(), ".go") {
-			goFiles = append(goFiles, path)
+			relPath, _ := filepath.Rel(dir, filepath.Dir(path))
+			fileToPkgPath[path] = filepath.ToSlash(relPath)
 		}
 		return nil
 	})
@@ -60,15 +64,10 @@ func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 		return nil, nil, merror.Wrapf(err, "failed to walk directory %s", dir)
 	}
 
-	var apiDefs []APIDefinition
-	allStructs := make(map[string]*ast.StructType)
-
-	// First pass: Parse files and collect all structs from files containing m.Meta
-	for _, path := range goFiles {
+	// Second pass: Parse files and collect all structs
+	for path := range fileToPkgPath {
 		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 		if err != nil {
-			// In case of parsing errors, we can choose to log them and continue,
-			// or stop the process. For now, let's continue.
 			utils.PrintWarn("⚠️ Could not parse {{.Path}}: {{.Error}}", utils.TplData{"Path": path, "Error": err})
 			continue
 		}
@@ -82,7 +81,15 @@ func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 				for _, spec := range genDecl.Specs {
 					if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 						if structType, ok := typeSpec.Type.(*ast.StructType); ok {
+							// Store the struct along with its source file path for later lookup
 							allStructs[typeSpec.Name.Name] = structType
+							// A bit of a hack: store file path in a field's doc comment
+							if structType.Fields != nil && len(structType.Fields.List) > 0 {
+								if structType.Fields.List[0].Doc == nil {
+									structType.Fields.List[0].Doc = &ast.CommentGroup{}
+								}
+								structType.Fields.List[0].Doc.List = append(structType.Fields.List[0].Doc.List, &ast.Comment{Text: "// @source:" + path})
+							}
 						}
 					}
 				}
@@ -91,11 +98,26 @@ func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 		})
 	}
 
-	// Second pass: find "Req" structs and build API definitions
+	// Third pass: find "Req" structs, build API definitions and calculate paths
 	for name, structType := range allStructs {
 		if !strings.HasSuffix(name, "Req") {
 			continue
 		}
+
+		// Retrieve the source file path from our hack
+		var sourcePath string
+		if structType.Fields != nil && len(structType.Fields.List) > 0 && structType.Fields.List[0].Doc != nil {
+			for _, comment := range structType.Fields.List[0].Doc.List {
+				if strings.HasPrefix(comment.Text, "// @source:") {
+					sourcePath = strings.TrimPrefix(comment.Text, "// @source:")
+					break
+				}
+			}
+		}
+		if sourcePath == "" {
+			continue // Should not happen if our hack works
+		}
+		pkgPath := fileToPkgPath[sourcePath]
 
 		apiDef := APIDefinition{}
 		isAPIEntry := false
@@ -111,6 +133,7 @@ func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 							tag := reflect.StructTag(strings.Trim(field.Tag.Value, "`"))
 							apiDef.Method = tag.Get("method")
 							apiDef.Path = tag.Get("path")
+							apiDef.Group = tag.Get("group")
 							apiDef.Summary = tag.Get("summary")
 							apiDef.Tag = tag.Get("tag")
 							apiDef.Description = tag.Get("dc")
@@ -123,6 +146,40 @@ func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 
 		if !isAPIEntry {
 			continue
+		}
+
+		// Calculate final path
+		if apiDef.Group != "" {
+			// If group is explicitly set, use it.
+			if apiDef.Group == "/" {
+				// Use path directly, but ensure it starts with a slash
+				apiDef.Path = "/" + strings.TrimPrefix(apiDef.Path, "/")
+			} else {
+				apiDef.Path = "/" + strings.TrimPrefix(filepath.ToSlash(filepath.Join(apiDef.Group, apiDef.Path)), "/")
+			}
+		} else {
+			// Otherwise, derive a prefix from the file's directory path.
+			var prefix string
+			if pkgPath != "" && pkgPath != "." {
+				prefix = filepath.ToSlash(pkgPath) // Default prefix is the full directory path.
+				parts := strings.Split(prefix, "/")
+
+				// Try to find a version string like "v1", "v2", etc.
+				for _, part := range parts {
+					if len(part) > 1 && part[0] == 'v' && part[1] >= '0' && part[1] <= '9' {
+						// If found, construct the prefix as "api/<version>" per user request.
+						prefix = "api/" + part
+						break
+					}
+				}
+			}
+
+			// Join the calculated prefix with the path from the tag.
+			if prefix != "" {
+				apiDef.Path = filepath.Join(prefix, apiDef.Path)
+			}
+			// Ensure the final path starts with a single slash.
+			apiDef.Path = "/" + strings.TrimPrefix(filepath.ToSlash(apiDef.Path), "/")
 		}
 
 		// Populate request struct info
