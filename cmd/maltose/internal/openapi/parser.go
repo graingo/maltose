@@ -42,7 +42,7 @@ type FieldInfo struct {
 
 // ParseDir parses all .go files in a directory and its subdirectories,
 // and extracts API definitions from files containing "m.Meta".
-func ParseDir(dir string) ([]APIDefinition, error) {
+func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 	fset := token.NewFileSet()
 	goFiles := make([]string, 0)
 
@@ -57,7 +57,7 @@ func ParseDir(dir string) ([]APIDefinition, error) {
 		return nil
 	})
 	if err != nil {
-		return nil, merror.Wrapf(err, "failed to walk directory %s", dir)
+		return nil, nil, merror.Wrapf(err, "failed to walk directory %s", dir)
 	}
 
 	var apiDefs []APIDefinition
@@ -77,8 +77,8 @@ func ParseDir(dir string) ([]APIDefinition, error) {
 			continue
 		}
 
-		for _, decl := range file.Decls {
-			if genDecl, ok := decl.(*ast.GenDecl); ok && genDecl.Tok == token.TYPE {
+		ast.Inspect(file, func(n ast.Node) bool {
+			if genDecl, ok := n.(*ast.GenDecl); ok && genDecl.Tok == token.TYPE {
 				for _, spec := range genDecl.Specs {
 					if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 						if structType, ok := typeSpec.Type.(*ast.StructType); ok {
@@ -87,7 +87,8 @@ func ParseDir(dir string) ([]APIDefinition, error) {
 					}
 				}
 			}
-		}
+			return true
+		})
 	}
 
 	// Second pass: find "Req" structs and build API definitions
@@ -136,7 +137,7 @@ func ParseDir(dir string) ([]APIDefinition, error) {
 		apiDefs = append(apiDefs, apiDef)
 	}
 
-	return apiDefs, nil
+	return apiDefs, allStructs, nil
 }
 
 func containsMeta(file *ast.File) bool {
@@ -161,11 +162,7 @@ func parseStructInfo(name string, structType *ast.StructType, method string) Str
 		}
 		fieldName := field.Names[0].Name
 
-		var fieldTypeName string
-		if ident, ok := field.Type.(*ast.Ident); ok {
-			fieldTypeName = ident.Name
-		}
-
+		fieldTypeName := extractTypeName(field.Type)
 		if fieldTypeName == "" {
 			continue // Skip unhandled types for now
 		}
@@ -197,4 +194,39 @@ func parseStructInfo(name string, structType *ast.StructType, method string) Str
 		})
 	}
 	return info
+}
+
+// extractTypeName extracts type name from ast.Expr, supporting various type forms
+func extractTypeName(expr ast.Expr) string {
+	switch t := expr.(type) {
+	case *ast.Ident:
+		// Simple type: string, int, User
+		return t.Name
+	case *ast.StarExpr:
+		// Pointer type: *User
+		if innerType := extractTypeName(t.X); innerType != "" {
+			return "*" + innerType
+		}
+	case *ast.ArrayType:
+		// Array/slice type: []User, [5]int
+		if innerType := extractTypeName(t.Elt); innerType != "" {
+			return "[]" + innerType
+		}
+	case *ast.MapType:
+		// Map type: map[string]User
+		keyType := extractTypeName(t.Key)
+		valueType := extractTypeName(t.Value)
+		if keyType != "" && valueType != "" {
+			return "map[" + keyType + "]" + valueType
+		}
+	case *ast.SelectorExpr:
+		// Qualified type: time.Time, pkg.User
+		if x, ok := t.X.(*ast.Ident); ok {
+			return x.Name + "." + t.Sel.Name
+		}
+	case *ast.InterfaceType:
+		// Interface type: interface{}
+		return "interface{}"
+	}
+	return ""
 }

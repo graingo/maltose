@@ -1,6 +1,9 @@
 package cli
 
 import (
+	"path/filepath"
+	"strings"
+
 	"github.com/graingo/maltose/cmd/maltose/internal/openapi"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/spf13/cobra"
@@ -16,8 +19,19 @@ It helps in documenting your API in a standard format.`,
 
 		src, _ := cmd.Flags().GetString("src")
 		outputFile, _ := cmd.Flags().GetString("output")
+		format, _ := cmd.Flags().GetString("format")
 
-		if err := openapi.Generate(src, outputFile); err != nil {
+		// Auto-detect format from output file extension if not explicitly set
+		if !cmd.Flags().Changed("format") {
+			ext := strings.ToLower(filepath.Ext(outputFile))
+			if ext == ".json" {
+				format = "json"
+			} else {
+				format = "yaml" // Default to yaml
+			}
+		}
+
+		if err := openapi.Generate(src, outputFile, format); err != nil {
 			return err
 		}
 
@@ -31,4 +45,5 @@ func init() {
 
 	openapiCmd.Flags().StringP("src", "s", "api", "Source directory to parse for OpenAPI specs")
 	openapiCmd.Flags().StringP("output", "o", "openapi.yaml", "Output file for OpenAPI spec")
+	openapiCmd.Flags().StringP("format", "f", "yaml", "Output format: yaml or json")
 }

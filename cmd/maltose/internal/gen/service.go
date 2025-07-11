@@ -150,18 +150,18 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	// --- Service File Generation (Create if not exist, skip if exist) ---
 	svcOutputPath := filepath.Join(g.Dst, "service", info.FileName)
 	if !g.processedServices[svcOutputPath] {
-	if _, err := os.Stat(svcOutputPath); os.IsNotExist(err) {
-		// File does not exist, generate skeleton.
-		templateName := TplGenService
-		if g.InterfaceMode {
-			templateName = TplGenServiceInterface
-		}
-		if err := generateFile(svcOutputPath, "service", templateName, info); err != nil {
-			return merror.Wrap(err, "failed to generate service skeleton")
-		}
-	} else {
-		// File exists, skip with a warning.
-		utils.PrintWarn("  -> ⏩ Skipping service file {{.Path}} (already exists)", utils.TplData{"Path": info.FileName})
+		if _, err := os.Stat(svcOutputPath); os.IsNotExist(err) {
+			// File does not exist, generate skeleton.
+			templateName := TplGenService
+			if g.InterfaceMode {
+				templateName = TplGenServiceInterface
+			}
+			if err := generateFile(svcOutputPath, "service", templateName, info); err != nil {
+				return merror.Wrap(err, "failed to generate service skeleton")
+			}
+		} else {
+			// File exists, skip with a warning.
+			utils.PrintWarn("  -> ⏩ Skipping service file {{.Path}} (already exists)", utils.TplData{"Path": info.FileName})
 		}
 		g.processedServices[svcOutputPath] = true
 	}
