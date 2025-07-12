@@ -122,14 +122,25 @@ func (b *schemaBuilder) createParameters(reqType reflect.Type) openapi3.Paramete
 		if field.Anonymous { // Skip embedded structs like m.Meta
 			continue
 		}
+
 		schema := b.typeToSchema(field.Type)
 		if schema.Value == nil {
 			continue
 		}
-		param := openapi3.NewQueryParameter(mmeta.Get(reqType, "form").String()).
+
+		paramName := field.Tag.Get("form")
+		if paramName == "" {
+			paramName = field.Name
+		}
+
+		param := openapi3.NewQueryParameter(paramName).
 			WithSchema(schema.Value).
 			WithDescription(field.Tag.Get("dc"))
-		// todo required
+
+		if strings.Contains(field.Tag.Get("binding"), "required") {
+			param.Required = true
+		}
+
 		params = append(params, &openapi3.ParameterRef{Value: param})
 	}
 	return params
