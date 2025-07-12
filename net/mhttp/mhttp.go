@@ -4,6 +4,8 @@ import (
 	"io"
 	"net/http"
 
+	"github.com/getkin/kin-openapi/openapi3"
+
 	"github.com/gin-gonic/gin"
 	ut "github.com/go-playground/universal-translator"
 )
@@ -21,7 +23,7 @@ type Server struct {
 	engine       *gin.Engine
 	config       *Config
 	routes       []Route
-	openapi      *OpenAPI
+	openapi      *openapi3.T
 	preBindItems []preBindItem
 	uni          *ut.UniversalTranslator
 	translator   ut.Translator

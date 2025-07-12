@@ -150,18 +150,18 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	// --- Service File Generation (Create if not exist, skip if exist) ---
 	svcOutputPath := filepath.Join(g.Dst, "service", info.FileName)
 	if !g.processedServices[svcOutputPath] {
-	if _, err := os.Stat(svcOutputPath); os.IsNotExist(err) {
-		// File does not exist, generate skeleton.
-		templateName := TplGenService
-		if g.InterfaceMode {
-			templateName = TplGenServiceInterface
-		}
-		if err := generateFile(svcOutputPath, "service", templateName, info); err != nil {
-			return merror.Wrap(err, "failed to generate service skeleton")
-		}
-	} else {
-		// File exists, skip with a warning.
-		utils.PrintWarn("  -> ⏩ Skipping service file {{.Path}} (already exists)", utils.TplData{"Path": info.FileName})
+		if _, err := os.Stat(svcOutputPath); os.IsNotExist(err) {
+			// File does not exist, generate skeleton.
+			templateName := TplGenService
+			if g.InterfaceMode {
+				templateName = TplGenServiceInterface
+			}
+			if err := generateFile(svcOutputPath, "service", templateName, info); err != nil {
+				return merror.Wrap(err, "failed to generate service skeleton")
+			}
+		} else {
+			// File exists, skip with a warning.
+			utils.PrintWarn("  -> ⏩ Skipping service file {{.Path}} (already exists)", utils.TplData{"Path": info.FileName})
 		}
 		g.processedServices[svcOutputPath] = true
 	}
@@ -313,13 +313,23 @@ func (p *Parser) Parse() (*serviceTplData, error) {
 		fileName = parts[len(parts)-1]
 		structBaseName = strings.TrimSuffix(fileName, ".go")
 		// api/v1/hello.go -> api/hello/v1/hello.go (module=hello, version=v1)
-	} else if len(parts) > apiIndex+2 { // api/<version>/<file>.go
-		versionName = parts[apiIndex+1]
+	} else if len(parts) > apiIndex+2 { // Covers api/<version>/<file>.go AND api/<module>/<file>.go
+		part1 := parts[apiIndex+1]
 		fileName = parts[len(parts)-1]
 		structBaseName = strings.TrimSuffix(fileName, ".go")
-		moduleName = versionName // In this case, the module is the version
+
+		// Heuristic: if the directory name looks like a version (v1, v2...), treat it as a version.
+		isVersionLike := len(part1) > 1 && part1[0] == 'v' && part1[1] >= '0' && part1[1] <= '9'
+
+		if isVersionLike { // Case: api/v1/hello.go
+			versionName = part1
+			moduleName = part1 // Treat version as module for simplicity in this layout
+		} else { // Case: api/hello/hello.go
+			moduleName = part1
+			versionName = "v1" // Default version to v1 as per documentation
+		}
 	} else {
-		return nil, merror.Newf("path format not supported. Use 'api/<version>/<file>.go' or 'api/<module>/<version>/<file>.go': %s", fullPath)
+		return nil, merror.Newf("path format not supported. Use 'api/<version>/<file>.go' or 'api/<module>/<version>/<file>.go' or 'api/<module>/<file>.go': %s", fullPath)
 	}
 
 	info := &serviceTplData{
