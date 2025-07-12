@@ -159,10 +159,10 @@ func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 			}
 		} else {
 			// Otherwise, derive a prefix from the file's directory path.
-			var prefix string
+			var prefix string // Defaults to empty
 			if pkgPath != "" && pkgPath != "." {
-				prefix = filepath.ToSlash(pkgPath) // Default prefix is the full directory path.
-				parts := strings.Split(prefix, "/")
+				pathForPrefix := filepath.ToSlash(pkgPath)
+				parts := strings.Split(pathForPrefix, "/")
 
 				// Try to find a version string like "v1", "v2", etc.
 				for _, part := range parts {
@@ -172,6 +172,7 @@ func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 						break
 					}
 				}
+				// If no version string is found, prefix remains empty, as requested.
 			}
 
 			// Join the calculated prefix with the path from the tag.
