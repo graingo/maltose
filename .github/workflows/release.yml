@@ -15,6 +15,8 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write # 需要写权限才能将提交、标签和 Release 推送回仓库
+    env:
+      VERSION: ${{ github.event.inputs.version }}
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -33,7 +35,6 @@ jobs:
 
       - name: 验证版本格式
         run: |
-          VERSION=${{ github.event.inputs.version }}
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::版本格式不正确，必须为 vX.Y.Z 格式。"
             exit 1
@@ -42,7 +43,6 @@ jobs:
       - name: [1/6] 更新 version.go
         run: |
           set -e
-          VERSION=${{ github.event.inputs.version }}
           echo "===== [1/6] 正在更新 version.go... ====="
           # 使用 sed 更新 version.go 中的版本号
           # 该文件路径相对于仓库根目录
@@ -54,7 +54,6 @@ jobs:
       - name: [2/6] 更新子模块依赖
         run: |
           set -e
-          VERSION=${{ github.event.inputs.version }}
           echo "===== [2/6] 正在更新子模块依赖... ====="
           find . -name go.mod | while read -r mod_file; do
             dir=$(dirname "$mod_file")
@@ -88,7 +87,6 @@ jobs:
       - name: [3/6] 提交变更
         run: |
           set -e
-          VERSION=${{ github.event.inputs.version }}
           echo "===== [3/6] 正在提交变更... ====="
           # 检查是否有文件变更需要提交
           if [[ -z $(git status -s --untracked-files=no) ]]; then
@@ -104,7 +102,6 @@ jobs:
       - name: [4/6] 创建并推送标签
         run: |
           set -e
-          VERSION=${{ github.event.inputs.version }}
           echo "===== [4/6] 正在创建并推送标签... ====="
           echo "-> 正在为根模块打标签: $VERSION"
           git tag "$VERSION"
