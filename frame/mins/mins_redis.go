@@ -25,7 +25,7 @@ func Redis(name ...string) *mredis.Redis {
 	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameRedis, instanceName)
 
 	// get or create db instance
-	instance := globalInstances.GetOrSetFunc(instanceKey, func() any {
+	instance := redisInstances.GetOrSetFunc(instanceKey, func() any {
 		// If already configured, it returns the redis instance.
 		if _, ok := mredis.GetConfig(instanceName); ok {
 			return mredis.Instance(instanceName)

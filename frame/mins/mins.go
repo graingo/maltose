@@ -10,5 +10,8 @@ const (
 )
 
 var (
-	globalInstances = minstance.New()
+	dbInstances     = minstance.New()
+	redisInstances  = minstance.New()
+	serverInstances = minstance.New()
+	loggerInstances = minstance.New()
 )

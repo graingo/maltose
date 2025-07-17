@@ -25,7 +25,7 @@ func Log(name ...string) *mlog.Logger {
 	}
 	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameLogger, instanceName)
 
-	instance := globalInstances.GetOrSetFunc(instanceKey, func() any {
+	instance := loggerInstances.GetOrSetFunc(instanceKey, func() any {
 		logger := mlog.Instance(instanceName)
 
 		// It firstly searches configuration of the instance name.
