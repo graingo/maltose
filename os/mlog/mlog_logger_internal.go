@@ -74,7 +74,7 @@ func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel, io.WriteClose
 	}
 	// Caller
 	if config.Caller {
-		opts = append(opts, zap.AddCallerSkip(1))
+		opts = append(opts, zap.AddCaller(), zap.AddCallerSkip(1))
 	}
 	// Development
 	if config.Development {

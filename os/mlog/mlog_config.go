@@ -15,8 +15,8 @@ type Config struct {
 	TimeFormat string `mconv:"time_format"`
 	// Format is the log format. Only support "json" and "text".
 	Format string `mconv:"format"`
-	// Caller is the add caller.
-	// If true, the caller will be added to the log.
+	// Caller controls whether the caller’s file and line number are included in logs.
+	// If true, the caller’s file and line number will be added to the log entries.
 	Caller bool `mconv:"caller"`
 	// Development is the development mode.
 	// If true, the logger will be in development mode.
