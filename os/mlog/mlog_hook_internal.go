@@ -19,10 +19,10 @@ func (h *traceHook) Levels() []Level { return AllLevels() }
 
 func (h *traceHook) Fire(entry *Entry) {
 	if traceID := mtrace.GetTraceID(entry.GetContext()); traceID != "" {
-		entry.AddField(String("trace_id", traceID))
+		entry.AddField(String("trace.id", traceID))
 	}
 	if spanID := mtrace.GetSpanID(entry.GetContext()); spanID != "" {
-		entry.AddField(String("span_id", spanID))
+		entry.AddField(String("span.id", spanID))
 	}
 }
 
