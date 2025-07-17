@@ -65,11 +65,23 @@ func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel, io.WriteClose
 	core := zapcore.NewCore(encoder, writeSyncer, level)
 	// Logger
 	zapLogger := zap.New(core)
+
+	// Options
+	var opts []zap.Option
+	// ServiceName
+	if config.ServiceName != "" {
+		opts = append(opts, zap.Fields(zap.String("service.name", config.ServiceName)))
+	}
+	// Caller
 	if config.Caller {
-		zapLogger = zapLogger.WithOptions(zap.AddCaller())
+		opts = append(opts, zap.AddCallerSkip(1))
+	}
+	// Development
+	if config.Development {
+		opts = append(opts, zap.Development())
 	}
 
-	return zapLogger, level, fileWriter
+	return zapLogger.WithOptions(opts...), level, fileWriter
 }
 
 // log logs the message with the given level and attributes.

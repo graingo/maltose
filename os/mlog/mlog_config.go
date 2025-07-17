@@ -7,6 +7,8 @@ import (
 )
 
 type Config struct {
+	// ServiceName is the service name.
+	ServiceName string `mconv:"service_name"`
 	// Level is the log level.
 	Level Level `mconv:"level"`
 	// TimeFormat is the log time format.
@@ -16,6 +18,10 @@ type Config struct {
 	// Caller is the add caller.
 	// If true, the caller will be added to the log.
 	Caller bool `mconv:"caller"`
+	// Development is the development mode.
+	// If true, the logger will be in development mode.
+	// It will print the error stack trace.
+	Development bool `mconv:"development"`
 	// Filepath is the log file path.
 	// e.g., /var/log/app.log or /var/log/app.{YYYYmmdd}.log
 	Filepath string `mconv:"filepath"`
@@ -37,16 +43,18 @@ type Config struct {
 // defaultConfig returns the default configuration.
 func defaultConfig() *Config {
 	return &Config{
-		Level:      defaultLevel,
-		TimeFormat: defaultTimeFormat,
-		Format:     defaultFormat,
-		Caller:     false,
-		Filepath:   defaultFile,
-		MaxSize:    100,
-		MaxAge:     7,
-		MaxBackups: 10,
-		Stdout:     true,
-		CtxKeys:    []string{},
+		ServiceName: "maltose",
+		Level:       defaultLevel,
+		TimeFormat:  defaultTimeFormat,
+		Format:      defaultFormat,
+		Caller:      false,
+		Development: false,
+		Filepath:    defaultFile,
+		MaxSize:     100,
+		MaxAge:      7,
+		MaxBackups:  10,
+		Stdout:      true,
+		CtxKeys:     []string{},
 	}
 }
 
