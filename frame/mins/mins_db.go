@@ -25,7 +25,7 @@ func DB(name ...string) *mdb.DB {
 	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameDB, instanceName)
 
 	// get or create db instance
-	instance := globalInstances.GetOrSetFunc(instanceKey, func() any {
+	instance := dbInstances.GetOrSetFunc(instanceKey, func() any {
 		// If config is not available, it panics.
 		if !Config().Available(ctx) {
 			panic(merror.NewCodef(mcode.CodeMissingConfiguration, `configuration not found for DB instance "%s"`, instanceName))

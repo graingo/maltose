@@ -24,7 +24,7 @@ func Server(name ...string) *mhttp.Server {
 	}
 	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameServer, instanceName)
 
-	instance := globalInstances.GetOrSetFunc(instanceKey, func() any {
+	instance := serverInstances.GetOrSetFunc(instanceKey, func() any {
 		server := mhttp.New()
 
 		// if config is available, read server config from config
