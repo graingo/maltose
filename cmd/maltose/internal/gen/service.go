@@ -147,23 +147,24 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	// The package for the controller to import is always ".../internal/service".
 	info.SvcPackage = strings.ReplaceAll(filepath.Join(g.ModuleName, "internal", "service"), "\\", "/")
 
-	// --- Service File Generation (Create if not exist, skip if exist) ---
-	svcOutputPath := filepath.Join(g.Dst, "service", info.FileName)
-	if !g.processedServices[svcOutputPath] {
-		if _, err := os.Stat(svcOutputPath); os.IsNotExist(err) {
-			// File does not exist, generate skeleton.
-			templateName := TplGenService
-			if g.InterfaceMode {
-				templateName = TplGenServiceInterface
-			}
-			if err := generateFile(svcOutputPath, "service", templateName, info); err != nil {
-				return merror.Wrap(err, "failed to generate service skeleton")
-			}
-		} else {
-			// File exists, skip with a warning.
-			utils.PrintWarn("  -> ⏩ Skipping service file {{.Path}} (already exists)", utils.TplData{"Path": info.FileName})
-		}
-		g.processedServices[svcOutputPath] = true
+	// --- Service File Generation (Create or Append based on Module) ---
+	svcOutputPath := filepath.Join(g.Dst, "service", info.Module+".go")
+
+	svcFullTpl := TplGenService
+	svcAppendTpl := TplGenServiceMethodOnly
+	if g.InterfaceMode {
+		svcFullTpl = TplGenServiceInterface
+		svcAppendTpl = TplGenServiceInterfaceMethodOnly
+	}
+
+	// Use generateOrAppend to create the service file or append to it.
+	// Note: We need to adapt the logic slightly for services, as the `data` for the template
+	// needs to have its `Service` field based on the module, not the file.
+	serviceData := *info
+	serviceData.Service = strcase.ToCamel(info.Module) // Use module name for the service struct.
+
+	if err := g.generateOrAppend(svcOutputPath, svcFullTpl, svcAppendTpl, &serviceData); err != nil {
+		return merror.Wrap(err, "failed to generate or append service file")
 	}
 
 	// --- Controller Generation (Create or Append) ---

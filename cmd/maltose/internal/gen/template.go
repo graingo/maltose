@@ -97,6 +97,17 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 	}
 `
 
+	// TplGenServiceMethodOnly is the template for appending new methods to an existing service file.
+	TplGenServiceMethodOnly = `
+{{range .Functions}}
+// {{.Name}} is the handler for the {{.Name}} API.
+func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.ReqName}}) (res *{{$.ApiPkg}}.{{.ResName}}, err error) {
+	// TODO: Implement the business logic here.
+	panic("implement me")
+}
+{{end}}
+`
+
 	// TplGenServiceInterface is the template for the service interface.
 	TplGenServiceInterface = `// =================================================================================
 	// Code generated and maintained by Maltose tool. You can edit this file as you like.
@@ -122,6 +133,13 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 	func Register{{.Service}}(i I{{.Service}}) {
 		local{{.Service}} = i
 	}
+`
+
+	// TplGenServiceInterfaceMethodOnly is the template for appending new methods to an existing service interface file.
+	TplGenServiceInterfaceMethodOnly = `
+{{range .Functions}}
+	{{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.ReqName}}) (res *{{$.ApiPkg}}.{{.ResName}}, err error)
+{{end}}
 `
 
 	// TplGenServiceLogic is the template for the service logic implementation.
