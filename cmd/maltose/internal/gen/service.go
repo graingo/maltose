@@ -148,7 +148,13 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	info.SvcPackage = strings.ReplaceAll(filepath.Join(g.ModuleName, "internal", "service"), "\\", "/")
 
 	// --- Service File Generation (Create or Append based on Module) ---
-	svcOutputPath := filepath.Join(g.Dst, "service", info.Module+".go")
+	// Sanitize module name for different use cases.
+	// For filename: "user-center" -> "user_center"
+	snakeCaseModule := strcase.ToSnake(info.Module)
+	// For struct name: "user-center" -> "UserCenter"
+	camelCaseModule := strcase.ToCamel(info.Module)
+
+	svcOutputPath := filepath.Join(g.Dst, "service", snakeCaseModule+".go")
 
 	svcFullTpl := TplGenService
 	svcAppendTpl := TplGenServiceMethodOnly
@@ -161,7 +167,7 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	// Note: We need to adapt the logic slightly for services, as the `data` for the template
 	// needs to have its `Service` field based on the module, not the file.
 	serviceData := *info
-	serviceData.Service = strcase.ToCamel(info.Module) // Use module name for the service struct.
+	serviceData.Service = camelCaseModule // Use CamelCase for the service struct name.
 
 	if err := g.generateOrAppend(svcOutputPath, svcFullTpl, svcAppendTpl, &serviceData); err != nil {
 		return merror.Wrap(err, "failed to generate or append service file")

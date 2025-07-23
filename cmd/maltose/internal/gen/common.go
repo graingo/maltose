@@ -53,6 +53,7 @@ func generateFile(path, tplName, tplContent string, data interface{}) error {
 // funcMap contains helper functions for the templates.
 var funcMap = template.FuncMap{
 	"toCamel":     strcase.ToCamel,
+	"toSnake":     strcase.ToSnake, // Add ToSnake for filenames
 	"toSingular":  inflection.Singular,
 	"dbTypeToGo":  dbTypeToGo,
 	"makeTags":    makeTags,

@@ -372,15 +372,21 @@ func (p *LogicParser) Parse(filePath string) (*logicTplData, error) {
 	}
 
 	fileName := filepath.Base(filePath)
-	moduleName := strings.TrimSuffix(fileName, ".go")
+
+	// The module name for logic should be derived from the service file name,
+	// but sanitized to be a valid Go package name.
+	// E.g., "user_center.go" -> "user_center" -> "usercenter"
+	dirtyModuleName := strings.TrimSuffix(fileName, ".go")
+	cleanModuleName := strings.ReplaceAll(dirtyModuleName, "_", "")
+
 	svcPackage := strings.ReplaceAll(filepath.Join(p.module, "internal", "service"), "\\", "/")
 
 	info := &logicTplData{
-		Module:     moduleName,
+		Module:     cleanModuleName, // Use the sanitized name for package and directory
 		Service:    serviceName,
 		ApiModule:  apiModule,
 		ApiPkg:     apiPkg,
-		FileName:   fileName,
+		FileName:   fileName, // Keep the original filename with underscores for the output file
 		Functions:  functions,
 		SvcPackage: svcPackage,
 	}
