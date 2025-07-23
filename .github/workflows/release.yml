@@ -14,7 +14,7 @@ jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 需要写权限才能将提交、标签和 Release 推送回仓库
+      contents: write # 需要写权限才能将提交和标签推送回仓库
     steps:
       - name: 检出代码
         uses: actions/checkout@v4
@@ -31,19 +31,21 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: 验证版本格式
+      - name: 更新依赖、提交、打标签并推送
         run: |
+          # 如果任何命令失败，立即退出
+          set -e
+
           VERSION=${{ github.event.inputs.version }}
+
+          # 验证版本格式 (必须是 vX.Y.Z)
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::版本格式不正确，必须为 vX.Y.Z 格式。"
             exit 1
           fi
 
-      - name: [1/6] 更新 version.go
-        run: |
-          set -e
-          VERSION=${{ github.event.inputs.version }}
-          echo "===== [1/6] 正在更新 version.go... ====="
+          # --- [1/4] 更新 version.go ---
+          echo "===== [1/4] 正在更新 version.go... ====="
           # 使用 sed 更新 version.go 中的版本号
           # 该文件路径相对于仓库根目录
           sed -i "s/^\s*VERSION = \".*\"/\tVERSION = \"$VERSION\"/" version.go
@@ -51,11 +53,8 @@ jobs:
           echo "==================================="
           echo ""
 
-      - name: [2/6] 更新子模块依赖
-        run: |
-          set -e
-          VERSION=${{ github.event.inputs.version }}
-          echo "===== [2/6] 正在更新子模块依赖... ====="
+          # --- [2/4] 更新子模块依赖 ---
+          echo "===== [2/4] 正在更新子模块依赖... ====="
           find . -name go.mod | while read -r mod_file; do
             dir=$(dirname "$mod_file")
             if [ "$dir" == "." ]; then
@@ -85,27 +84,21 @@ jobs:
           echo "=========================================="
           echo ""
 
-      - name: [3/6] 提交变更
-        run: |
-          set -e
-          VERSION=${{ github.event.inputs.version }}
-          echo "===== [3/6] 正在提交变更... ====="
+          # --- [3/4] 提交变更 ---
+          echo "===== [3/4] 正在提交变更... ====="
           # 检查是否有文件变更需要提交
           if [[ -z $(git status -s --untracked-files=no) ]]; then
             echo "-> 没有文件变更需要提交。"
           else
             echo "-> 正在提交所有 go.mod 和 go.sum 文件的变更..."
             git add .
-            git commit -m "release: $VERSION"
+            git commit -m "chore(release): 为 $VERSION 更新依赖"
           fi
           echo "================================"
           echo ""
 
-      - name: [4/6] 创建并推送标签
-        run: |
-          set -e
-          VERSION=${{ github.event.inputs.version }}
-          echo "===== [4/6] 正在创建并推送标签... ====="
+          # --- [4/4] 创建并推送标签 ---
+          echo "===== [4/4] 正在创建并推送标签... ====="
           echo "-> 正在为根模块打标签: $VERSION"
           git tag "$VERSION"
 
@@ -127,43 +120,11 @@ jobs:
           git push origin HEAD
           git push origin --tags
 
-          echo "✅ 推送完成！"
+          echo "✅ 发布流程成功完成！"
 
-      - name: [5/6] 构建二进制文件
-        id: build
-        run: |
-          set -e
-          echo "===== [5/6] 正在构建二进制文件... ====="
-          # 创建一个目录来存放构建产物
-          ARTIFACT_DIR=release_artifacts
-          mkdir -p $ARTIFACT_DIR
-          
-          # 构建目标平台
-          TARGETS="linux/amd64 windows/amd64 darwin/amd64"
-          
-          for target in $TARGETS; do
-            GOOS=$(echo $target | cut -d'/' -f1)
-            GOARCH=$(echo $target | cut -d'/' -f2)
-            OUTPUT_NAME="maltose-${GOOS}-${GOARCH}"
-            if [ "$GOOS" = "windows" ]; then
-              OUTPUT_NAME+=".exe"
-            fi
-            
-            echo "-> 正在构建: $OUTPUT_NAME"
-            CGO_ENABLED=0 GOOS=$GOOS GOARCH=$GOARCH go build -o "${ARTIFACT_DIR}/${OUTPUT_NAME}" ./cmd/maltose
-          done
-          
-          echo "-> 构建产物列表:"
-          ls -l $ARTIFACT_DIR
-          
-          # 将产物路径设置为输出，方便后续步骤使用
-          echo "files=${ARTIFACT_DIR}/*" >> $GITHUB_OUTPUT
-          echo "===================================="
-
-      - name: [6/6] 创建 GitHub Release
+      - name: 发布版本
         uses: softprops/action-gh-release@v2
         with:
-          files: ${{ steps.build.outputs.files }}
           tag_name: ${{ github.event.inputs.version }}
           name: "${{ github.event.inputs.version }}"
           generate_release_notes: true
