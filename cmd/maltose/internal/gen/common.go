@@ -123,3 +123,8 @@ func makeRemarks(column gorm.ColumnType) string {
 	}
 	return fmt.Sprintf("// %s", comment)
 }
+
+func sanitizeModuleName(name string) string {
+	name = strings.ReplaceAll(name, "-", "")
+	return strings.ReplaceAll(name, "_", "")
+}

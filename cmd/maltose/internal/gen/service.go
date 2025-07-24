@@ -176,8 +176,7 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	// --- Controller Generation (Create or Append) ---
 	// Sanitize the module name for the controller's package path.
 	// This converts "user-center" to "usercenter" for a valid package name.
-	cleanControllerModule := strings.ReplaceAll(info.Module, "-", "")
-	cleanControllerModule = strings.ReplaceAll(cleanControllerModule, "_", "")
+	cleanControllerModule := sanitizeModuleName(info.Module)
 
 	// Case 1: Professional layout like api/<module>/<version>/...
 	if info.Version != "" && !strings.EqualFold(info.Module, info.Version) {

@@ -377,7 +377,7 @@ func (p *LogicParser) Parse(filePath string) (*logicTplData, error) {
 	// but sanitized to be a valid Go package name.
 	// E.g., "user_center.go" -> "user_center" -> "usercenter"
 	dirtyModuleName := strings.TrimSuffix(fileName, ".go")
-	cleanModuleName := strings.ReplaceAll(dirtyModuleName, "_", "")
+	cleanModuleName := sanitizeModuleName(dirtyModuleName)
 
 	svcPackage := strings.ReplaceAll(filepath.Join(p.module, "internal", "service"), "\\", "/")
 
