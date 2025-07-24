@@ -148,7 +148,13 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	info.SvcPackage = strings.ReplaceAll(filepath.Join(g.ModuleName, "internal", "service"), "\\", "/")
 
 	// --- Service File Generation (Create or Append based on Module) ---
-	svcOutputPath := filepath.Join(g.Dst, "service", info.Module+".go")
+	// Sanitize module name for different use cases.
+	// For filename: "user-center" -> "user_center"
+	snakeCaseModule := strcase.ToSnake(info.Module)
+	// For struct name: "user-center" -> "UserCenter"
+	camelCaseModule := strcase.ToCamel(info.Module)
+
+	svcOutputPath := filepath.Join(g.Dst, "service", snakeCaseModule+".go")
 
 	svcFullTpl := TplGenService
 	svcAppendTpl := TplGenServiceMethodOnly
@@ -161,30 +167,40 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 	// Note: We need to adapt the logic slightly for services, as the `data` for the template
 	// needs to have its `Service` field based on the module, not the file.
 	serviceData := *info
-	serviceData.Service = strcase.ToCamel(info.Module) // Use module name for the service struct.
+	serviceData.Service = camelCaseModule // Use CamelCase for the service struct name.
 
 	if err := g.generateOrAppend(svcOutputPath, svcFullTpl, svcAppendTpl, &serviceData); err != nil {
 		return merror.Wrap(err, "failed to generate or append service file")
 	}
 
 	// --- Controller Generation (Create or Append) ---
+	// Sanitize the module name for the controller's package path.
+	// This converts "user-center" to "usercenter" for a valid package name.
+	cleanControllerModule := sanitizeModuleName(info.Module)
+
 	// Case 1: Professional layout like api/<module>/<version>/...
 	if info.Version != "" && !strings.EqualFold(info.Module, info.Version) {
+		// Prepare a separate data object for controller templates to avoid side effects.
+		controllerData := *info
+		controllerData.Module = cleanControllerModule
+
 		// Handle controller struct file (create if not exist, otherwise skip)
-		controllerStructPath := filepath.Join(g.Dst, "controller", info.Module, info.Module+".go")
+		controllerStructPath := filepath.Join(g.Dst, "controller", cleanControllerModule, cleanControllerModule+".go")
 		if _, err := os.Stat(controllerStructPath); os.IsNotExist(err) {
-			if err := generateFile(controllerStructPath, "controllerStruct", TplGenControllerStruct, info); err != nil {
+			if err := generateFile(controllerStructPath, "controllerStruct", TplGenControllerStruct, &controllerData); err != nil {
 				return merror.Wrap(err, "failed to generate controller struct")
 			}
 		}
 
 		// Handle controller method file (create or append)
-		methodFileName := fmt.Sprintf("%s_%s.go", info.Module, strings.ToLower(info.Version))
-		controllerMethodPath := filepath.Join(g.Dst, "controller", info.Module, methodFileName)
-		return g.generateOrAppend(controllerMethodPath, TplGenControllerMethod, TplGenControllerMethodOnly, info)
+		methodFileName := fmt.Sprintf("%s_%s.go", cleanControllerModule, strings.ToLower(info.Version))
+		controllerMethodPath := filepath.Join(g.Dst, "controller", cleanControllerModule, methodFileName)
+		return g.generateOrAppend(controllerMethodPath, TplGenControllerMethod, TplGenControllerMethodOnly, &controllerData)
 	}
 
 	// Case 2: Simple layout like api/<version>/...
+	// In this layout, the controller file is directly under the version directory,
+	// and the package name is derived from the version (e.g., "v1"), so no sanitization is needed for the module path.
 	controllerPath := filepath.Join(g.Dst, "controller", info.VersionLower, info.FileName)
 	return g.generateOrAppend(controllerPath, TplGenController, TplGenControllerMethodOnly, info)
 }

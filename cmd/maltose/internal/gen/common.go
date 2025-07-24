@@ -53,6 +53,7 @@ func generateFile(path, tplName, tplContent string, data interface{}) error {
 // funcMap contains helper functions for the templates.
 var funcMap = template.FuncMap{
 	"toCamel":     strcase.ToCamel,
+	"toSnake":     strcase.ToSnake, // Add ToSnake for filenames
 	"toSingular":  inflection.Singular,
 	"dbTypeToGo":  dbTypeToGo,
 	"makeTags":    makeTags,
@@ -121,4 +122,9 @@ func makeRemarks(column gorm.ColumnType) string {
 		return ""
 	}
 	return fmt.Sprintf("// %s", comment)
+}
+
+func sanitizeModuleName(name string) string {
+	name = strings.ReplaceAll(name, "-", "")
+	return strings.ReplaceAll(name, "_", "")
 }
