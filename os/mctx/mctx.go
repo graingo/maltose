@@ -19,9 +19,6 @@ func New() context.Context {
 
 // WithSpan creates and returns a context containing span upon given parent context `ctx`.
 func WithSpan(ctx context.Context, spanName string) context.Context {
-	if CtxID(ctx) != "" {
-		return ctx
-	}
 	if spanName == "" {
 		spanName = "mctx.WithSpan"
 	}

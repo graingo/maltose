@@ -24,12 +24,12 @@ func Data(object any) map[string]string {
 	if object == nil {
 		return map[string]string{}
 	}
-	
+
 	reflectType, err := StructType(object)
 	if err != nil {
 		return map[string]string{}
 	}
-	
+
 	if field, ok := reflectType.FieldByName(metaAttributeName); ok {
 		if field.Type == metaType {
 			return ParseTag(string(field.Tag))
@@ -53,7 +53,7 @@ func StructType(object any) (reflect.Type, error) {
 	if object == nil {
 		return nil, merror.New("invalid object type: nil")
 	}
-	
+
 	var reflectType reflect.Type
 	if rt, ok := object.(reflect.Type); ok {
 		reflectType = rt
@@ -64,7 +64,7 @@ func StructType(object any) (reflect.Type, error) {
 		}
 		reflectType = v.Type()
 	}
-	
+
 	if reflectType.Kind() == reflect.Ptr {
 		reflectType = reflectType.Elem()
 	}
@@ -77,7 +77,7 @@ func StructType(object any) (reflect.Type, error) {
 // ParseTag parses the tag string to a map
 func ParseTag(tag string) map[string]string {
 	data := make(map[string]string)
-	
+
 	for tag != "" {
 		// Skip leading spaces
 		i := 0
@@ -113,7 +113,7 @@ func ParseTag(tag string) map[string]string {
 		}
 		quotedValue := tag[:i+1]
 		tag = tag[i+1:]
-		
+
 		value, err := strconv.Unquote(quotedValue)
 		if err != nil {
 			break

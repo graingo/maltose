@@ -41,7 +41,7 @@ func TestWithSpan(t *testing.T) {
 		ctx2ID := mctx.CtxID(ctx2)
 
 		assert.NotEqual(t, ctx1, ctx2)
-		assert.NotEqual(t, ctx1ID, ctx2ID)
+		assert.Equal(t, ctx1ID, ctx2ID)
 	})
 
 	t.Run("with_empty_span_name", func(t *testing.T) {

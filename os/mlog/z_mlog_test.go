@@ -566,8 +566,8 @@ func TestLogger_AdvancedFeatures(t *testing.T) {
 		assert.NotSame(t, logger1, logger2)
 
 		// Retrieving the same name should return the same instance.
-		logger1_again := mlog.Instance("metrics")
-		assert.Same(t, logger1, logger1_again)
+		logger1Again := mlog.Instance("metrics")
+		assert.Same(t, logger1, logger1Again)
 
 		// The default instance is different from named instances.
 		defaultLogger := mlog.Instance()

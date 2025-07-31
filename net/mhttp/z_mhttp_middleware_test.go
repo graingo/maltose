@@ -251,18 +251,18 @@ func TestMiddleware(t *testing.T) {
 	t.Run("recovery_with_custom_handler", func(t *testing.T) {
 		var customHandlerCalled bool
 		var receivedError error
-		
+
 		teardown := setupServer(t, func(s *mhttp.Server) {
 			// Set custom panic handler
 			s.WithPanicHandler(func(r *mhttp.Request, err error) {
 				customHandlerCalled = true
 				receivedError = err
 				r.JSON(http.StatusTeapot, map[string]string{
-					"error": "custom panic handler",
+					"error":   "custom panic handler",
 					"message": err.Error(),
 				})
 			})
-			
+
 			s.GET("/panic", func(_ *mhttp.Request) {
 				panic("custom panic test")
 			})
@@ -280,14 +280,14 @@ func TestMiddleware(t *testing.T) {
 
 		// Verify custom response
 		assert.Equal(t, http.StatusTeapot, resp.StatusCode)
-		
+
 		body, err := ioutil.ReadAll(resp.Body)
 		require.NoError(t, err)
-		
+
 		var respMap map[string]interface{}
 		err = json.Unmarshal(body, &respMap)
 		require.NoError(t, err)
-		
+
 		assert.Equal(t, "custom panic handler", respMap["error"])
 		assert.Contains(t, respMap["message"], "custom panic test")
 	})
