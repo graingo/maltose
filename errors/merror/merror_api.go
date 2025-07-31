@@ -29,6 +29,9 @@ func Newf(format string, a ...any) error {
 // Wrap wraps an error.
 // Example: err := merror.Wrap(err, "username cannot be empty")
 func Wrap(err error, text string) error {
+	if err == nil {
+		return nil
+	}
 	return &Error{
 		stack: callers(),
 		text:  text,
@@ -40,6 +43,9 @@ func Wrap(err error, text string) error {
 // Wrapf wraps an error.
 // Example: err := merror.Wrapf(err, "username %s cannot be empty", admin)
 func Wrapf(err error, format string, a ...any) error {
+	if err == nil {
+		return nil
+	}
 	return &Error{
 		stack: callers(),
 		text:  fmt.Sprintf(format, a...),

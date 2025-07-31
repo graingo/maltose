@@ -19,19 +19,17 @@ func New() context.Context {
 
 // WithSpan creates and returns a context containing span upon given parent context `ctx`.
 func WithSpan(ctx context.Context, spanName string) context.Context {
-	if CtxId(ctx) != "" {
+	if CtxID(ctx) != "" {
 		return ctx
 	}
 	if spanName == "" {
 		spanName = "mctx.WithSpan"
 	}
-	var span *mtrace.Span
-	ctx, span = mtrace.NewSpan(ctx, spanName)
-	defer span.End()
+	ctx, _ = mtrace.NewSpan(ctx, spanName)
 	return ctx
 }
 
-// CtxId retrieves and returns the context id from context.
-func CtxId(ctx context.Context) string {
+// CtxID retrieves and returns the context id from context.
+func CtxID(ctx context.Context) string {
 	return mtrace.GetTraceID(ctx)
 }

@@ -82,14 +82,14 @@ func Init(endpoint string, opts ...Option) (func(context.Context) error, error) 
 // createResource creates a resource.
 func createResource(opts options) (*resource.Resource, error) {
 	var (
-		intranetIPArray, err = mipv4.GetIntranetIpArray()
+		intranetIPArray, err = mipv4.GetIntranetIPArray()
 		hostIP               = "NoHostIpFound"
 	)
 	if err != nil {
 		return nil, err
 	}
 	if len(intranetIPArray) == 0 {
-		if intranetIPArray, err = mipv4.GetIpArray(); err != nil {
+		if intranetIPArray, err = mipv4.GetIPArray(); err != nil {
 			return nil, err
 		}
 	}

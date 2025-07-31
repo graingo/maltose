@@ -6,7 +6,6 @@ import (
 	"encoding/json"
 	"io"
 	"net/http"
-	"strings"
 
 	"github.com/graingo/maltose/internal/intlog"
 )
@@ -45,6 +44,8 @@ func (r *Request) SetBody(body any) *Request {
 }
 
 // Data sets the request data.
+// It intelligently handles different data types and buffers the body
+// into memory to ensure it's re-readable for retries.
 func (r *Request) data(data any) *Request {
 	if r.Request == nil {
 		r.Request = &http.Request{
@@ -52,30 +53,58 @@ func (r *Request) data(data any) *Request {
 		}
 	}
 
+	var bodyBytes []byte
+	isJSON := false
+
 	switch d := data.(type) {
 	case string:
-		r.Request.Body = io.NopCloser(strings.NewReader(d))
+		bodyBytes = []byte(d)
 	case []byte:
-		r.Request.Body = io.NopCloser(bytes.NewReader(d))
+		bodyBytes = d
 	case io.Reader:
-		r.Request.Body = io.NopCloser(d)
-	default:
-		// Try JSON encoding for other types
-		jsonBytes, err := json.Marshal(data)
+		// For a generic, non-seekable reader, we must buffer it all into memory
+		// to support retries. This is a design trade-off for simplicity and reliability.
+		b, err := io.ReadAll(d)
 		if err != nil {
-			// Log error but continue execution
-			// Using request context if available, otherwise fallback to background context
 			ctx := context.Background()
 			if r.Request != nil && r.Request.Context() != nil {
 				ctx = r.Request.Context()
 			}
-			intlog.Error(ctx, "JSON marshal failed:", err)
+			intlog.Errorf(ctx, "mclient: failed to read io.Reader body for retry buffering: %v", err)
+			// As a fallback, use the original reader but retries with body will fail.
+			r.Request.Body = io.NopCloser(d)
+			r.Request.GetBody = nil
 			return r
 		}
-		r.Request.Body = io.NopCloser(bytes.NewReader(jsonBytes))
-		if r.Request.Header.Get("Content-Type") == "" {
-			r.ContentType("application/json")
+		bodyBytes = b
+	default:
+		// Try JSON encoding for other types
+		jsonBytes, err := json.Marshal(data)
+		if err != nil {
+			ctx := context.Background()
+			if r.Request != nil && r.Request.Context() != nil {
+				ctx = r.Request.Context()
+			}
+			intlog.Errorf(ctx, "mclient: json.Marshal failed: %v", err)
+			return r
 		}
+		bodyBytes = jsonBytes
+		isJSON = true
 	}
+
+	// Set the body for the first request
+	r.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
+	// Set the content length
+	r.Request.ContentLength = int64(len(bodyBytes))
+	// Provide GetBody for retries, which is the standard way http.Client
+	// handles re-sending the body on redirects or retries.
+	r.Request.GetBody = func() (io.ReadCloser, error) {
+		return io.NopCloser(bytes.NewReader(bodyBytes)), nil
+	}
+
+	if isJSON && r.Request.Header.Get("Content-Type") == "" {
+		r.ContentType("application/json")
+	}
+
 	return r
 }

@@ -2,12 +2,14 @@ package mcfg
 
 import (
 	"context"
+	"strings"
+	"sync"
 
 	"github.com/graingo/maltose/container/minstance"
 	"github.com/graingo/maltose/container/mvar"
 	"github.com/graingo/maltose/errors/merror"
+	"github.com/graingo/maltose/os/mcfg/internal"
 	"github.com/graingo/mconv"
-	"github.com/spf13/viper"
 )
 
 var (
@@ -16,12 +18,14 @@ var (
 
 // Config is a configuration management object.
 type Config struct {
-	adapter Adapter
+	adapter    Adapter
+	cachedData *mvar.Var // Used to cache the data after hooks have been executed.
+	mu         sync.RWMutex
 }
 
 const (
 	// DefaultInstanceName is the default instance name.
-	DefaultInstanceName = "config"
+	DefaultInstanceName = "default"
 	// DefaultConfigFileName is the default config file name.
 	DefaultConfigFileName = "config"
 )
@@ -58,11 +62,12 @@ func Instance(name ...string) *Config {
 	return instances.GetOrSetFunc(instanceName, func() any {
 		adapterFile, err := NewAdapterFile()
 		if err != nil {
-			_ = merror.Wrap(err, "create config instance failed")
-			return nil
+			panic(merror.Wrap(err, "create config instance failed"))
 		}
 		if instanceName != DefaultInstanceName {
-			adapterFile.SetFileName(instanceName)
+			if err := adapterFile.SetFile(instanceName); err != nil {
+				panic(merror.Wrapf(err, `set config file name for instance "%s" failed`, instanceName))
+			}
 		}
 		return NewWithAdapter(adapterFile)
 	}).(*Config)
@@ -70,19 +75,32 @@ func Instance(name ...string) *Config {
 
 // SetAdapter sets the configuration adapter.
 func (c *Config) SetAdapter(adapter Adapter) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	c.adapter = adapter
+	c.cachedData = nil // Clear cache when adapter changes.
 }
 
 // GetAdapter gets the configuration adapter.
 func (c *Config) GetAdapter() Adapter {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
 	return c.adapter
 }
 
+// ClearCache clears the internal configuration cache.
+// It should be called when the underlying configuration source has changed.
+func (c *Config) ClearCache(_ context.Context) {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.cachedData = nil
+}
+
 // getValueByPattern gets the configuration value for the specified key.
+// It uses a temporary viper instance to avoid concurrency issues on a shared instance.
 func (c *Config) getValueByPattern(data map[string]any, pattern string) any {
-	v := viper.New()
-	v.MergeConfigMap(data)
-	return v.Get(pattern)
+	path := strings.Split(pattern, ".")
+	return internal.SearchMap(data, path)
 }
 
 // Get gets the configuration value for the specified key.
@@ -92,6 +110,12 @@ func (c *Config) Get(ctx context.Context, pattern string, def ...any) (*mvar.Var
 	data, err := c.Data(ctx)
 	if err != nil {
 		return nil, err
+	}
+	if data == nil {
+		if len(def) > 0 {
+			return mvar.New(def[0]), nil
+		}
+		return nil, nil
 	}
 
 	value := c.getValueByPattern(data, pattern)
@@ -116,6 +140,23 @@ func (c *Config) MustGet(ctx context.Context, pattern string, def ...any) *mvar.
 
 // Data gets all configuration data.
 func (c *Config) Data(ctx context.Context) (map[string]any, error) {
+	// Use read lock to check for cached data.
+	c.mu.RLock()
+	if c.cachedData != nil {
+		defer c.mu.RUnlock()
+		return c.cachedData.Map(), nil
+	}
+	c.mu.RUnlock()
+
+	// If no cache, use write lock to load and set data.
+	c.mu.Lock()
+	defer c.mu.Unlock()
+
+	// Double check, as another goroutine might have populated it in the meantime.
+	if c.cachedData != nil {
+		return c.cachedData.Map(), nil
+	}
+
 	rawData, err := c.adapter.Data(ctx)
 	if err != nil {
 		return nil, err
@@ -126,9 +167,11 @@ func (c *Config) Data(ctx context.Context) (map[string]any, error) {
 		if err != nil {
 			return nil, err
 		}
+		c.cachedData = mvar.New(processedData)
 		return processedData, nil
 	}
 
+	c.cachedData = mvar.New(rawData)
 	return rawData, nil
 }
 
@@ -175,12 +218,6 @@ func (c *Config) GetString(ctx context.Context, pattern string, def ...any) stri
 	if err != nil {
 		panic(err)
 	}
-	if val == nil {
-		if len(def) > 0 {
-			return mvar.New(def[0]).String()
-		}
-		return ""
-	}
 	return val.String()
 }
 
@@ -189,12 +226,6 @@ func (c *Config) GetInt(ctx context.Context, pattern string, def ...any) int {
 	val, err := c.Get(ctx, pattern, def...)
 	if err != nil {
 		panic(err)
-	}
-	if val == nil {
-		if len(def) > 0 {
-			return mvar.New(def[0]).Int()
-		}
-		return 0
 	}
 	return val.Int()
 }
@@ -205,12 +236,6 @@ func (c *Config) GetBool(ctx context.Context, pattern string, def ...any) bool {
 	if err != nil {
 		panic(err)
 	}
-	if val == nil {
-		if len(def) > 0 {
-			return mvar.New(def[0]).Bool()
-		}
-		return false
-	}
 	return val.Bool()
 }
 
@@ -219,12 +244,6 @@ func (c *Config) GetMap(ctx context.Context, pattern string, def ...any) map[str
 	val, err := c.Get(ctx, pattern, def...)
 	if err != nil {
 		panic(err)
-	}
-	if val == nil {
-		if len(def) > 0 {
-			return mvar.New(def[0]).Map()
-		}
-		return nil
 	}
 	return val.Map()
 }
@@ -236,9 +255,6 @@ func (c *Config) GetSlice(ctx context.Context, pattern string, def ...any) []any
 		panic(err)
 	}
 	if val == nil {
-		if len(def) > 0 {
-			return mconv.ToSlice(mvar.New(def[0]).Val())
-		}
 		return nil
 	}
 	return mconv.ToSlice(val.Val())

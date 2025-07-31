@@ -94,7 +94,7 @@ func (v *Var) Time(format ...string) time.Time {
 	if v == nil {
 		return time.Time{}
 	}
-	return mconv.ToTime(v.Val())
+	return mconv.ToTime(v.Val(), format...)
 }
 
 // Struct maps the value to a struct.

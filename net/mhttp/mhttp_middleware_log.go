@@ -9,7 +9,7 @@ import (
 	"github.com/graingo/maltose/os/mlog"
 )
 
-var LogMaxBodySize int = -1
+var LogMaxBodySize = -1
 
 // responseWriter is a custom http.ResponseWriter that captures the response body and status.
 // It embeds gin.ResponseWriter to ensure full compatibility.

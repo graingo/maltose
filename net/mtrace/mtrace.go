@@ -7,14 +7,15 @@ import (
 
 	"github.com/graingo/maltose/container/mvar"
 	"github.com/graingo/maltose/errors/merror"
-	"github.com/graingo/maltose/net/mtrace/internal/provider"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/propagation"
 	sdkTrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/trace"
 )
 
-// Semantic conventions for HTTP.
+// Semantic conventions for trace attributes.
+// These keys are based on the OpenTelemetry specification for semantic conventions.
+// See: https://opentelemetry.io/docs/specs/semconv/
 const (
 	AttributeHTTPMethod       = "http.method"
 	AttributeHTTPUrl          = "http.url"
@@ -42,10 +43,9 @@ func init() {
 	CheckSetDefaultTextMapPropagator()
 }
 
-// IsUsingMaltoseProvider checks if the trace provider is a Maltose provider.
-func IsUsingMaltoseProvider() bool {
-	_, ok := otel.GetTracerProvider().(*provider.TracerProvider)
-	return ok
+// GetProvider returns the global tracer provider.
+func GetProvider() trace.TracerProvider {
+	return otel.GetTracerProvider()
 }
 
 // SetProvider sets the global tracer provider.
@@ -53,11 +53,9 @@ func SetProvider(p trace.TracerProvider) {
 	otel.SetTracerProvider(p)
 }
 
-// NewProvider creates a new Maltose TracerProvider with custom options.
-// It uses the OpenTelemetry SDK's default IDGenerator (random IDs) by default,
-// which can be overridden by providing a custom `sdktrace.WithIDGenerator` option.
+// NewProvider is a wrapper around sdkTrace.NewTracerProvider.
 func NewProvider(opts ...sdkTrace.TracerProviderOption) trace.TracerProvider {
-	return provider.New(opts...)
+	return sdkTrace.NewTracerProvider(opts...)
 }
 
 // CheckSetDefaultTextMapPropagator checks if the default TextMapPropagator is set.

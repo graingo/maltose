@@ -1,12 +1,15 @@
 package mlog
 
 import (
+	"io"
 	"reflect"
 
 	"github.com/graingo/mconv"
 )
 
 type Config struct {
+	// Writer is the custom writer for the logger.
+	Writer io.Writer `mconv:"-"`
 	// ServiceName is the service name.
 	ServiceName string `mconv:"service_name"`
 	// Level is the log level.

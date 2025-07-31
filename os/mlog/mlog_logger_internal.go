@@ -39,7 +39,7 @@ func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel, io.WriteClose
 	// Writer
 	var fileWriter io.WriteCloser
 	var err error
-	writers := make([]zapcore.WriteSyncer, 0, 2)
+	writers := make([]zapcore.WriteSyncer, 0, 5)
 	if config.Stdout {
 		writers = append(writers, zapcore.AddSync(os.Stdout))
 	}
@@ -54,6 +54,10 @@ func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel, io.WriteClose
 		}
 		writers = append(writers, zapcore.AddSync(fileWriter))
 	}
+	if config.Writer != nil {
+		writers = append(writers, zapcore.AddSync(config.Writer))
+	}
+
 	if len(writers) == 0 {
 		writers = append(writers, zapcore.AddSync(os.Stdout))
 	}
@@ -74,7 +78,7 @@ func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel, io.WriteClose
 	}
 	// Caller
 	if config.Caller {
-		opts = append(opts, zap.AddCaller(), zap.AddCallerSkip(1))
+		opts = append(opts, zap.AddCaller(), zap.AddCallerSkip(2))
 	}
 	// Development
 	if config.Development {

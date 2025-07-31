@@ -24,7 +24,7 @@ type ClientConfig struct {
 
 // SetBrowserMode enables browser mode of the client.
 // When browser mode is enabled, it automatically saves and sends cookie content
-// from and to server.
+// from and to server via an in-memory cookie jar.
 func (c *Client) SetBrowserMode(enabled bool) *Client {
 	if enabled {
 		jar, _ := cookiejar.New(nil)
@@ -98,9 +98,11 @@ func (c *Client) SetTimeout(t time.Duration) *Client {
 	return c
 }
 
-// SetRedirectLimit limits the number of jumps.
+// SetRedirectLimit limits the number of jumps for redirection.
+// It sets the CheckRedirect function on the underlying http.Client.
+// A limit of 0 means no redirects will be followed.
 func (c *Client) SetRedirectLimit(redirectLimit int) *Client {
-	c.client.CheckRedirect = func(req *http.Request, via []*http.Request) error {
+	c.client.CheckRedirect = func(_ *http.Request, via []*http.Request) error {
 		if len(via) >= redirectLimit {
 			return http.ErrUseLastResponse
 		}

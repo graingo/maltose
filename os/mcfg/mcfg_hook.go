@@ -10,10 +10,10 @@ import (
 // StatefulHook is an interface for hooks that need to maintain state across multiple calls.
 // This is useful for caching results of expensive operations, like fetching remote configuration.
 type StatefulHook interface {
-	Hook(ctx context.Context, data map[string]interface{}) (map[string]interface{}, error)
+	Hook(ctx context.Context, data map[string]any) (map[string]any, error)
 }
 
-type ConfigHookFunc func(ctx context.Context, data map[string]interface{}) (map[string]interface{}, error)
+type ConfigHookFunc func(ctx context.Context, data map[string]any) (map[string]any, error)
 
 var (
 	// hooks stores the hooks to be executed after configuration is loaded,
@@ -22,17 +22,17 @@ var (
 )
 
 // RegisterAfterLoadHook registers a hook to be executed after configuration is loaded.
-// It accepts either a function with the signature `func(context.Context, map[string]interface{}) (map[string]interface{}, error)`
+// It accepts either a function with the signature `func(context.Context, map[string]any) (map[string]any, error)`
 // or an implementation of the `StatefulHook` interface.
 // Using a `StatefulHook` is the recommended way to handle expensive operations that should only run once (e.g., fetching remote config),
 // as it allows caching within the hook's state.
 // Each hook is stored with a unique key to prevent duplicate registrations.
-func RegisterAfterLoadHook(hook interface{}) {
+func RegisterAfterLoadHook(hook any) {
 	var hookFunc ConfigHookFunc
 	switch h := hook.(type) {
 	case ConfigHookFunc:
 		hookFunc = h
-	case func(context.Context, map[string]interface{}) (map[string]interface{}, error):
+	case func(context.Context, map[string]any) (map[string]any, error):
 		hookFunc = h
 	case StatefulHook:
 		hookFunc = h.Hook
@@ -42,6 +42,12 @@ func RegisterAfterLoadHook(hook interface{}) {
 
 	// Use a unique key for each hook to store it in the instance manager.
 	hooks.Set(fmt.Sprintf("%p", hook), hookFunc)
+}
+
+// ClearHooks removes all registered hooks.
+// This is intended for testing purposes only.
+func ClearHooks() {
+	hooks = minstance.New()
 }
 
 // runAfterLoadHooks executes all registered after-load hooks in order.

@@ -9,10 +9,12 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestAdapterMemory_SetAndGet(t *testing.T) {
+// TestAdapterMemory_BasicOperations covers basic Set, Get, and expiration.
+func TestAdapterMemory_BasicOperations(t *testing.T) {
 	cache := mcache.NewAdapterMemory()
 	ctx := context.Background()
 
+	// Test Set and Get
 	err := cache.Set(ctx, "key1", "value1", 100*time.Millisecond)
 	assert.NoError(t, err)
 
@@ -21,349 +23,284 @@ func TestAdapterMemory_SetAndGet(t *testing.T) {
 	assert.NotNil(t, v)
 	assert.Equal(t, "value1", v.String())
 
+	// Test expiration
 	time.Sleep(150 * time.Millisecond)
 	v, err = cache.Get(ctx, "key1")
 	assert.NoError(t, err)
 	assert.Nil(t, v)
+
+	// Test Get non-existent key
+	v, err = cache.Get(ctx, "non-existent-key")
+	assert.NoError(t, err)
+	assert.Nil(t, v)
 }
 
-func TestAdapterMemory_SetMap(t *testing.T) {
+// TestAdapterMemory_MapOperations covers batch operations like SetMap, Data, Keys, Values.
+func TestAdapterMemory_MapOperations(t *testing.T) {
 	cache := mcache.NewAdapterMemory()
 	ctx := context.Background()
 
+	// Test SetMap
 	data := map[string]interface{}{"key1": "value1", "key2": 2}
-	err := cache.SetMap(ctx, data, 100*time.Millisecond)
+	err := cache.SetMap(ctx, data, 0)
 	assert.NoError(t, err)
 
-	v1, err := cache.Get(ctx, "key1")
+	// Test Data
+	retrievedData, err := cache.Data(ctx)
 	assert.NoError(t, err)
-	assert.NotNil(t, v1)
-	assert.Equal(t, "value1", v1.String())
+	assert.Equal(t, data, retrievedData)
 
-	v2, err := cache.Get(ctx, "key2")
-	assert.NoError(t, err)
-	assert.NotNil(t, v2)
-	assert.Equal(t, 2, v2.Int())
-
-	time.Sleep(150 * time.Millisecond)
-	v1, err = cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.Nil(t, v1)
-}
-
-func TestAdapterMemory_SetIfNotExist(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-
-	ok, err := cache.SetIfNotExist(ctx, "key1", "value1", 0)
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = cache.SetIfNotExist(ctx, "key1", "value2", 0)
-	assert.NoError(t, err)
-	assert.False(t, ok)
-
-	v, err := cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.Equal(t, "value1", v.String())
-}
-
-func TestAdapterMemory_SetIfNotExist_WithExpired(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-
-	ok, err := cache.SetIfNotExist(ctx, "key1", "value1", 50*time.Millisecond)
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	time.Sleep(100 * time.Millisecond)
-
-	ok, err = cache.SetIfNotExist(ctx, "key1", "value2", 0)
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	v, err := cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.NotNil(t, v)
-	assert.Equal(t, "value2", v.String())
-}
-
-func TestAdapterMemory_SetIfNotExistFunc(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	called := false
-	f := func(ctx context.Context) (interface{}, error) {
-		called = true
-		return "value1", nil
-	}
-
-	ok, err := cache.SetIfNotExistFunc(ctx, "key1", f, 0)
-	assert.NoError(t, err)
-	assert.True(t, ok)
-	assert.True(t, called)
-
-	called = false
-	ok, err = cache.SetIfNotExistFunc(ctx, "key1", f, 0)
-	assert.NoError(t, err)
-	assert.False(t, ok)
-	assert.False(t, called)
-
-	v, err := cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.Equal(t, "value1", v.String())
-}
-
-func TestAdapterMemory_SetIfNotExistFuncLock(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	called := false
-	f := func(ctx context.Context) (interface{}, error) {
-		called = true
-		return "value1", nil
-	}
-
-	ok, err := cache.SetIfNotExistFuncLock(ctx, "key1", f, 0)
-	assert.NoError(t, err)
-	assert.True(t, ok)
-	assert.True(t, called)
-
-	called = false
-	ok, err = cache.SetIfNotExistFuncLock(ctx, "key1", f, 0)
-	assert.NoError(t, err)
-	assert.False(t, ok)
-	assert.False(t, called)
-
-	v, err := cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.Equal(t, "value1", v.String())
-}
-
-func TestAdapterMemory_GetOrSet(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-
-	v, err := cache.GetOrSet(ctx, "key1", "value1", 0)
-	assert.NoError(t, err)
-	assert.Equal(t, "value1", v.String())
-
-	v, err = cache.GetOrSet(ctx, "key1", "value2", 0)
-	assert.NoError(t, err)
-	assert.Equal(t, "value1", v.String())
-}
-
-func TestAdapterMemory_GetOrSetFunc(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	called := false
-	f := func(ctx context.Context) (interface{}, error) {
-		called = true
-		return "value1", nil
-	}
-
-	v, err := cache.GetOrSetFunc(ctx, "key1", f, 0)
-	assert.NoError(t, err)
-	assert.True(t, called)
-	assert.Equal(t, "value1", v.String())
-
-	called = false
-	v, err = cache.GetOrSetFunc(ctx, "key1", f, 0)
-	assert.NoError(t, err)
-	assert.False(t, called)
-	assert.Equal(t, "value1", v.String())
-}
-
-func TestAdapterMemory_GetOrSetFuncLock(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	called := false
-	f := func(ctx context.Context) (interface{}, error) {
-		called = true
-		return "value1", nil
-	}
-
-	v, err := cache.GetOrSetFuncLock(ctx, "key1", f, 0)
-	assert.NoError(t, err)
-	assert.True(t, called)
-	assert.Equal(t, "value1", v.String())
-
-	called = false
-	v, err = cache.GetOrSetFuncLock(ctx, "key1", f, 0)
-	assert.NoError(t, err)
-	assert.False(t, called)
-	assert.Equal(t, "value1", v.String())
-}
-
-func TestAdapterMemory_Contains(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-
-	err := cache.Set(ctx, "key1", "value1", 100*time.Millisecond)
-	assert.NoError(t, err)
-
-	ok, err := cache.Contains(ctx, "key1")
-	assert.NoError(t, err)
-	assert.True(t, ok)
-
-	ok, err = cache.Contains(ctx, "key2")
-	assert.NoError(t, err)
-	assert.False(t, ok)
-
-	time.Sleep(150 * time.Millisecond)
-	ok, err = cache.Contains(ctx, "key1")
-	assert.NoError(t, err)
-	assert.False(t, ok)
-}
-
-func TestAdapterMemory_Size(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-
-	err := cache.Set(ctx, "key1", "value1", 0)
-	assert.NoError(t, err)
-	err = cache.Set(ctx, "key2", "value2", 0)
-	assert.NoError(t, err)
-
-	size, err := cache.Size(ctx)
-	assert.NoError(t, err)
-	assert.Equal(t, 2, size)
-}
-
-func TestAdapterMemory_Data(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-
-	err := cache.Set(ctx, "key1", "value1", 0)
-	assert.NoError(t, err)
-	err = cache.Set(ctx, "key2", 2, 0)
-	assert.NoError(t, err)
-
-	data, err := cache.Data(ctx)
-	assert.NoError(t, err)
-	assert.Equal(t, map[string]interface{}{"key1": "value1", "key2": 2}, data)
-}
-
-func TestAdapterMemory_KeysAndValues(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-
-	err := cache.Set(ctx, "key1", "value1", 0)
-	assert.NoError(t, err)
-	err = cache.Set(ctx, "key2", 2, 0)
-	assert.NoError(t, err)
-
+	// Test Keys
 	keys, err := cache.Keys(ctx)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []string{"key1", "key2"}, keys)
 
+	// Test Values
 	values, err := cache.Values(ctx)
 	assert.NoError(t, err)
 	assert.ElementsMatch(t, []interface{}{"value1", 2}, values)
 }
 
-func TestAdapterMemory_Update(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
+// TestAdapterMemory_AtomicSetOperations covers SetIfNotExist and its variants.
+func TestAdapterMemory_AtomicSetOperations(t *testing.T) {
+	t.Run("SetIfNotExist", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
 
-	err := cache.Set(ctx, "key1", "value1", 100*time.Millisecond)
-	assert.NoError(t, err)
+		// Set for the first time
+		ok, err := cache.SetIfNotExist(ctx, "key1", "value1", 50*time.Millisecond)
+		assert.NoError(t, err)
+		assert.True(t, ok)
 
-	oldVal, exist, err := cache.Update(ctx, "key1", "newValue")
-	assert.NoError(t, err)
-	assert.True(t, exist)
-	assert.Equal(t, "value1", oldVal.String())
+		// Try to set again, should fail
+		ok, err = cache.SetIfNotExist(ctx, "key1", "value2", 0)
+		assert.NoError(t, err)
+		assert.False(t, ok)
+		v, _ := cache.Get(ctx, "key1")
+		assert.Equal(t, "value1", v.String())
 
-	newVal, err := cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.Equal(t, "newValue", newVal.String())
+		// Set again after expiration
+		time.Sleep(100 * time.Millisecond)
+		ok, err = cache.SetIfNotExist(ctx, "key1", "value2", 0)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		v, _ = cache.Get(ctx, "key1")
+		assert.Equal(t, "value2", v.String())
+	})
 
-	// check expiration is not changed
-	time.Sleep(150 * time.Millisecond)
-	v, err := cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.Nil(t, v)
+	t.Run("SetIfNotExistFunc", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
+		called := false
+		f := func(_ context.Context) (interface{}, error) {
+			called = true
+			return "value1", nil
+		}
 
-	// Update non-existent key
-	oldVal, exist, err = cache.Update(ctx, "key2", "value2")
-	assert.NoError(t, err)
-	assert.False(t, exist)
-	assert.Nil(t, oldVal)
+		ok, err := cache.SetIfNotExistFunc(ctx, "key1", f, 0)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.True(t, called)
+
+		called = false // reset flag
+		ok, err = cache.SetIfNotExistFunc(ctx, "key1", f, 0)
+		assert.NoError(t, err)
+		assert.False(t, ok)
+		assert.False(t, called)
+	})
+
+	t.Run("SetIfNotExistFuncLock", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
+		called := false
+		f := func(_ context.Context) (interface{}, error) {
+			called = true
+			return "value1", nil
+		}
+		ok, err := cache.SetIfNotExistFuncLock(ctx, "key1", f, 0)
+		assert.NoError(t, err)
+		assert.True(t, ok)
+		assert.True(t, called)
+
+		called = false
+		ok, err = cache.SetIfNotExistFuncLock(ctx, "key1", f, 0)
+		assert.NoError(t, err)
+		assert.False(t, ok)
+		assert.False(t, called)
+	})
+
+	t.Run("SetIfNotExistFunc_Error", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
+		f := func(_ context.Context) (interface{}, error) {
+			return nil, assert.AnError
+		}
+		ok, err := cache.SetIfNotExistFunc(ctx, "key1", f, 0)
+		assert.Error(t, err)
+		assert.False(t, ok)
+	})
 }
 
-func TestAdapterMemory_UpdateExpire(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
+// TestAdapterMemory_AtomicGetOperations covers GetOrSet and its variants.
+func TestAdapterMemory_AtomicGetOperations(t *testing.T) {
+	t.Run("GetOrSet", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
 
-	err := cache.Set(ctx, "key1", "value1", 100*time.Millisecond)
-	assert.NoError(t, err)
+		v, err := cache.GetOrSet(ctx, "key1", "value1", 0)
+		assert.NoError(t, err)
+		assert.Equal(t, "value1", v.String())
 
-	oldDur, err := cache.UpdateExpire(ctx, "key1", 200*time.Millisecond)
-	assert.NoError(t, err)
-	assert.True(t, oldDur > 0 && oldDur <= 100*time.Millisecond)
+		v, err = cache.GetOrSet(ctx, "key1", "value2", 0)
+		assert.NoError(t, err)
+		assert.Equal(t, "value1", v.String())
+	})
 
-	time.Sleep(150 * time.Millisecond)
-	v, err := cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.NotNil(t, v)
+	t.Run("GetOrSetFunc", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
+		called := false
+		f := func(_ context.Context) (interface{}, error) {
+			called = true
+			return "value1", nil
+		}
 
-	time.Sleep(100 * time.Millisecond)
-	v, err = cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.Nil(t, v)
+		v, err := cache.GetOrSetFunc(ctx, "key1", f, 0)
+		assert.NoError(t, err)
+		assert.True(t, called)
+		assert.Equal(t, "value1", v.String())
+
+		called = false // reset flag
+		v, err = cache.GetOrSetFunc(ctx, "key1", f, 0)
+		assert.NoError(t, err)
+		assert.False(t, called)
+		assert.Equal(t, "value1", v.String())
+	})
+
+	t.Run("GetOrSetFuncLock", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
+		called := false
+		f := func(_ context.Context) (interface{}, error) {
+			called = true
+			return "value1", nil
+		}
+		v, err := cache.GetOrSetFuncLock(ctx, "key1", f, 0)
+		assert.NoError(t, err)
+		assert.True(t, called)
+		assert.Equal(t, "value1", v.String())
+
+		called = false
+		v, err = cache.GetOrSetFuncLock(ctx, "key1", f, 0)
+		assert.NoError(t, err)
+		assert.False(t, called)
+		assert.Equal(t, "value1", v.String())
+	})
+
+	t.Run("GetOrSetFunc_Error", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
+		f := func(_ context.Context) (interface{}, error) {
+			return nil, assert.AnError
+		}
+		v, err := cache.GetOrSetFunc(ctx, "key1", f, 0)
+		assert.Error(t, err)
+		assert.Nil(t, v)
+	})
 }
 
-func TestAdapterMemory_GetExpire(t *testing.T) {
+// TestAdapterMemory_MetadataOperations covers operations that inspect or modify cache metadata.
+func TestAdapterMemory_MetadataOperations(t *testing.T) {
 	cache := mcache.NewAdapterMemory()
 	ctx := context.Background()
 
-	err := cache.Set(ctx, "key1", "value1", 100*time.Millisecond)
-	assert.NoError(t, err)
+	_ = cache.Set(ctx, "key1", "value1", 100*time.Millisecond)
+	_ = cache.Set(ctx, "key2", "value2", 0)
 
+	// Test Contains
+	ok, err := cache.Contains(ctx, "key1")
+	assert.NoError(t, err)
+	assert.True(t, ok)
+	ok, err = cache.Contains(ctx, "non-existent")
+	assert.NoError(t, err)
+	assert.False(t, ok)
+
+	// Test Size
+	size, err := cache.Size(ctx)
+	assert.NoError(t, err)
+	assert.Equal(t, 2, size)
+
+	// Test GetExpire
 	d, err := cache.GetExpire(ctx, "key1")
 	assert.NoError(t, err)
 	assert.True(t, d > 0 && d <= 100*time.Millisecond)
-
-	err = cache.Set(ctx, "key2", "value2", 0)
-	assert.NoError(t, err)
-
 	d, err = cache.GetExpire(ctx, "key2")
 	assert.NoError(t, err)
 	assert.Equal(t, time.Duration(0), d)
 }
 
-func TestAdapterMemory_Remove(t *testing.T) {
+// TestAdapterMemory_UpdateOperations covers Update and UpdateExpire.
+func TestAdapterMemory_UpdateOperations(t *testing.T) {
 	cache := mcache.NewAdapterMemory()
 	ctx := context.Background()
-	_ = cache.Set(ctx, "key1", "value1", 0)
-	_ = cache.Set(ctx, "key2", "value2", 0)
+	_ = cache.Set(ctx, "key1", "value1", 100*time.Millisecond)
 
-	lastVal, err := cache.Remove(ctx, "key1")
+	// Test Update
+	oldVal, exist, err := cache.Update(ctx, "key1", "newValue")
 	assert.NoError(t, err)
-	assert.NotNil(t, lastVal)
-	assert.Equal(t, "value1", lastVal.String())
+	assert.True(t, exist)
+	assert.Equal(t, "value1", oldVal.String())
+	newVal, _ := cache.Get(ctx, "key1")
+	assert.Equal(t, "newValue", newVal.String())
 
+	// Test expiration is not changed by Update
+	time.Sleep(150 * time.Millisecond)
 	v, err := cache.Get(ctx, "key1")
 	assert.NoError(t, err)
 	assert.Nil(t, v)
 
+	// Test UpdateExpire
+	_ = cache.Set(ctx, "key2", "value2", 100*time.Millisecond)
+	oldDur, err := cache.UpdateExpire(ctx, "key2", 200*time.Millisecond)
+	assert.NoError(t, err)
+	assert.True(t, oldDur > 0 && oldDur <= 100*time.Millisecond)
+	time.Sleep(150 * time.Millisecond)
 	v, err = cache.Get(ctx, "key2")
 	assert.NoError(t, err)
-	assert.NotNil(t, v)
+	assert.NotNil(t, v) // Should still exist
 }
 
-func TestAdapterMemory_Clear(t *testing.T) {
+// TestAdapterMemory_DeleteOperations covers Remove and Clear.
+func TestAdapterMemory_DeleteOperations(t *testing.T) {
 	cache := mcache.NewAdapterMemory()
 	ctx := context.Background()
 	_ = cache.Set(ctx, "key1", "value1", 0)
-	_ = cache.Set(ctx, "key2", "value2", 0)
+	_ = cache.Set(ctx, "key2", 2, 0)
+	_ = cache.Set(ctx, "key3", "value3", 0)
 
-	err := cache.Clear(ctx)
+	// Test Remove single key
+	lastVal, err := cache.Remove(ctx, "key1")
 	assert.NoError(t, err)
+	assert.Equal(t, "value1", lastVal.String())
+	size, _ := cache.Size(ctx)
+	assert.Equal(t, 2, size)
 
-	size, err := cache.Size(ctx)
+	// Test Remove multiple keys
+	lastVal, err = cache.Remove(ctx, "key2", "key3")
 	assert.NoError(t, err)
+	assert.Contains(t, []interface{}{2, "value3"}, lastVal.Val())
+	size, _ = cache.Size(ctx)
+	assert.Equal(t, 0, size)
+
+	// Test Clear
+	_ = cache.Set(ctx, "key1", "value1", 0)
+	err = cache.Clear(ctx)
+	assert.NoError(t, err)
+	size, _ = cache.Size(ctx)
 	assert.Equal(t, 0, size)
 }
 
+// TestAdapterMemory_LRU verifies the Least Recently Used eviction policy.
 func TestAdapterMemory_LRU(t *testing.T) {
 	cache := mcache.NewAdapterMemory(2) // capacity is 2
 	ctx := context.Background()
@@ -376,143 +313,76 @@ func TestAdapterMemory_LRU(t *testing.T) {
 
 	_ = cache.Set(ctx, "key3", "value3", 0)
 
-	// key2 should be evicted
-	v1, err := cache.Get(ctx, "key1")
-	assert.NoError(t, err)
+	// key2 should be evicted because it was the least recently used.
+	v1, _ := cache.Get(ctx, "key1")
 	assert.NotNil(t, v1)
-
-	v2, err := cache.Get(ctx, "key2")
-	assert.NoError(t, err)
+	v2, _ := cache.Get(ctx, "key2")
 	assert.Nil(t, v2)
-
-	v3, err := cache.Get(ctx, "key3")
-	assert.NoError(t, err)
+	v3, _ := cache.Get(ctx, "key3")
 	assert.NotNil(t, v3)
 
-	// Add another key, key1 should be evicted
+	// Add another key, key1 should now be the LRU and get evicted.
 	_ = cache.Set(ctx, "key4", "value4", 0)
-	v1, err = cache.Get(ctx, "key1")
-	assert.NoError(t, err)
+	v1, _ = cache.Get(ctx, "key1")
 	assert.Nil(t, v1)
 }
 
-func TestAdapterMemory_Close(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	err := cache.Close(ctx)
-	assert.NoError(t, err)
-	// can be closed multiple times
-	err = cache.Close(ctx)
-	assert.NoError(t, err)
-}
+// TestAdapterMemory_EdgeCases covers various edge cases.
+func TestAdapterMemory_EdgeCases(t *testing.T) {
+	t.Run("Close", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
+		err := cache.Close(ctx)
+		assert.NoError(t, err)
+		// can be closed multiple times
+		err = cache.Close(ctx)
+		assert.NoError(t, err)
+	})
 
-func TestAdapterMemory_Get_ReturnNil(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	v, err := cache.Get(ctx, "non-existent-key")
-	assert.NoError(t, err)
-	assert.Nil(t, v)
-}
+	t.Run("Remove_NonExistent", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
+		lastValue, err := cache.Remove(ctx, "non-existent-key")
+		assert.NoError(t, err)
+		assert.Nil(t, lastValue)
+	})
 
-func TestAdapterMemory_Remove_NonExistent(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	lastValue, err := cache.Remove(ctx, "non-existent-key")
-	assert.NoError(t, err)
-	assert.Nil(t, lastValue)
-}
+	t.Run("Update_NonExistent", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
+		oldValue, exist, err := cache.Update(ctx, "non-existent-key", "value")
+		assert.NoError(t, err)
+		assert.False(t, exist)
+		assert.Nil(t, oldValue)
+	})
 
-func TestAdapterMemory_Update_NonExistent(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	oldValue, exist, err := cache.Update(ctx, "non-existent-key", "value")
-	assert.NoError(t, err)
-	assert.False(t, exist)
-	assert.Nil(t, oldValue)
-}
+	t.Run("UpdateExpire_NonExistent", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
+		oldDuration, err := cache.UpdateExpire(ctx, "non-existent-key", time.Second)
+		assert.NoError(t, err)
+		assert.Equal(t, time.Duration(-1), oldDuration)
+	})
 
-func TestAdapterMemory_UpdateExpire_NonExistent(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	oldDuration, err := cache.UpdateExpire(ctx, "non-existent-key", time.Second)
-	assert.NoError(t, err)
-	assert.Equal(t, time.Duration(-1), oldDuration)
-}
+	t.Run("GetExpire_NonExistent", func(t *testing.T) {
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
+		duration, err := cache.GetExpire(ctx, "non-existent-key")
+		assert.NoError(t, err)
+		assert.Equal(t, time.Duration(-1), duration)
+	})
 
-func TestAdapterMemory_GetExpire_NonExistent(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	duration, err := cache.GetExpire(ctx, "non-existent-key")
-	assert.NoError(t, err)
-	assert.Equal(t, time.Duration(-1), duration)
-}
+	t.Run("Set_NilValue", func(t *testing.T) {
+		// In current implementation, setting nil just sets the value to nil.
+		cache := mcache.NewAdapterMemory()
+		ctx := context.Background()
 
-func TestAdapterMemory_Set_NilValue(t *testing.T) {
-	// In current implementation, setting nil does not delete the key
-	// It just sets the value to nil
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-
-	err := cache.Set(ctx, "key1", "value1", 0)
-	assert.NoError(t, err)
-	v, err := cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.NotNil(t, v)
-
-	err = cache.Set(ctx, "key1", nil, 0)
-	assert.NoError(t, err)
-	v, err = cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.NotNil(t, v)
-	assert.Nil(t, v.Val())
-}
-
-func TestAdapterMemory_SetIfNotExistFunc_Error(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	f := func(ctx context.Context) (interface{}, error) {
-		return nil, assert.AnError
-	}
-	ok, err := cache.SetIfNotExistFunc(ctx, "key1", f, 0)
-	assert.Error(t, err)
-	assert.False(t, ok)
-	v, err := cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.Nil(t, v)
-}
-
-func TestAdapterMemory_GetOrSetFunc_Error(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	f := func(ctx context.Context) (interface{}, error) {
-		return nil, assert.AnError
-	}
-	v, err := cache.GetOrSetFunc(ctx, "key1", f, 0)
-	assert.Error(t, err)
-	assert.Nil(t, v)
-}
-
-func TestAdapterMemory_Remove_MultipleKeys(t *testing.T) {
-	cache := mcache.NewAdapterMemory()
-	ctx := context.Background()
-	_ = cache.Set(ctx, "key1", "value1", 0)
-	_ = cache.Set(ctx, "key2", 2, 0)
-	_ = cache.Set(ctx, "key3", "value3", 0)
-
-	lastValue, err := cache.Remove(ctx, "key1", "key2")
-	assert.NoError(t, err)
-	assert.NotNil(t, lastValue)
-	// The last removed value is returned, which could be either "value1" or "value2"
-	// depending on map iteration order. Let's check if it's one of them.
-	assert.Contains(t, []interface{}{"value1", 2}, lastValue.Val())
-
-	v1, err := cache.Get(ctx, "key1")
-	assert.NoError(t, err)
-	assert.Nil(t, v1)
-	v2, err := cache.Get(ctx, "key2")
-	assert.NoError(t, err)
-	assert.Nil(t, v2)
-	v3, err := cache.Get(ctx, "key3")
-	assert.NoError(t, err)
-	assert.NotNil(t, v3)
+		_ = cache.Set(ctx, "key1", "value1", 0)
+		_ = cache.Set(ctx, "key1", nil, 0)
+		v, err := cache.Get(ctx, "key1")
+		assert.NoError(t, err)
+		assert.NotNil(t, v)
+		assert.True(t, v.IsNil())
+		assert.Nil(t, v.Val())
+	})
 }

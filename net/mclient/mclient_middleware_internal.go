@@ -17,17 +17,9 @@ import (
 )
 
 const (
-	instrumentName                        = "github.com/graingo/maltose/net/mclient"
-	tracingEventHttpRequest               = "http.request"
-	tracingEventHttpRequestUrl            = "http.url"
-	tracingEventHttpHeaders               = "http.headers"
-	tracingEventHttpBaggage               = "http.baggage"
-	tracingEventHttpResponse              = "http.response"
-	tracingMiddlewareHandled   contextKey = "tracing-middleware-handled"
-	version                               = maltose.VERSION
+	instrumentName = "github.com/graingo/maltose/net/mclient"
+	version        = maltose.VERSION
 )
-
-type contextKey string
 
 // internalMiddlewareRecovery internal error recovery middleware
 func internalMiddlewareRecovery() MiddlewareFunc {

@@ -106,7 +106,6 @@ func (r *Response) Parse(result interface{}) error {
 		return json.Unmarshal(body, result)
 	case "application/xml", "text/xml":
 		return xml.Unmarshal(body, result)
-	case "text/plain":
 	default:
 		resultPtr, ok := result.(*string)
 		if !ok {
