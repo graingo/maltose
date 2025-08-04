@@ -79,11 +79,12 @@ func MiddlewareRateLimit(config RateLimitConfig) MiddlewareFunc {
 			return
 		}
 		tokens--
+		currentTokens := tokens
 		mu.Unlock()
 
 		// Log rate limit info if debug is enabled
 		if r.Request.Context() != nil {
-			intlog.Printf(r.Request.Context(), "Rate limit: %.2f tokens remaining", tokens)
+			intlog.Printf(r.Request.Context(), "Rate limit: %.2f tokens remaining", currentTokens)
 		}
 	}
 }
