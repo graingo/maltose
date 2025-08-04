@@ -27,7 +27,7 @@ jobs:
       mysql:
         image: mysql:8.0
         ports:
-          - 13306:3306
+          - 3306:3306
         env:
           TZ: Asia/Shanghai
           MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
@@ -94,7 +94,7 @@ jobs:
           NACOS_PORT: 8848
           DB_TYPE: mysql
           DB_HOST: 127.0.0.1
-          DB_PORT: 13306
+          DB_PORT: 3306
           DB_USER: root
           DB_PASS: ""
           DB_NAME: testdb
