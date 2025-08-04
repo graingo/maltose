@@ -39,7 +39,7 @@ func (h *ctxHook) Name() string { return ctxHookName }
 func (h *ctxHook) Levels() []Level { return AllLevels() }
 
 func (h *ctxHook) Fire(entry *Entry) {
-	if entry.GetContext() == nil {
+	if entry.GetContext() == nil || len(h.keys) == 0 {
 		return
 	}
 	for _, ctxKey := range h.keys {

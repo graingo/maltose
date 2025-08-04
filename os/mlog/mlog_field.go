@@ -77,7 +77,7 @@ func String(key string, val string) Field {
 // Time constructs a field with a time.Time value. It's formatted as a
 // floating-point number of seconds since the Unix epoch.
 func Time(key string, val time.Time) Field {
-	return Field{Key: key, Type: zapcore.TimeType, Integer: val.UnixNano(), Interface: time.UTC}
+	return Field{Key: key, Type: zapcore.TimeType, Integer: val.UnixNano(), Interface: val.Location()}
 }
 
 // Uint constructs a field with an unsigned integer value.

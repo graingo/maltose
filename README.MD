@@ -15,7 +15,12 @@
 
 [![Go Reference](https://pkg.go.dev/badge/github.com/graingo/maltose.svg)](https://pkg.go.dev/github.com/graingo/maltose)
 [![Go Report Card](https://goreportcard.com/badge/github.com/graingo/maltose)](https://goreportcard.com/report/github.com/graingo/maltose)
+[![GitHub release](https://img.shields.io/github/release/graingo/maltose.svg)](https://github.com/graingo/maltose/releases)
+[![Go version](https://img.shields.io/badge/go-%3E%3D1.21-blue.svg)](https://golang.org/)
+[![codecov](https://codecov.io/gh/graingo/maltose/graph/badge.svg?token=jpR53wyp8d)](https://codecov.io/gh/graingo/maltose)
 [![License](https://img.shields.io/github/license/graingo/maltose.svg)](LICENSE)
+
+**[🇺🇸 English](README_EN.MD)** | **🇨🇳 简体中文**
 
 </div>
 

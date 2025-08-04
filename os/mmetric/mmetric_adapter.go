@@ -29,7 +29,7 @@ func (p *otelProvider) Meter(option MeterOption) Meter {
 
 // Shutdown implements the Provider interface.
 // Note that the default OpenTelemetry provider does not have a Shutdown method.
-// This will panic if the underlying provider is not an SDK provider that has a Shutdown method.
+// If the underlying provider does not support Shutdown, this method returns nil.
 func (p *otelProvider) Shutdown(ctx context.Context) error {
 	if prov, ok := p.provider.(interface {
 		Shutdown(context.Context) error

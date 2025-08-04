@@ -85,11 +85,7 @@ func (c *AdapterFile) load(path string) error {
 	case "toml":
 		_, err = toml.Decode(string(content), &data)
 	default:
-		// Attempt to parse as YAML by default if the format is unknown.
-		err = yaml.Unmarshal(content, &data)
-		if err != nil {
-			return fmt.Errorf("unsupported or malformed config file: %s", path)
-		}
+		return fmt.Errorf("unsupported config file format: %s (extension: %s)", path, ext)
 	}
 
 	if err != nil {
