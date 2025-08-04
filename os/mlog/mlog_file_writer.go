@@ -28,14 +28,14 @@ type rotationConfig struct {
 
 // fileWriter is a writer that writes to files based on date patterns or fixed file names.
 type fileWriter struct {
-	pathPattern  string        // Full path pattern for the log file
-	isDateMode   bool          // Whether using date pattern mode
-	mu           sync.Mutex    // Mutex for concurrency safety
-	file         *os.File      // Current open file
-	currentPath  string        // Current file path
-	lastCheck    time.Time     // Last file check time
-	lastCleanup  time.Time     // Last cleanup check time
-	writeCount   int64         // Write counter for lazy cleanup
+	pathPattern  string     // Full path pattern for the log file
+	isDateMode   bool       // Whether using date pattern mode
+	mu           sync.Mutex // Mutex for concurrency safety
+	file         *os.File   // Current open file
+	currentPath  string     // Current file path
+	lastCheck    time.Time  // Last file check time
+	lastCleanup  time.Time  // Last cleanup check time
+	writeCount   int64      // Write counter for lazy cleanup
 	cfg          *rotationConfig
 	cleanupRegex *regexp.Regexp
 }

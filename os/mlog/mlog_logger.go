@@ -57,11 +57,12 @@ func New(cfg ...*Config) *Logger {
 // integrated file management, rotation, and cleanup functionality.
 //
 // Example:
-//   zapLogger := zap.New(core) // Your custom zap logger
-//   logger := mlog.NewWithZap(zapLogger, &mlog.Config{
-//       CtxKeys: []string{"trace_id", "user_id"},
-//   })
-//   defer logger.Close() // This only calls zapLogger.Sync()
+//
+//	zapLogger := zap.New(core) // Your custom zap logger
+//	logger := mlog.NewWithZap(zapLogger, &mlog.Config{
+//	    CtxKeys: []string{"trace_id", "user_id"},
+//	})
+//	defer logger.Close() // This only calls zapLogger.Sync()
 func NewWithZap(zapLogger *zap.Logger, cfg ...*Config) *Logger {
 	config := defaultConfig()
 	if len(cfg) > 0 && cfg[0] != nil {
