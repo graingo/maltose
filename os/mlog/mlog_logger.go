@@ -3,7 +3,6 @@ package mlog
 import (
 	"context"
 	"fmt"
-	"io"
 	"sync"
 	"unsafe"
 
@@ -16,7 +15,6 @@ type Logger struct {
 	hooks      []Hook
 	config     *Config
 	level      zap.AtomicLevel
-	fileWriter io.WriteCloser
 	withFields []Field
 	mu         sync.RWMutex
 	hookMu     sync.RWMutex
@@ -35,8 +33,50 @@ func New(cfg ...*Config) *Logger {
 		withFields: make([]Field, 0),
 	}
 	// build zap logger
-	l.parent, l.level, l.fileWriter = buildZapLogger(l.config)
+	l.parent, l.level = buildZapLogger(l.config)
 	// add hooks
+	l.AddHook(&traceHook{})
+	if len(l.config.CtxKeys) > 0 {
+		l.AddHook(&ctxHook{keys: l.config.CtxKeys})
+	}
+
+	return l
+}
+
+// NewWithZap creates a new Logger instance using an existing zap.Logger.
+//
+// This constructor is intended for advanced users or those who need customizations
+// that are not supported by the standard New() constructor. When using this function:
+//
+// 1. You are responsible for configuring the zap.Logger (output, format, rotation, etc.)
+// 2. You must manage the lifecycle of any resources associated with your zap.Logger
+// 3. File rotation and cleanup are handled by your zap.Logger configuration, not by mlog
+// 4. The provided config is used only for mlog-specific features (hooks, context keys, etc.)
+//
+// For most use cases, the standard New() constructor is recommended as it provides
+// integrated file management, rotation, and cleanup functionality.
+//
+// Example:
+//   zapLogger := zap.New(core) // Your custom zap logger
+//   logger := mlog.NewWithZap(zapLogger, &mlog.Config{
+//       CtxKeys: []string{"trace_id", "user_id"},
+//   })
+//   defer logger.Close() // This only calls zapLogger.Sync()
+func NewWithZap(zapLogger *zap.Logger, cfg ...*Config) *Logger {
+	config := defaultConfig()
+	if len(cfg) > 0 && cfg[0] != nil {
+		config = cfg[0]
+	}
+
+	l := &Logger{
+		parent:     zapLogger,
+		config:     config,
+		level:      zap.NewAtomicLevelAt(zap.InfoLevel), // Default level, user can adjust via config
+		hooks:      make([]Hook, 0),
+		withFields: make([]Field, 0),
+	}
+
+	// Add hooks
 	l.AddHook(&traceHook{})
 	if len(l.config.CtxKeys) > 0 {
 		l.AddHook(&ctxHook{keys: l.config.CtxKeys})
@@ -47,18 +87,8 @@ func New(cfg ...*Config) *Logger {
 
 // Close closes the logger and its underlying resources.
 func (l *Logger) Close() error {
-	var err error
 	// Sync flushes any buffered log entries.
-	if syncErr := l.parent.Sync(); syncErr != nil {
-		err = syncErr
-	}
-	// Close the writer.
-	if l.fileWriter != nil {
-		if closeErr := l.fileWriter.Close(); closeErr != nil && err == nil {
-			err = closeErr
-		}
-	}
-	return err
+	return l.parent.Sync()
 }
 
 // SetConfigWithMap sets the logger configuration using a map.
@@ -72,7 +102,7 @@ func (l *Logger) SetConfigWithMap(configMap map[string]any) error {
 	}
 
 	// Rebuild the zap logger with the new configuration.
-	l.parent, l.level, l.fileWriter = buildZapLogger(l.config)
+	l.parent, l.level = buildZapLogger(l.config)
 
 	// Re-apply the stored 'With' fields to the new logger instance.
 	if len(l.withFields) > 0 {
@@ -92,7 +122,7 @@ func (l *Logger) SetConfig(config *Config) error {
 
 	l.config = config
 	// Rebuild the zap logger with the new configuration.
-	l.parent, l.level, l.fileWriter = buildZapLogger(l.config)
+	l.parent, l.level = buildZapLogger(l.config)
 
 	// Re-apply the stored 'With' fields to the new logger instance.
 	if len(l.withFields) > 0 {
@@ -124,7 +154,6 @@ func (l *Logger) With(fields ...Field) *Logger {
 		hooks:      l.hooks,
 		config:     l.config,
 		level:      l.level,
-		fileWriter: l.fileWriter,
 		withFields: newWithFields,
 	}
 }

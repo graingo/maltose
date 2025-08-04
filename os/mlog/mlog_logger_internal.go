@@ -18,7 +18,7 @@ func (l *Logger) refreshHooks() {
 	}
 }
 
-func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel, io.WriteCloser) {
+func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel) {
 	encoderCfg := zap.NewProductionEncoderConfig()
 
 	// TimeFormat
@@ -87,7 +87,7 @@ func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel, io.WriteClose
 		opts = append(opts, zap.Development())
 	}
 
-	return zapLogger.WithOptions(opts...), level, fileWriter
+	return zapLogger.WithOptions(opts...), level
 }
 
 // log logs the message with the given level and attributes.

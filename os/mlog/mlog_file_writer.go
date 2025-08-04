@@ -35,7 +35,7 @@ type fileWriter struct {
 	currentPath  string        // Current file path
 	lastCheck    time.Time     // Last file check time
 	lastCleanup  time.Time     // Last cleanup check time
-	stopChan     chan struct{} // Stop channel for cleanup goroutine
+	writeCount   int64         // Write counter for lazy cleanup
 	cfg          *rotationConfig
 	cleanupRegex *regexp.Regexp
 }
@@ -91,11 +91,10 @@ func newFileWriter(path string, cfg *rotationConfig) (*fileWriter, error) {
 		cfg:         cfg,
 		lastCheck:   time.Now(),
 		lastCleanup: time.Now(),
-		stopChan:    make(chan struct{}),
 		isDateMode:  isDateMode,
 	}
 
-	// Start cleanup goroutine if needed
+	// Prepare cleanup regex if needed
 	if cfg.MaxAge > 0 || (!isDateMode && cfg.MaxBackups > 0) {
 		if w.isDateMode {
 			regexPattern := convertDatePatternToRegex(w.pathPattern)
@@ -105,7 +104,6 @@ func newFileWriter(path string, cfg *rotationConfig) (*fileWriter, error) {
 			}
 			w.cleanupRegex = re
 		}
-		go w.cleanupRoutine()
 	}
 
 	return w, nil
@@ -131,6 +129,12 @@ func (w *fileWriter) Write(p []byte) (n int, err error) {
 				}
 			}
 		}
+	}
+
+	// Lazy cleanup: check every 1000 writes or once per hour
+	w.writeCount++
+	if w.writeCount%1000 == 0 || time.Since(w.lastCleanup) > time.Hour {
+		w.cleanup()
 	}
 
 	return w.file.Write(p)
@@ -166,13 +170,10 @@ func (w *fileWriter) backupFilePath() string {
 	return filepath.Join(dir, fmt.Sprintf("%s.%s%s", prefix, timestamp, ext))
 }
 
-// Close closes the current file and stops the cleanup goroutine.
+// Close closes the current file.
 func (w *fileWriter) Close() error {
 	w.mu.Lock()
 	defer w.mu.Unlock()
-
-	// Stop cleanup goroutine if running
-	close(w.stopChan)
 
 	// Close file
 	if w.file != nil {
@@ -232,26 +233,8 @@ func (w *fileWriter) formatFilePath(t time.Time) string {
 	return t.Format(layout)
 }
 
-// cleanupRoutine periodically cleans up old log files.
-func (w *fileWriter) cleanupRoutine() {
-	ticker := time.NewTicker(time.Hour) // Check every hour
-	defer ticker.Stop()
-
-	for {
-		select {
-		case <-ticker.C:
-			w.cleanup()
-		case <-w.stopChan:
-			return
-		}
-	}
-}
-
 // cleanup removes old log files based on autoClean setting.
 func (w *fileWriter) cleanup() {
-	w.mu.Lock()
-	defer w.mu.Unlock()
-
 	// For size mode, cleanup is based on MaxAge or MaxBackups.
 	// For date mode, cleanup is based on cfg.MaxAge.
 	if w.isDateMode {
@@ -267,7 +250,7 @@ func (w *fileWriter) cleanup() {
 	dir := filepath.Dir(w.pathPattern)
 	files, err := os.ReadDir(dir)
 	if err != nil {
-		fmt.Printf("Failed to read directory for cleanup: %s, error: %v\n", dir, err)
+		// Silently ignore cleanup errors to avoid affecting normal logging
 		return
 	}
 
