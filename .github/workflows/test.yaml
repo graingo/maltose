@@ -1,4 +1,4 @@
-name: 测试 & 覆盖率
+name: 测试
 
 on:
   pull_request:
@@ -16,12 +16,9 @@ jobs:
 
     services:
       redis:
-        # 使用官方的 Redis 镜像
         image: redis:6
-        # 将容器的 6379 端口映射到宿主机的 6379 端口
         ports:
           - 6379:6379
-        # 可选：为 Redis 服务添加健康检查，确保它完全启动后再运行测试
         options: >-
           --health-cmd "redis-cli ping"
           --health-interval 10s
@@ -38,24 +35,19 @@ jobs:
           --health-interval 10s
           --health-timeout 5s
           --health-retries 10
+
       nacos:
         image: nacos/nacos-server:v2.2.3
         ports:
           - 8848:8848
-        environment:
-          - PREFER_HOST_MODE=hostname
-          - MODE=standalone
-        healthcheck:
-          test:
-            [
-              "CMD",
-              "curl",
-              "-f",
-              "http://localhost:8848/nacos/v1/ns/operator/metrics",
-            ]
-          interval: 10s
-          timeout: 5s
-          retries: 10
+        env:
+          PREFER_HOST_MODE: hostname
+          MODE: standalone
+        options: >-
+          --health-cmd "curl -f http://localhost:8848/nacos/v1/ns/operator/metrics || exit 1"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 10
 
       mysql:
         image: mysql:8.0
@@ -90,7 +82,6 @@ jobs:
             ${{ runner.os }}-go-${{ matrix.go-version }}-
             ${{ runner.os }}-go-
 
-      # 简化测试步骤，go test ./... 会自动递归测试所有子模块
       - name: Run tests
         env:
           APOLLO_IP: http://apollo:8080
@@ -108,13 +99,13 @@ jobs:
           go test -v -race -coverprofile=coverage.out ./...
 
       - name: Upload coverage to Codecov
-        if: matrix.go-version == '1.23' # 仅在最新版本的 Go 测试中上传覆盖率，避免重复
+        if: matrix.go-version == '1.23'
         uses: codecov/codecov-action@v4
         with:
           files: coverage.out
           flags: unittests
           name: codecov-umbrella
-          token: ${{ secrets.CODECOV_TOKEN }} # 建议明确传递 token
+          token: ${{ secrets.CODECOV_TOKEN }}
 
   lint:
     runs-on: ubuntu-latest
@@ -125,12 +116,10 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23" # 固定一个用于 lint 的 Go 版本
+          go-version: "1.23"
 
-      # 将所有 Lint 检查合并到一步，更高效、更简洁
       - name: Lint
         uses: golangci/golangci-lint-action@v6
         with:
-          # 锁定 linter 版本以保证构建的稳定性
           version: v1.64
           args: --verbose
