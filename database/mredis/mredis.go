@@ -2,17 +2,20 @@ package mredis
 
 import (
 	"context"
+	"sync"
+	"time"
 
 	"github.com/graingo/maltose/errors/mcode"
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/redis/go-redis/extra/redisotel/v9"
-	"github.com/redis/go-redis/v9"
+	redis "github.com/redis/go-redis/v9"
 )
 
 // Redis is the main struct for redis operations.
 type Redis struct {
 	client redis.UniversalClient
 	config *Config
+	mu     sync.RWMutex
 }
 
 type Hook redis.Hook
@@ -54,7 +57,10 @@ func New(config ...*Config) (*Redis, error) {
 
 	// Add logger hook if logger is configured.
 	if cfg.Logger != nil {
-		client.AddHook(newLoggerHook(cfg.Logger, cfg.SlowThreshold))
+		hook := newLoggerHook(cfg)
+		client.AddHook(hook)
+		// Store the hook in the config so it can be managed later.
+		cfg.loggerHook = hook
 	}
 
 	// Enable tracing.
@@ -92,4 +98,19 @@ func (r *Redis) Ping(ctx context.Context) error {
 // Close closes the client, releasing any open resources.
 func (r *Redis) Close() error {
 	return r.client.Close()
+}
+
+// SetSlowThreshold dynamically updates the slow command threshold.
+func (r *Redis) SetSlowThreshold(d time.Duration) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.config.SlowThreshold = d
+
+	// If a logger hook exists, we need to update its threshold.
+	if r.config.loggerHook != nil {
+		if hook, ok := r.config.loggerHook.(*loggerHook); ok {
+			hook.setSlowThreshold(d)
+		}
+	}
 }

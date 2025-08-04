@@ -1,0 +1,17 @@
+run:
+  timeout: 5m
+  go: "1.23"
+
+linters:
+  enable:
+    - gofmt # 格式化检查
+    - goimports # import 排序
+    - govet # go vet 检查
+    - revive # 代码质量检查
+    - misspell # 拼写错误
+    - ineffassign # 无效赋值
+  disable-all: true
+
+issues:
+  exclude-use-default: true
+  exclude-dirs-use-default: true

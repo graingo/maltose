@@ -1,7 +1,11 @@
 package mhttp
 
 import (
+	"errors"
 	"fmt"
+	"net"
+	"os"
+	"strings"
 	"time"
 
 	"github.com/graingo/maltose"
@@ -16,14 +20,8 @@ import (
 )
 
 const (
-	instrumentName                        = "github.com/graingo/maltose/net/mhttp"
-	tracingEventHttpRequest               = "http.request"
-	tracingEventHttpRequestUrl            = "http.url"
-	tracingEventHttpHeaders               = "http.headers"
-	tracingEventHttpBaggage               = "http.baggage"
-	tracingEventHttpResponse              = "http.response"
-	tracingMiddlewareHandled   contextKey = "tracing-middleware-handled"
-	version                               = maltose.VERSION
+	instrumentName = "github.com/graingo/maltose/net/mhttp"
+	version        = maltose.VERSION
 )
 
 // internalMiddlewareDefaultResponse internal default response processing middleware
@@ -31,19 +29,25 @@ func internalMiddlewareDefaultResponse() MiddlewareFunc {
 	return func(r *Request) {
 		r.Next()
 
-		// if response has been written, skip
+		// if response has been written by other middleware, skip
 		if r.Writer.Written() {
 			return
 		}
 
-		// handle error case
+		// handle error case - only handle unstructured errors as fallback
+		// Let user middleware handle structured errors with error codes
 		if len(r.Errors) > 0 {
 			err := r.Errors.Last().Err
-			r.String(500, fmt.Sprintf("Error: %s", err.Error()))
+			code := merror.Code(err)
+			if code == mcode.CodeNil {
+				r.String(500, fmt.Sprintf("Error: %s", err.Error()))
+			} else {
+				r.String(codeToHTTPStatus(code), code.Message())
+			}
 			return
 		}
 
-		// get handler response
+		// handle response from handler or other middleware
 		if res := r.GetHandlerResponse(); res != nil {
 			switch v := res.(type) {
 			case string:
@@ -51,7 +55,7 @@ func internalMiddlewareDefaultResponse() MiddlewareFunc {
 			case []byte:
 				r.String(200, string(v))
 			default:
-				r.JSON(200, v)
+				r.JSON(200, res)
 			}
 			return
 		}
@@ -66,10 +70,36 @@ func internalMiddlewareRecovery() MiddlewareFunc {
 	return func(r *Request) {
 		defer func() {
 			if err := recover(); err != nil {
-				// record error log
-				r.Logger().Errorf(r.Request.Context(), nil, fmt.Sprintf("Panic recovered: %s", err))
-				// return 500 error
-				r.SetHandlerResponse(merror.NewCodef(mcode.CodeInternalError, "Panic recovered: %s", err))
+				// Check for a broken connection, as it is not really a
+				// condition that warrants a panic stack trace.
+				var brokenPipe bool
+				if ne, ok := err.(*net.OpError); ok {
+					var se *os.SyscallError
+					if errors.As(ne, &se) {
+						seStr := strings.ToLower(se.Error())
+						if strings.Contains(seStr, "broken pipe") ||
+							strings.Contains(seStr, "connection reset by peer") {
+							brokenPipe = true
+						}
+					}
+				}
+
+				merr := merror.NewCodef(mcode.CodeInternalPanic, "Panic recovered: %s", err)
+
+				if brokenPipe {
+					// If the connection is dead, we can't write a status to it.
+					// Just log the error and abort
+					r.Logger().Warnf(r.Request.Context(), "Connection broken: %s", err)
+					r.Error(merr)
+					r.Abort()
+				} else {
+					// record error log for normal panic
+					r.Logger().Errorf(r.Request.Context(), merr, "Panic recovered")
+					// call panic handler
+					if r.server.panicHandler != nil {
+						r.server.panicHandler(r, merr)
+					}
+				}
 			}
 		}()
 		r.Next()

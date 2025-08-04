@@ -12,7 +12,6 @@ type Request struct {
 	*http.Request                                   // Request is the underlying http.Request object.
 	client         *Client                          // The client that creates this request.
 	response       *Response                        // The response object of this request.
-	ctx            context.Context                  // Context for the request.
 	retryCount     int                              // Retry count for the request.
 	retryInterval  time.Duration                    // Retry interval for the request.
 	middlewares    []MiddlewareFunc                 // Middleware functions.
@@ -35,17 +34,17 @@ func (r *Request) SetResponse(resp *Response) {
 }
 
 // SetContext sets the context for the request.
+// It creates a new underlying http.Request with the given context.
 func (r *Request) SetContext(ctx context.Context) *Request {
+	if ctx == nil {
+		return r
+	}
 	if r.Request == nil {
 		r.Request = &http.Request{
 			Header: make(http.Header),
 		}
 	}
-
-	if ctx != nil {
-		r.Request = r.Request.WithContext(ctx)
-	}
-
+	r.Request = r.Request.WithContext(ctx)
 	return r
 }
 

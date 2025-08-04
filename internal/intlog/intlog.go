@@ -5,8 +5,10 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"os"
 	"path/filepath"
 	"runtime"
+	"strconv"
 	"time"
 
 	"go.opentelemetry.io/otel/trace"
@@ -17,15 +19,29 @@ const (
 )
 
 var (
-	// Debug controls whether logging is enabled.
-	// It's true in development environments and false in production by default.
-	Debug = true
+	// debug is a flag for internal logging.
+	// It's disabled by default.
+	// It can be enabled by setting environment "MALTOSE_DEBUG" to "true".
+	debug = false
 )
+
+func init() {
+	if v := os.Getenv("MALTOSE_DEBUG"); v != "" {
+		if b, _ := strconv.ParseBool(v); b {
+			debug = true
+		}
+	}
+}
+
+// SetDebug sets the debug level for the internal logger.
+func SetDebug(d bool) {
+	debug = d
+}
 
 // Print prints `v` with newline using fmt.Println.
 // The parameter `v` can be multiple variables.
 func Print(ctx context.Context, v ...interface{}) {
-	if !Debug {
+	if !debug {
 		return
 	}
 	doPrint(ctx, fmt.Sprint(v...), false)
@@ -34,7 +50,7 @@ func Print(ctx context.Context, v ...interface{}) {
 // Printf prints `v` with format `format` using fmt.Printf.
 // The parameter `v` can be multiple variables.
 func Printf(ctx context.Context, format string, v ...interface{}) {
-	if !Debug {
+	if !debug {
 		return
 	}
 	doPrint(ctx, fmt.Sprintf(format, v...), false)
@@ -43,7 +59,7 @@ func Printf(ctx context.Context, format string, v ...interface{}) {
 // Error prints `v` with newline using fmt.Println.
 // The parameter `v` can be multiple variables.
 func Error(ctx context.Context, v ...interface{}) {
-	if !Debug {
+	if !debug {
 		return
 	}
 	doPrint(ctx, fmt.Sprint(v...), true)
@@ -51,14 +67,14 @@ func Error(ctx context.Context, v ...interface{}) {
 
 // Errorf prints `v` with format `format` using fmt.Printf.
 func Errorf(ctx context.Context, format string, v ...interface{}) {
-	if !Debug {
+	if !debug {
 		return
 	}
 	doPrint(ctx, fmt.Sprintf(format, v...), true)
 }
 
 func doPrint(ctx context.Context, content string, stack bool) {
-	if !Debug {
+	if !debug {
 		return
 	}
 
@@ -67,7 +83,7 @@ func doPrint(ctx context.Context, content string, stack bool) {
 	buffer.WriteString(" [INTE] ")
 	buffer.WriteString(file())
 	buffer.WriteString(" ")
-	if s := traceIdStr(ctx); s != "" {
+	if s := traceIDStr(ctx); s != "" {
 		buffer.WriteString(s + " ")
 	}
 	buffer.WriteString(content)
@@ -82,14 +98,14 @@ func doPrint(ctx context.Context, content string, stack bool) {
 	fmt.Print(buffer.String())
 }
 
-// traceIdStr retrieves and returns the trace id string for logging output.
-func traceIdStr(ctx context.Context) string {
+// traceIDStr retrieves and returns the trace id string for logging output.
+func traceIDStr(ctx context.Context) string {
 	if ctx == nil {
 		return ""
 	}
 	spanCtx := trace.SpanContextFromContext(ctx)
-	if traceId := spanCtx.TraceID(); traceId.IsValid() {
-		return "{" + traceId.String() + "}"
+	if traceID := spanCtx.TraceID(); traceID.IsValid() {
+		return "{" + traceID.String() + "}"
 	}
 	return ""
 }

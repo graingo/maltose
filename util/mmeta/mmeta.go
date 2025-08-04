@@ -12,44 +12,59 @@ import (
 type Meta struct{}
 
 const (
-	metaAttributeName = "Meta"       // The attribute name of metadata in the structure
-	metaTypeName      = "mmeta.Meta" // The type name for type string comparison
+	metaAttributeName = "Meta" // The attribute name of metadata in the structure
 )
 
-// Data retrieves and returns all metadata from `object`
+// metaType holds the reflection type of Meta, used for efficient type comparison.
+var metaType = reflect.TypeOf(Meta{})
+
+// Data returns all metadata of `object` as map.
+// The parameter `object` can be any struct object or pointer to struct.
 func Data(object any) map[string]string {
+	if object == nil {
+		return map[string]string{}
+	}
+
 	reflectType, err := StructType(object)
 	if err != nil {
-		return nil
+		return map[string]string{}
 	}
+
 	if field, ok := reflectType.FieldByName(metaAttributeName); ok {
-		if field.Type.String() == metaTypeName {
+		if field.Type == metaType {
 			return ParseTag(string(field.Tag))
 		}
 	}
 	return map[string]string{}
 }
 
-// Get retrieves and returns the specified metadata from `object`
+// Get returns the value of the specified metadata by key.
+// The parameter `object` can be any struct object or pointer to struct.
 func Get(object any, key string) *mvar.Var {
-	v, ok := Data(object)[key]
-	if !ok {
-		return nil
+	data := Data(object)
+	if v, ok := data[key]; ok {
+		return mvar.New(v)
 	}
-	return mvar.New(v)
+	return nil
 }
 
 // StructType retrieves and returns the reflection type of the structure
 func StructType(object any) (reflect.Type, error) {
+	if object == nil {
+		return nil, merror.New("invalid object type: nil")
+	}
+
 	var reflectType reflect.Type
 	if rt, ok := object.(reflect.Type); ok {
 		reflectType = rt
 	} else {
-		reflectType = reflect.TypeOf(object)
+		v := reflect.ValueOf(object)
+		if v.Kind() == reflect.Ptr && v.IsNil() {
+			return nil, merror.New("invalid object: nil pointer")
+		}
+		reflectType = v.Type()
 	}
-	if reflectType == nil {
-		return nil, merror.New("invalid object type: nil")
-	}
+
 	if reflectType.Kind() == reflect.Ptr {
 		reflectType = reflectType.Elem()
 	}
@@ -61,13 +76,10 @@ func StructType(object any) (reflect.Type, error) {
 
 // ParseTag parses the tag string to a map
 func ParseTag(tag string) map[string]string {
-	var (
-		key  string
-		data = make(map[string]string)
-	)
+	data := make(map[string]string)
 
 	for tag != "" {
-		// skip leading spaces
+		// Skip leading spaces
 		i := 0
 		for i < len(tag) && tag[i] == ' ' {
 			i++
@@ -77,7 +89,7 @@ func ParseTag(tag string) map[string]string {
 			break
 		}
 
-		// scan to colon
+		// Scan to colon
 		i = 0
 		for i < len(tag) && tag[i] > ' ' && tag[i] != ':' && tag[i] != '"' && tag[i] != 0x7f {
 			i++
@@ -85,10 +97,10 @@ func ParseTag(tag string) map[string]string {
 		if i == 0 || i+1 >= len(tag) || tag[i] != ':' || tag[i+1] != '"' {
 			break
 		}
-		key = tag[:i]
+		key := tag[:i]
 		tag = tag[i+1:]
 
-		// scan the value in quotes
+		// Scan the value in quotes
 		i = 1
 		for i < len(tag) && tag[i] != '"' {
 			if tag[i] == '\\' {
@@ -101,6 +113,7 @@ func ParseTag(tag string) map[string]string {
 		}
 		quotedValue := tag[:i+1]
 		tag = tag[i+1:]
+
 		value, err := strconv.Unquote(quotedValue)
 		if err != nil {
 			break

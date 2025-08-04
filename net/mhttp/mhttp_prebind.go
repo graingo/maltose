@@ -28,8 +28,8 @@ func (s *Server) bindRoutes(_ context.Context) {
 			collectedMiddlewares = append(collectedMiddlewares, g.middlewares...)
 		}
 
-		// Reverse the collected middlewares to ensure parent middlewares run first.
-		for i := len(collectedMiddlewares) - 1; i >= 0; i-- {
+		// Add collected middlewares in correct order to ensure parent middlewares run first.
+		for i := 0; i < len(collectedMiddlewares); i++ {
 			m := collectedMiddlewares[i]
 			allHandlers = append(allHandlers, func(c *gin.Context) {
 				m(newRequest(c, s))

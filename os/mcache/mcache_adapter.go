@@ -58,7 +58,7 @@ type Adapter interface {
 	Size(ctx context.Context) (size int, err error)
 
 	// Data returns a copy of all key-value pairs in the cache as map type.
-	Data(ctx context.Context) (data map[string]interface{}, err error)
+	Data(ctx context.Context) (data map[string]any, err error)
 
 	// Keys returns all keys in the cache as slice.
 	Keys(ctx context.Context) (keys []string, err error)

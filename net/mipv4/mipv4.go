@@ -2,7 +2,6 @@ package mipv4
 
 import (
 	"net"
-	"strings"
 )
 
 var (
@@ -12,8 +11,8 @@ var (
 	intranetIPv4Array []string
 )
 
-// GetIntranetIpArray gets the local intranet IPv4 address array.
-func GetIntranetIpArray() ([]string, error) {
+// GetIntranetIPArray gets the local intranet IPv4 address array.
+func GetIntranetIPArray() ([]string, error) {
 	if intranetIPv4Array != nil {
 		return intranetIPv4Array, nil
 	}
@@ -51,8 +50,8 @@ func GetIntranetIpArray() ([]string, error) {
 	return ips, nil
 }
 
-// GetIpArray gets the local all IPv4 address array.
-func GetIpArray() ([]string, error) {
+// GetIPArray gets the local all IPv4 address array.
+func GetIPArray() ([]string, error) {
 	ips := make([]string, 0)
 	interfaces, err := net.Interfaces()
 	if err != nil {
@@ -77,12 +76,12 @@ func GetIpArray() ([]string, error) {
 	return ips, nil
 }
 
-// GetLocalIp gets the local first IPv4 address.
-func GetLocalIp() (string, error) {
+// GetLocalIP gets the local first IPv4 address.
+func GetLocalIP() (string, error) {
 	if localIPv4 != "" {
 		return localIPv4, nil
 	}
-	ips, err := GetIntranetIpArray()
+	ips, err := GetIntranetIPArray()
 	if err != nil {
 		return "", err
 	}
@@ -95,31 +94,9 @@ func GetLocalIp() (string, error) {
 
 // IsIntranet checks if the given IP is an intranet IP.
 func IsIntranet(ip string) bool {
-	// split IP address
-	parts := strings.Split(ip, ".")
-	if len(parts) != 4 {
+	parsedIP := net.ParseIP(ip)
+	if parsedIP == nil {
 		return false
 	}
-	// check if it is an intranet IP
-	// A range: 10.0.0.0--10.255.255.255
-	// B range: 172.16.0.0--172.31.255.255
-	// C range: 192.168.0.0--192.168.255.255
-	if parts[0] == "10" ||
-		(parts[0] == "172" && inRange(parts[1], 16, 31)) ||
-		(parts[0] == "192" && parts[1] == "168") {
-		return true
-	}
-	return false
-}
-
-// inRange checks if the string-represented number is within the specified range.
-func inRange(s string, min, max int) bool {
-	num := 0
-	for _, c := range s {
-		if c < '0' || c > '9' {
-			return false
-		}
-		num = num*10 + int(c-'0')
-	}
-	return num >= min && num <= max
+	return parsedIP.IsPrivate()
 }

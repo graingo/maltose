@@ -48,6 +48,8 @@ type Config struct {
 	Logger *mlog.Logger
 	// Hooks is the hooks for the Redis. It will be used to add hooks to the Redis client.
 	Hooks []Hook
+	// loggerHook is the internal logger hook instance.
+	loggerHook Hook `mconv:"-"`
 }
 
 func defaultConfig() *Config {

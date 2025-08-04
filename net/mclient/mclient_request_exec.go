@@ -1,29 +1,28 @@
 package mclient
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"net/http"
 	"strings"
 	"time"
 
+	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/internal/intlog"
 )
 
 // Send performs a request with the chain style API.
 // If the method is not specified, it defaults to GET.
 func (r *Request) Send(url string) (*Response, error) {
-	if r.Request == nil || r.Request.Method == "" {
-		// Default to GET method if not specified
-		return r.doRequest(r.Request.Context(), http.MethodGet, url)
+	// Ensure the underlying http.Request is not nil
+	if r.Request == nil {
+		r.Request = &http.Request{}
 	}
-
-	return r.doRequest(r.Request.Context(), r.Request.Method, url)
+	return r.doRequest(r.Context(), r.Request.Method, url)
 }
 
-// doRequest sends the request and returns the response.
-// This is an internal method used by Do.
+// doRequest manages the request execution, including the retry loop.
+// It orchestrates calls to attemptRequest and handles the delay between retries.
 func (r *Request) doRequest(ctx context.Context, method string, urlPath string) (*Response, error) {
 	var (
 		err      error
@@ -43,7 +42,7 @@ func (r *Request) doRequest(ctx context.Context, method string, urlPath string) 
 		// Create a new request for each attempt
 		resp, err = r.attemptRequest(ctx, method, urlPath)
 
-		// If an error occurred (like a timeout), resp might be nil.
+		// If an error occurred (like a timeout from a panic), resp might be nil.
 		// We must handle the error case first before accessing resp.
 		if err != nil {
 			// If we shouldn't retry based on the error, or we've exhausted attempts, break.
@@ -94,7 +93,8 @@ func (r *Request) doRequest(ctx context.Context, method string, urlPath string) 
 	return resp, nil
 }
 
-// attemptRequest makes a single attempt to execute the request
+// attemptRequest makes a single attempt to execute the request.
+// It builds the http.Request, chains and executes middlewares, and returns the response.
 func (r *Request) attemptRequest(ctx context.Context, method string, urlPath string) (*Response, error) {
 	var (
 		req *http.Request
@@ -125,10 +125,10 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 		}
 	}
 
-	// Process form parameters
 	var body io.Reader
+	// It's essential to create a new body reader for every attempt.
 	if len(r.formParams) > 0 {
-		// Prioritize form data
+		// Form data is safe to be re-encoded every time.
 		body = strings.NewReader(r.formParams.Encode())
 		if r.Request == nil {
 			r.Request = &http.Request{
@@ -136,89 +136,70 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 			}
 		}
 		r.ContentType("application/x-www-form-urlencoded")
-	} else if r.Request != nil && r.Request.Body != nil {
-		// For retries, we need to make body re-readable
-		if bodyBytes, err := io.ReadAll(r.Request.Body); err == nil {
-			r.Request.Body.Close()
-			body = bytes.NewReader(bodyBytes)
-			r.Request.Body = io.NopCloser(bytes.NewReader(bodyBytes))
-		} else {
-			// If we can't read the body, use it directly
-			// Note: this might cause issues with retries
-			body = r.Request.Body
+	} else if r.Request != nil && r.Request.GetBody != nil {
+		// Use GetBody to create a new reader for the body.
+		var getBodyErr error
+		body, getBodyErr = r.Request.GetBody()
+		if getBodyErr != nil {
+			return nil, merror.Wrap(getBodyErr, "failed to get request body for retry")
 		}
+	} else if r.Request != nil && r.Request.Body != nil {
+		// This is a fallback for a non-nil, but non-resettable body like a live stream.
+		// Retries will fail if the body is consumed.
+		body = r.Request.Body
 	}
 
-	// Create the HTTP request
+	// Create the HTTP request for this attempt
 	req, err = http.NewRequestWithContext(ctx, method, fullURL, body)
 	if err != nil {
-		return nil, err
+		return nil, merror.Wrapf(err, "http.NewRequestWithContext failed for method:%s, url:%s", method, fullURL)
 	}
 
-	// Set headers from the client config
-	if r.client.config.Header != nil {
-		for k, v := range r.client.config.Header {
-			if len(v) > 0 {
-				req.Header.Set(k, v[0])
-			}
-		}
+	// Preserve the GetBody function from the original request object,
+	// as NewRequestWithContext does not automatically handle this for all body types.
+	var originalGetBody func() (io.ReadCloser, error)
+	if r.Request != nil {
+		originalGetBody = r.Request.GetBody
+		// Copy headers from the original request object that might have been set before Send().
+		req.Header = r.Request.Header.Clone()
 	}
 
-	// Set headers from the request
-	if r.Request != nil && r.Request.Header != nil {
-		for k, v := range r.Request.Header {
-			if len(v) > 0 {
-				req.Header.Set(k, v[0])
-			}
-		}
-	}
-
-	// Set the updated http.Request in our Request object
+	// CRITICAL: Update the main request object so that middlewares can see
+	// the fully formed request (with URL, context, etc.).
 	r.Request = req
+	if originalGetBody != nil {
+		r.Request.GetBody = originalGetBody
+	}
 
 	// Create a Response placeholder that will be filled by middleware
 	var response *Response
 
 	// Prepare the middleware chain
 	middlewares := append(r.client.middlewares, r.middlewares...)
-	if len(middlewares) > 0 {
-		// Base handler - direct HTTP client call without middleware
-		handler := func(req *Request) (*Response, error) {
-			// At this point, use the underlying http.Request
-			httpResp, err := r.client.do(req.Request)
-			if err != nil {
-				return nil, err
-			}
-
-			// Create Response object
-			return &Response{
-				Response:    httpResp,
-				result:      req.result,
-				errorResult: req.errorResult,
-			}, nil
-		}
-
-		// Apply middlewares in reverse order
-		for i := len(middlewares) - 1; i >= 0; i-- {
-			handler = middlewares[i](handler)
-		}
-
-		// Execute the middleware chain with our Request object
-		response, err = handler(r)
-	} else {
-		// Direct request without middleware
-		httpResp, err := r.client.do(req)
+	// The base handler is the actual HTTP call. Middlewares wrap around this handler.
+	handler := func(req *Request) (*Response, error) {
+		// At this point, use the underlying http.Request
+		httpResp, err := r.client.do(req.Request)
 		if err != nil {
 			return nil, err
 		}
 
 		// Create Response object
-		response = &Response{
+		return &Response{
 			Response:    httpResp,
-			result:      r.result,
-			errorResult: r.errorResult,
-		}
+			result:      req.result,
+			errorResult: req.errorResult,
+		}, nil
 	}
+
+	// Apply middlewares in reverse order to create the chain:
+	// Handler -> MiddlewareN -> ... -> Middleware1
+	for i := len(middlewares) - 1; i >= 0; i-- {
+		handler = middlewares[i](handler)
+	}
+
+	// Execute the middleware chain with our Request object
+	response, err = handler(r)
 
 	// Handle errors
 	if err != nil {
@@ -231,46 +212,14 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 	return response, nil
 }
 
-// Do executes the request with retry logic.
+// Do executes the request.
+//
+// Deprecated: This method is deprecated and will be removed in a future version.
+// Please use the HTTP method-specific functions like Get, Post, etc., instead.
+// For example, instead of `req.Method("GET").Do()`, use `req.Get(url)`.
 func (r *Request) Do() (*Response, error) {
-	var resp *Response
-	var err error
-
-	// Try the request up to retryCount + 1 times
-	for attempt := 0; attempt <= r.retryCount; attempt++ {
-		if attempt > 0 {
-			// Calculate delay for this attempt
-			delay := r.calculateRetryDelay(attempt)
-			time.Sleep(delay)
-		}
-
-		// Execute the request
-		resp, err = r.doRequest(r.ctx, r.Request.Method, r.Request.URL.String())
-
-		// Check if we should retry
-		if err == nil && resp != nil {
-			if r.retryCondition == nil {
-				// Default retry condition: retry on 5xx and 429
-				if resp.StatusCode < 500 && resp.StatusCode != 429 {
-					return resp, nil
-				}
-			} else if !r.retryCondition(resp.Response, nil) {
-				return resp, nil
-			}
-		} else if r.retryCondition == nil {
-			// Default retry condition: retry on network errors
-			if err != nil {
-				continue
-			}
-		} else if !r.retryCondition(nil, err) {
-			return resp, err
-		}
-
-		// Close response body if we're going to retry
-		if resp != nil {
-			resp.Close()
-		}
+	if r.Request == nil || r.Request.URL == nil {
+		return nil, merror.New("mclient: request URL is not set")
 	}
-
-	return resp, err
+	return r.Send(r.Request.URL.String())
 }

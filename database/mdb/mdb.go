@@ -5,6 +5,7 @@ import (
 	"database/sql"
 
 	"github.com/graingo/maltose/errors/merror"
+	"github.com/graingo/maltose/os/mlog"
 	"gorm.io/gorm"
 )
 
@@ -68,7 +69,10 @@ func New(config ...*Config) (*DB, error) {
 
 // WithContext returns a new DB with the given context.
 func (db *DB) WithContext(ctx context.Context) *DB {
-	return &DB{DB: db.DB.WithContext(ctx)}
+	return &DB{
+		DB:     db.DB.WithContext(ctx),
+		config: db.config,
+	}
 }
 
 // Transact starts a transaction with the given context.
@@ -78,8 +82,9 @@ func (db *DB) Transact(ctx context.Context, fn func(tx *DB) error) error {
 
 // TransactWithOptions starts a transaction with the given context and options.
 func (db *DB) TransactWithOptions(ctx context.Context, opts *sql.TxOptions, fn func(tx *DB) error) error {
+	config := db.config
 	return db.WithContext(ctx).Transaction(func(tx *gorm.DB) error {
-		return fn(&DB{DB: tx})
+		return fn(&DB{DB: tx, config: config})
 	}, opts)
 }
 
@@ -90,4 +95,11 @@ func (db *DB) Ping(ctx context.Context) error {
 		return err
 	}
 	return sqlDB.PingContext(ctx)
+}
+
+func (db *DB) GetLogger() *mlog.Logger {
+	if db.config == nil {
+		return nil
+	}
+	return db.config.Logger
 }

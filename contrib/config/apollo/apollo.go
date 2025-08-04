@@ -115,7 +115,10 @@ func (c *Client) Data(ctx context.Context) (data map[string]any, err error) {
 			return nil, err
 		}
 	}
-	return gjson.Parse(c.value.String()).Value().(map[string]any), nil
+	if v := gjson.Parse(c.value.String()).Value(); v != nil {
+		return v.(map[string]any), nil
+	}
+	return nil, nil
 }
 
 // OnChange is called when config changes.

@@ -66,6 +66,8 @@ func (c *Config) SetConfigWithMap(config map[string]any) error {
 
 func (c *Config) SetLogger(logger *mlog.Logger) {
 	if logger == nil {
+		// If no logger is provided, create a default one.
+		// The component field will be added by the GormLogger wrapper.
 		logger = mlog.New()
 	}
 	c.Logger = logger.With(mlog.String(maltose.COMPONENT, "mdb"))

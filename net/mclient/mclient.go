@@ -17,6 +17,7 @@ type Client struct {
 }
 
 // New creates and returns a new HTTP client object.
+// It comes with a set of default internal middlewares for recovery, tracing, and metrics.
 func New() *Client {
 	c := &Client{
 		client: &http.Client{
@@ -32,7 +33,7 @@ func New() *Client {
 	// Set default User-Agent.
 	c.config.Header.Set("User-Agent", fmt.Sprintf("maltose-mclient/%s", maltose.VERSION))
 
-	// Add default internal middlewares
+	// Add default internal middlewares. These are fundamental for observability and stability.
 	c.Use(
 		internalMiddlewareRecovery(),
 		internalMiddlewareTrace(),
@@ -43,6 +44,7 @@ func New() *Client {
 }
 
 // NewWithConfig creates and returns a client with given config.
+// Note that the internal middlewares (recovery, trace, metric) are still applied.
 func NewWithConfig(config ClientConfig) *Client {
 	c := New()
 

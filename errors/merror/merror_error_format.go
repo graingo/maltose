@@ -16,11 +16,7 @@ func (err *Error) Format(s fmt.State, verb rune) {
 	case 's', 'v':
 		switch {
 		case s.Flag('-'):
-			if err.text != "" {
-				_, _ = io.WriteString(s, err.text)
-			} else {
-				_, _ = io.WriteString(s, err.Error())
-			}
+			_, _ = io.WriteString(s, err.Error())
 		case s.Flag('+'):
 			if verb == 's' {
 				_, _ = io.WriteString(s, err.Stack())

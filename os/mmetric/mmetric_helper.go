@@ -66,65 +66,52 @@ func WithAttributes(attrs ...attribute.KeyValue) Option {
 	}
 }
 
-// IsEnabled returns true if the metric provider is not a no-op provider.
-// This can be used to avoid the overhead of building attributes if metrics are disabled.
-func IsEnabled() bool {
-	_, ok := defaultProvider.(*noopProvider)
-	return !ok
-}
-
 // GetMeter creates a Meter with the specified instrument name.
-// If no provider is specified, the global default provider is used.
-func GetMeter(name string, provider ...Provider) Meter {
+// It uses the global default provider.
+func GetMeter(name string) Meter {
 	p := GetProvider()
-	if len(provider) > 0 && provider[0] != nil {
-		p = provider[0]
-	}
 	return p.Meter(MeterOption{Instrument: name})
 }
 
 // NewCounter creates a new Counter metric.
-// It uses the global default provider unless a specific provider is passed.
-func NewCounter(name string, option MetricOption, provider ...Provider) (Counter, error) {
-	meter := GetMeter(name, provider...)
+// It uses the global default provider.
+func NewCounter(name string, option MetricOption) (Counter, error) {
+	meter := GetMeter(name)
 	return meter.Counter(name, option)
 }
 
 // NewMustCounter creates a new Counter metric and panics if an error occurs.
-func NewMustCounter(name string, option MetricOption, provider ...Provider) Counter {
-	meter := GetMeter(name, provider...)
+func NewMustCounter(name string, option MetricOption) Counter {
+	meter := GetMeter(name)
 	return meter.MustCounter(name, option)
 }
 
 // NewUpDownCounter creates a new UpDownCounter metric.
-func NewUpDownCounter(name string, option MetricOption, provider ...Provider) (UpDownCounter, error) {
-	meter := GetMeter(name, provider...)
+func NewUpDownCounter(name string, option MetricOption) (UpDownCounter, error) {
+	meter := GetMeter(name)
 	return meter.UpDownCounter(name, option)
 }
 
 // NewMustUpDownCounter creates a new UpDownCounter metric and panics if an error occurs.
-func NewMustUpDownCounter(name string, option MetricOption, provider ...Provider) UpDownCounter {
-	meter := GetMeter(name, provider...)
+func NewMustUpDownCounter(name string, option MetricOption) UpDownCounter {
+	meter := GetMeter(name)
 	return meter.MustUpDownCounter(name, option)
 }
 
 // NewHistogram creates a new Histogram metric.
-func NewHistogram(name string, option MetricOption, provider ...Provider) (Histogram, error) {
-	meter := GetMeter(name, provider...)
+func NewHistogram(name string, option MetricOption) (Histogram, error) {
+	meter := GetMeter(name)
 	return meter.Histogram(name, option)
 }
 
 // NewMustHistogram creates a new Histogram metric and panics if an error occurs.
-func NewMustHistogram(name string, option MetricOption, provider ...Provider) Histogram {
-	meter := GetMeter(name, provider...)
+func NewMustHistogram(name string, option MetricOption) Histogram {
+	meter := GetMeter(name)
 	return meter.MustHistogram(name, option)
 }
 
-// Shutdown gracefully shuts down the metric provider.
-func Shutdown(ctx context.Context, provider ...Provider) error {
+// Shutdown gracefully shuts down the global metric provider.
+func Shutdown(ctx context.Context) error {
 	p := GetProvider()
-	if len(provider) > 0 && provider[0] != nil {
-		p = provider[0]
-	}
 	return p.Shutdown(ctx)
 }

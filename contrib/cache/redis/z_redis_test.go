@@ -122,7 +122,7 @@ func TestAdapterRedis_Funcs(t *testing.T) {
 
 	// GetOrSetFunc
 	called := false
-	f := func(ctx context.Context) (value interface{}, err error) {
+	f := func(_ context.Context) (value interface{}, err error) {
 		called = true
 		return "from_func", nil
 	}
@@ -145,7 +145,7 @@ func TestAdapterRedis_FuncsWithLock(t *testing.T) {
 
 	// GetOrSetFuncLock
 	called := false
-	f := func(ctx context.Context) (value interface{}, err error) {
+	f := func(_ context.Context) (value interface{}, err error) {
 		called = true
 		return "from_func_lock", nil
 	}

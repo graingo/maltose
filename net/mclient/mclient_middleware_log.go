@@ -9,7 +9,7 @@ import (
 	"github.com/graingo/maltose/os/mlog"
 )
 
-var LogMaxBodySize int = -1
+var LogMaxBodySize = -1
 
 // MiddlewareLog creates a middleware that logs request and response details in two steps:
 // 1. Before the request is sent ("started").

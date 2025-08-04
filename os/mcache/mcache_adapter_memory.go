@@ -24,13 +24,13 @@ type AdapterMemory struct {
 
 // NewAdapterMemory creates and returns a new memory adapter.
 func NewAdapterMemory(capacity ...int) Adapter {
-	cap := 0
+	lru := 0
 	if len(capacity) > 0 {
-		cap = capacity[0]
+		lru = capacity[0]
 	}
 	c := &AdapterMemory{
 		data:   newMemoryData(),
-		lru:    newMemoryLru(cap),
+		lru:    newMemoryLru(lru),
 		closed: make(chan struct{}),
 	}
 	// Start a background goroutine for cleanup
@@ -84,7 +84,7 @@ func (c *AdapterMemory) evict() {
 }
 
 // Close closes the cache and stops the cleanup goroutine.
-func (c *AdapterMemory) Close(ctx context.Context) error {
+func (c *AdapterMemory) Close(_ context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	select {
@@ -97,7 +97,7 @@ func (c *AdapterMemory) Close(ctx context.Context) error {
 }
 
 // Set sets cache with `key`-`value` pair.
-func (c *AdapterMemory) Set(ctx context.Context, key string, value interface{}, duration time.Duration) error {
+func (c *AdapterMemory) Set(_ context.Context, key string, value interface{}, duration time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.set(key, value, duration)
@@ -125,7 +125,7 @@ func (c *AdapterMemory) set(key string, value interface{}, duration time.Duratio
 }
 
 // SetMap batch sets cache with key-value pairs by `data` map.
-func (c *AdapterMemory) SetMap(ctx context.Context, data map[string]interface{}, duration time.Duration) error {
+func (c *AdapterMemory) SetMap(_ context.Context, data map[string]interface{}, duration time.Duration) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	for key, value := range data {
@@ -135,7 +135,7 @@ func (c *AdapterMemory) SetMap(ctx context.Context, data map[string]interface{},
 }
 
 // SetIfNotExist sets cache with `key`-`value` pair if `key` does not exist in the cache.
-func (c *AdapterMemory) SetIfNotExist(ctx context.Context, key string, value interface{}, duration time.Duration) (bool, error) {
+func (c *AdapterMemory) SetIfNotExist(_ context.Context, key string, value interface{}, duration time.Duration) (bool, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -212,7 +212,7 @@ func (c *AdapterMemory) SetIfNotExistFuncLock(ctx context.Context, key string, f
 }
 
 // Get retrieves and returns the associated value of given `key`.
-func (c *AdapterMemory) Get(ctx context.Context, key string) (*mvar.Var, error) {
+func (c *AdapterMemory) Get(_ context.Context, key string) (*mvar.Var, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -229,7 +229,7 @@ func (c *AdapterMemory) Get(ctx context.Context, key string) (*mvar.Var, error) 
 }
 
 // GetOrSet retrieves and returns the value of `key`, or sets `key`-`value` pair and returns `value`.
-func (c *AdapterMemory) GetOrSet(ctx context.Context, key string, value interface{}, duration time.Duration) (*mvar.Var, error) {
+func (c *AdapterMemory) GetOrSet(_ context.Context, key string, value interface{}, duration time.Duration) (*mvar.Var, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -333,7 +333,7 @@ func (c *AdapterMemory) Contains(ctx context.Context, key string) (bool, error) 
 }
 
 // Remove deletes one or more keys from cache.
-func (c *AdapterMemory) Remove(ctx context.Context, keys ...string) (*mvar.Var, error) {
+func (c *AdapterMemory) Remove(_ context.Context, keys ...string) (*mvar.Var, error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -348,10 +348,10 @@ func (c *AdapterMemory) Remove(ctx context.Context, keys ...string) (*mvar.Var, 
 }
 
 // Data returns a copy of all key-value pairs in the cache as map type.
-func (c *AdapterMemory) Data(ctx context.Context) (map[string]interface{}, error) {
+func (c *AdapterMemory) Data(_ context.Context) (map[string]any, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	data := make(map[string]interface{})
+	data := make(map[string]any)
 	for k, v := range c.data.Data() {
 		if v.e.IsZero() || time.Now().Before(v.e) {
 			data[k] = v.v
@@ -361,7 +361,7 @@ func (c *AdapterMemory) Data(ctx context.Context) (map[string]interface{}, error
 }
 
 // Keys returns all keys in the cache as slice.
-func (c *AdapterMemory) Keys(ctx context.Context) ([]string, error) {
+func (c *AdapterMemory) Keys(_ context.Context) ([]string, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	keys := make([]string, 0, c.lru.Len())
@@ -372,10 +372,10 @@ func (c *AdapterMemory) Keys(ctx context.Context) ([]string, error) {
 }
 
 // Values returns all values in the cache as slice.
-func (c *AdapterMemory) Values(ctx context.Context) ([]interface{}, error) {
+func (c *AdapterMemory) Values(_ context.Context) ([]any, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	values := make([]interface{}, 0, c.lru.Len())
+	values := make([]any, 0, c.lru.Len())
 	for elem := c.lru.list.Front(); elem != nil; elem = elem.Next() {
 		key := elem.Value.(string)
 		if item := c.data.Get(key); item != nil {
@@ -388,14 +388,14 @@ func (c *AdapterMemory) Values(ctx context.Context) ([]interface{}, error) {
 }
 
 // Size returns the size of the cache.
-func (c *AdapterMemory) Size(ctx context.Context) (int, error) {
+func (c *AdapterMemory) Size(_ context.Context) (int, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	return c.lru.Len(), nil
 }
 
 // Update updates the value of `key` without changing its expiration and returns the old value.
-func (c *AdapterMemory) Update(ctx context.Context, key string, value interface{}) (oldValue *mvar.Var, exist bool, err error) {
+func (c *AdapterMemory) Update(_ context.Context, key string, value any) (oldValue *mvar.Var, exist bool, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -413,7 +413,7 @@ func (c *AdapterMemory) Update(ctx context.Context, key string, value interface{
 }
 
 // UpdateExpire updates the expiration of `key` and returns the old expiration duration value.
-func (c *AdapterMemory) UpdateExpire(ctx context.Context, key string, duration time.Duration) (oldDuration time.Duration, err error) {
+func (c *AdapterMemory) UpdateExpire(_ context.Context, key string, duration time.Duration) (oldDuration time.Duration, err error) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
@@ -433,7 +433,7 @@ func (c *AdapterMemory) UpdateExpire(ctx context.Context, key string, duration t
 }
 
 // GetExpire retrieves and returns the expiration of `key` in the cache.
-func (c *AdapterMemory) GetExpire(ctx context.Context, key string) (time.Duration, error) {
+func (c *AdapterMemory) GetExpire(_ context.Context, key string) (time.Duration, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
 	if item := c.data.Get(key); item != nil {
@@ -450,7 +450,7 @@ func (c *AdapterMemory) GetExpire(ctx context.Context, key string) (time.Duratio
 }
 
 // Clear clears all data of the cache.
-func (c *AdapterMemory) Clear(ctx context.Context) error {
+func (c *AdapterMemory) Clear(_ context.Context) error {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	c.lru.Clear()

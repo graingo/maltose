@@ -51,66 +51,82 @@ func setupBenchmarkLogger(b *testing.B) *mlog.Logger {
 	return logger
 }
 
-func BenchmarkMlog_Simple(b *testing.B) {
-	logger := setupBenchmarkLogger(b)
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			logger.Infow(ctx, "a simple message")
-		}
+func BenchmarkLogger(b *testing.B) {
+	b.Run("simple", func(b *testing.B) {
+		logger := setupBenchmarkLogger(b)
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				logger.Infow(ctx, "a simple message")
+			}
+		})
 	})
-}
 
-func BenchmarkMlog_Sprintf(b *testing.B) {
-	logger := setupBenchmarkLogger(b)
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			logger.Infof(ctx, "a message with formatting: %s %d", "hello", 123)
-		}
+	b.Run("sprintf", func(b *testing.B) {
+		logger := setupBenchmarkLogger(b)
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				logger.Infof(ctx, "a message with formatting: %s %d", "hello", 123)
+			}
+		})
 	})
-}
 
-func BenchmarkMlog_With1Field(b *testing.B) {
-	logger := setupBenchmarkLogger(b)
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			logger.Infow(ctx, "message with one field", oneMlogField...)
-		}
+	b.Run("with_1_field", func(b *testing.B) {
+		logger := setupBenchmarkLogger(b)
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				logger.Infow(ctx, "message with one field", oneMlogField...)
+			}
+		})
 	})
-}
 
-func BenchmarkMlog_With5Fields(b *testing.B) {
-	logger := setupBenchmarkLogger(b)
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			logger.Infow(ctx, "message with five fields", fiveMlogFields...)
-		}
+	b.Run("with_5_fields", func(b *testing.B) {
+		logger := setupBenchmarkLogger(b)
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				logger.Infow(ctx, "message with five fields", fiveMlogFields...)
+			}
+		})
 	})
-}
 
-func BenchmarkMlog_With10Fields(b *testing.B) {
-	logger := setupBenchmarkLogger(b)
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			logger.Infow(ctx, "message with ten fields", tenMlogFields...)
-		}
+	b.Run("with_10_fields", func(b *testing.B) {
+		logger := setupBenchmarkLogger(b)
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				logger.Infow(ctx, "message with ten fields", tenMlogFields...)
+			}
+		})
 	})
-}
 
-// BenchmarkMlog_WithLogger10Fields tests the performance of a logger that has been pre-configured
-// with contextual fields using the With() method. This is a very common and important use case.
-func BenchmarkMlog_WithLogger10Fields(b *testing.B) {
-	logger := setupBenchmarkLogger(b)
-	withLogger := logger.With(tenMlogFields...)
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			withLogger.Infow(ctx, "message from a contextual logger")
-		}
+	b.Run("with_logger_10_fields", func(b *testing.B) {
+		logger := setupBenchmarkLogger(b)
+		withLogger := logger.With(tenMlogFields...)
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				withLogger.Infow(ctx, "message from a contextual logger")
+			}
+		})
+	})
+
+	b.Run("with_hooks", func(b *testing.B) {
+		logger := setupBenchmarkLogger(b)
+		logger.AddHook(&benchmarkHook{})
+
+		type ctxKey string
+		const ctxKeyRequestID ctxKey = "request_id"
+		requestCtx := context.WithValue(context.Background(), ctxKeyRequestID, "req-12345")
+
+		b.ResetTimer()
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				logger.Infow(requestCtx, "message that will trigger the hook")
+			}
+		})
 	})
 }
 
@@ -126,19 +142,4 @@ func (h *benchmarkHook) Fire(entry *mlog.Entry) {
 			entry.AddField(mlog.String("request_id", str))
 		}
 	}
-}
-
-func BenchmarkMlog_WithHooks(b *testing.B) {
-	logger := setupBenchmarkLogger(b)
-	logger.AddHook(&benchmarkHook{})
-
-	// Create a context with a value that the hook will extract.
-	requestCtx := context.WithValue(context.Background(), "request_id", "req-12345")
-
-	b.ResetTimer()
-	b.RunParallel(func(pb *testing.PB) {
-		for pb.Next() {
-			logger.Infow(requestCtx, "message that will trigger the hook")
-		}
-	})
 }

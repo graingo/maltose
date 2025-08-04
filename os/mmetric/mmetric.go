@@ -3,19 +3,39 @@ package mmetric
 import (
 	"context"
 
+	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
+	"go.opentelemetry.io/otel/metric"
+	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
 )
 
 const (
-	// DefaultInstrument an instrument name for the default meter.
-	DefaultInstrument = "github.com/graingo/maltose/os/mmetric"
+	// defaultInstrument an instrument name for the default meter.
+	defaultInstrument = "github.com/graingo/maltose/os/mmetric"
 )
 
-var (
-	// defaultProvider is the default provider for mmetric.
-	// It is a no-op provider by default, which means that no metrics will be collected
-	// unless a real provider is set using the SetProvider function.
-	defaultProvider Provider = newNoopProvider()
+// Semantic conventions for metric attributes.
+// These keys are based on the OpenTelemetry specification for semantic conventions.
+// See: https://opentelemetry.io/docs/specs/semconv/
+const (
+	// HTTP attributes.
+	AttrHTTPRoute              = "http.route"
+	AttrHTTPRequestMethod      = "http.request.method"
+	AttrHTTPResponseStatusCode = "http.response.status_code"
+
+	// Network attributes.
+	AttrNetworkProtocolVersion = "network.protocol.version"
+	AttrServerAddress          = "server.address"
+	AttrServerPort             = "server.port"
+	AttrClientAddress          = "client.address"
+
+	// URL attributes.
+	AttrURLScheme = "url.scheme"
+	AttrURLPath   = "url.path"
+	AttrURLHost   = "url.host"
+
+	// Error attributes.
+	AttrErrorCode = "error.code"
 )
 
 // Attributes is a slice of attribute.KeyValue. It is used to add metadata to metrics.
@@ -115,13 +135,24 @@ type Histogram interface {
 	Record(value float64, opts ...Option)
 }
 
-// SetProvider sets the global metric provider.
-// This should be called once at the beginning of the application.
-func SetProvider(p Provider) {
-	defaultProvider = p
+// GetProvider returns the global metric provider, which is a wrapper around
+// the default OpenTelemetry MeterProvider.
+func GetProvider() Provider {
+	return &otelProvider{
+		provider: otel.GetMeterProvider(),
+	}
 }
 
-// GetProvider returns the global metric provider.
-func GetProvider() Provider {
-	return defaultProvider
+// NewProvider is a wrapper around sdkmetric.NewMeterProvider.
+// It is a convenience function for creating a new OTel MeterProvider.
+func NewProvider(opts ...sdkmetric.Option) *sdkmetric.MeterProvider {
+	return sdkmetric.NewMeterProvider(opts...)
+}
+
+// SetProvider sets the global metric provider.
+// It is a convenience function that wraps otel.SetMeterProvider.
+// The parameter `p` should be a concrete provider that implements the metric.MeterProvider interface,
+// often created by a specific SDK (e.g., `*sdkmetric.MeterProvider`).
+func SetProvider(p metric.MeterProvider) {
+	otel.SetMeterProvider(p)
 }

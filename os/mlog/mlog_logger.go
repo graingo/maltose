@@ -17,6 +17,7 @@ type Logger struct {
 	config     *Config
 	level      zap.AtomicLevel
 	fileWriter io.WriteCloser
+	withFields []Field
 	mu         sync.RWMutex
 	hookMu     sync.RWMutex
 }
@@ -29,8 +30,9 @@ func New(cfg ...*Config) *Logger {
 	}
 
 	l := &Logger{
-		config: config,
-		hooks:  make([]Hook, 0),
+		config:     config,
+		hooks:      make([]Hook, 0),
+		withFields: make([]Field, 0),
 	}
 	// build zap logger
 	l.parent, l.level, l.fileWriter = buildZapLogger(l.config)
@@ -64,10 +66,20 @@ func (l *Logger) SetConfigWithMap(configMap map[string]any) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
+	// Update the config struct first to parse and validate the map.
 	if err := l.config.SetConfigWithMap(configMap); err != nil {
 		return err
 	}
+
+	// Rebuild the zap logger with the new configuration.
 	l.parent, l.level, l.fileWriter = buildZapLogger(l.config)
+
+	// Re-apply the stored 'With' fields to the new logger instance.
+	if len(l.withFields) > 0 {
+		zapFields := *(*[]zap.Field)(unsafe.Pointer(&l.withFields))
+		l.parent = l.parent.With(zapFields...)
+	}
+
 	l.refreshHooks()
 
 	return nil
@@ -79,7 +91,15 @@ func (l *Logger) SetConfig(config *Config) error {
 	defer l.mu.Unlock()
 
 	l.config = config
+	// Rebuild the zap logger with the new configuration.
 	l.parent, l.level, l.fileWriter = buildZapLogger(l.config)
+
+	// Re-apply the stored 'With' fields to the new logger instance.
+	if len(l.withFields) > 0 {
+		zapFields := *(*[]zap.Field)(unsafe.Pointer(&l.withFields))
+		l.parent = l.parent.With(zapFields...)
+	}
+
 	l.refreshHooks()
 
 	return nil
@@ -87,21 +107,31 @@ func (l *Logger) SetConfig(config *Config) error {
 
 // With adds a field to the logger.
 func (l *Logger) With(fields ...Field) *Logger {
-	l.mu.Lock()
-	defer l.mu.Unlock()
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 
 	zapFields := *(*[]zap.Field)(unsafe.Pointer(&fields))
 
-	// zap's With is immutable and returns a new logger.
 	newZapLogger := l.parent.With(zapFields...)
 
+	newWithFields := make([]Field, 0, len(l.withFields)+len(fields))
+	newWithFields = append(newWithFields, l.withFields...)
+	newWithFields = append(newWithFields, fields...)
+
+	// 4. Return a new Logger instance that carries the full state.
 	return &Logger{
 		parent:     newZapLogger,
 		hooks:      l.hooks,
 		config:     l.config,
 		level:      l.level,
 		fileWriter: l.fileWriter,
+		withFields: newWithFields,
 	}
+}
+
+// GetConfig returns the current configuration of the logger.
+func (l *Logger) GetConfig() *Config {
+	return l.config
 }
 
 func (l *Logger) Debugf(ctx context.Context, format string, v ...any) {

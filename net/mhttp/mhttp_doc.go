@@ -56,14 +56,16 @@ func (s *Server) initOpenAPI(_ context.Context) {
 		reqType := route.ReqType
 		respType := route.RespType
 
-		metaData := mmeta.Data(reqType)
+		// Create instance from reflect.Type to get metadata
+		reqInstance := reflect.New(reqType.Elem()).Interface()
+		metaData := mmeta.Data(reqInstance)
 		if len(metaData) == 0 {
 			continue
 		}
 
-		summary := mmeta.Get(reqType, "summary").String()
-		tags := mmeta.Get(reqType, "tag").String()
-		description := mmeta.Get(reqType, "dc").String()
+		summary := mmeta.Get(reqInstance, "summary").String()
+		tags := mmeta.Get(reqInstance, "tag").String()
+		description := mmeta.Get(reqInstance, "dc").String()
 
 		operation := &openapi3.Operation{
 			Tags:        []string{tags},
@@ -71,19 +73,29 @@ func (s *Server) initOpenAPI(_ context.Context) {
 			Description: description,
 			Responses:   openapi3.NewResponses(),
 		}
+		// Create response with schema reference
+		responseContent := openapi3.NewContent()
+		responseContent["application/json"] = &openapi3.MediaType{
+			Schema: builder.typeToSchema(respType),
+		}
 		operation.Responses.Set("200", &openapi3.ResponseRef{
 			Value: openapi3.NewResponse().
 				WithDescription("Success").
-				WithContent(openapi3.NewContentWithJSONSchema(builder.createSchema(respType))),
+				WithContent(responseContent),
 		})
 
 		if route.Method == "GET" || route.Method == "DELETE" {
 			operation.Parameters = builder.createParameters(reqType)
 		} else {
+			// Create request body with schema reference
+			requestContent := openapi3.NewContent()
+			requestContent["application/json"] = &openapi3.MediaType{
+				Schema: builder.typeToSchema(reqType),
+			}
 			operation.RequestBody = &openapi3.RequestBodyRef{
 				Value: openapi3.NewRequestBody().
 					WithRequired(true).
-					WithContent(openapi3.NewContentWithJSONSchema(builder.createSchema(reqType))),
+					WithContent(requestContent),
 			}
 		}
 
@@ -146,10 +158,6 @@ func (b *schemaBuilder) createParameters(reqType reflect.Type) openapi3.Paramete
 	return params
 }
 
-func (b *schemaBuilder) createSchema(p reflect.Type) *openapi3.Schema {
-	return b.typeToSchema(p).Value
-}
-
 func (b *schemaBuilder) typeToSchema(p reflect.Type) *openapi3.SchemaRef {
 	if p == nil {
 		return &openapi3.SchemaRef{Value: openapi3.NewObjectSchema()}
@@ -187,6 +195,29 @@ func (b *schemaBuilder) typeToSchema(p reflect.Type) *openapi3.SchemaRef {
 	if p.Kind() == reflect.Struct {
 		// Handle custom struct types by creating a component schema
 		cleanTypeName := p.Name()
+		if cleanTypeName == "" {
+			// For anonymous structs, create inline schema
+			schema := openapi3.NewObjectSchema()
+			for i := 0; i < p.NumField(); i++ {
+				field := p.Field(i)
+				if field.Anonymous { // Skip embedded structs like m.Meta
+					continue
+				}
+
+				jsonTag := field.Tag.Get("json")
+				if jsonTag == "" || jsonTag == "-" {
+					continue
+				}
+				jsonName := strings.Split(jsonTag, ",")[0]
+
+				fieldSchemaRef := b.typeToSchema(field.Type)
+				if field.Tag.Get("dc") != "" && fieldSchemaRef.Value != nil {
+					fieldSchemaRef.Value.Description = field.Tag.Get("dc")
+				}
+				schema.Properties[jsonName] = fieldSchemaRef
+			}
+			return &openapi3.SchemaRef{Value: schema}
+		}
 
 		// If the schema is not already in components, create it.
 		if _, ok := b.spec.Components.Schemas[cleanTypeName]; !ok {
@@ -217,7 +248,7 @@ func (b *schemaBuilder) typeToSchema(p reflect.Type) *openapi3.SchemaRef {
 			b.spec.Components.Schemas[cleanTypeName] = &openapi3.SchemaRef{Value: schema}
 		}
 		// Return a reference to the component schema.
-		return openapi3.NewSchemaRef("#/components/schemas/"+cleanTypeName, nil)
+		return &openapi3.SchemaRef{Ref: "#/components/schemas/" + cleanTypeName}
 	}
 
 	return &openapi3.SchemaRef{Value: openapi3.NewObjectSchema()}

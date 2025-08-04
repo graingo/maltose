@@ -1,0 +1,21 @@
+[app]
+name = "test-app"
+version = "1.0.0"
+timeout = "10s"
+parse = 1
+parse2 = true
+
+[server]
+host = "localhost"
+port = 8080
+
+[redis]
+addr = "127.0.0.1:6379"
+
+[owner]
+name = "gopher"
+org = "maltose"
+
+[owner.age]
+value = 18
+unit = "year"

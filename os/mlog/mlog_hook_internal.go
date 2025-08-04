@@ -26,6 +26,9 @@ func (h *traceHook) Fire(entry *Entry) {
 	}
 }
 
+// CtxKey is a type for context keys.
+type CtxKey string
+
 // ctxHook is a hook that extracts values from context.
 type ctxHook struct {
 	keys []string
@@ -36,11 +39,11 @@ func (h *ctxHook) Name() string { return ctxHookName }
 func (h *ctxHook) Levels() []Level { return AllLevels() }
 
 func (h *ctxHook) Fire(entry *Entry) {
-	if entry.GetContext() == nil {
+	if entry.GetContext() == nil || len(h.keys) == 0 {
 		return
 	}
 	for _, ctxKey := range h.keys {
-		if value := entry.GetContext().Value(ctxKey); value != nil {
+		if value := entry.GetContext().Value(CtxKey(ctxKey)); value != nil {
 			entry.AddField(Any(ctxKey, value))
 		}
 	}

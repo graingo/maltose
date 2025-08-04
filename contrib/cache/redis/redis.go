@@ -213,12 +213,11 @@ func (c *AdapterRedis) GetOrSetFuncLock(ctx context.Context, key string, f mcach
 			return nil, err
 		}
 		return mvar.New(value), nil
-
-	} else {
-		// Wait and retry getting the value. A better solution is to use a more sophisticated distributed lock.
-		time.Sleep(50 * time.Millisecond)
-		return c.GetOrSetFuncLock(ctx, key, f, duration)
 	}
+
+	// Wait and retry getting the value. A better solution is to use a more sophisticated distributed lock.
+	time.Sleep(50 * time.Millisecond)
+	return c.GetOrSetFuncLock(ctx, key, f, duration)
 }
 
 // Contains checks and returns true if `key` exists in the cache, or else returns false.
@@ -367,7 +366,7 @@ func (c *AdapterRedis) Clear(ctx context.Context) error {
 }
 
 // Close closes the cache.
-func (c *AdapterRedis) Close(ctx context.Context) error {
+func (c *AdapterRedis) Close(_ context.Context) error {
 	// A redis adapter should not close the redis client,
 	// as the client might be shared.
 	return nil
