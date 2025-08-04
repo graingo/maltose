@@ -11,7 +11,6 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        # 保持多版本测试，但也可以根据需要精简为一个版本
         go-version: ["1.22", "1.23"]
 
     services:
@@ -25,44 +24,28 @@ jobs:
           --health-timeout 5s
           --health-retries 5
 
-      apollo:
-        image: apolloconfig/apollo-quick-start
-        ports:
-          - 8080:8080
-          - 8070:8070
-        options: >-
-          --health-cmd "curl -f http://localhost:8070/health || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
-      nacos:
-        image: nacos/nacos-server:v2.2.3
-        ports:
-          - 8848:8848
-        env:
-          PREFER_HOST_MODE: hostname
-          MODE: standalone
-        options: >-
-          --health-cmd "curl -f http://localhost:8848/nacos/v1/ns/operator/metrics || exit 1"
-          --health-interval 10s
-          --health-timeout 5s
-          --health-retries 10
-
       mysql:
         image: mysql:8.0
-        env:
-          MYSQL_ROOT_PASSWORD: root
-          MYSQL_DATABASE: testdb
         ports:
-          - 3306:3306
+          - 13306:3306
+        env:
+          TZ: Asia/Shanghai
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
         options: >-
-          --health-cmd "mysqladmin ping -h localhost -u root -proot"
-          --health-interval 10s
-          --health-timeout 5s
+          --health-cmd "mysqladmin ping -h localhost"
+          --health-interval 5s
+          --health-timeout 1s
           --health-retries 10
 
     steps:
+      - name: Start Apollo Containers
+        run: |
+          docker compose -f ".github/workflows/apollo/docker-compose.yml" up -d --build
+
+      - name: Start Nacos Containers
+        run: |
+          docker compose -f ".github/workflows/nacos/docker-compose.yml" up -d --build
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -82,18 +65,38 @@ jobs:
             ${{ runner.os }}-go-${{ matrix.go-version }}-
             ${{ runner.os }}-go-
 
+      - name: Wait for Apollo to be ready
+        run: |
+          for i in {1..60}; do
+            if curl -sf http://localhost:8080; then
+              echo "Apollo is up"
+              break
+            fi
+            sleep 2
+          done
+
+      - name: Wait for Nacos to be ready
+        run: |
+          for i in {1..60}; do
+            if curl -sf http://localhost:8848/nacos; then
+              echo "Nacos is up"
+              break
+            fi
+            sleep 2
+          done
+
       - name: Run tests
         env:
-          APOLLO_IP: http://apollo:8080
+          APOLLO_IP: http://localhost:8080
           APOLLO_APP_ID: SampleApp
           APOLLO_CLUSTER: default
-          NACOS_IP_ADDR: nacos
+          NACOS_IP_ADDR: localhost
           NACOS_PORT: 8848
           DB_TYPE: mysql
           DB_HOST: 127.0.0.1
-          DB_PORT: 3306
+          DB_PORT: 13306
           DB_USER: root
-          DB_PASS: root
+          DB_PASS: ""
           DB_NAME: testdb
         run: |
           go test -v -race -coverprofile=coverage.out ./...
@@ -106,6 +109,16 @@ jobs:
           flags: unittests
           name: codecov-umbrella
           token: ${{ secrets.CODECOV_TOKEN }}
+
+      - name: Stop Nacos Containers
+        if: always()
+        run: |
+          docker compose -f ".github/workflows/nacos/docker-compose.yml" down
+
+      - name: Stop Apollo Containers
+        if: always()
+        run: |
+          docker compose -f ".github/workflows/apollo/docker-compose.yml" down
 
   lint:
     runs-on: ubuntu-latest
