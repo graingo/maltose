@@ -18,10 +18,6 @@ import (
 	semconv "go.opentelemetry.io/otel/semconv/v1.24.0"
 )
 
-const (
-	tracerHostnameTagKey = "hostname"
-)
-
 // Init initializes an OTLP trace exporter and registers it as the global tracer provider.
 func Init(endpoint string, opts ...Option) (func(context.Context), error) {
 	o := defaultOptions()
@@ -104,7 +100,6 @@ func createResource(opts options) (*resource.Resource, error) {
 		semconv.ServiceVersionKey.String(opts.serviceVersion),
 		semconv.DeploymentEnvironmentKey.String(opts.environment),
 		semconv.HostNameKey.String(hostIP),
-		attribute.String(tracerHostnameTagKey, hostIP),
 	}
 	for k, v := range opts.resourceAttributes {
 		attrs = append(attrs, attribute.String(k, v))
