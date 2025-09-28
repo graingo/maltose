@@ -7,7 +7,7 @@ toolchain go1.23.9
 require (
 	github.com/fatih/color v1.18.0
 	github.com/getkin/kin-openapi v0.132.0
-	github.com/graingo/maltose v0.2.1
+	github.com/graingo/maltose v0.2.2
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jinzhu/inflection v1.0.0
 	github.com/joho/godotenv v1.5.1
