@@ -47,14 +47,39 @@ func (c *AdapterFile) SetFileName(name string) error {
 // Otherwise, it treats `name` as a full path.
 func (c *AdapterFile) SetFile(name string) error {
 	path := name
-	// If `name` does not contain a path separator and has no extension,
-	// it's likely a config name that needs searching.
-	if !strings.Contains(name, string(os.PathSeparator)) && filepath.Ext(name) == "" {
-		foundPath, found := internal.SearchConfigFile(name)
-		if !found {
-			return fmt.Errorf("config file not found for name: %s", name)
+	// If `name` has no extension, try to find the config file with proper extension
+	if filepath.Ext(name) == "" {
+		// First check if the file exists as-is
+		if _, err := os.Stat(name); os.IsNotExist(err) {
+			// File doesn't exist as-is, try to find it with extensions
+			if strings.Contains(name, string(os.PathSeparator)) {
+				// Contains path separator, try adding extensions in the specified directory
+				dir := filepath.Dir(name)
+				baseName := filepath.Base(name)
+				for _, ext := range []string{"yaml", "yml", "json", "toml"} {
+					tryPath := filepath.Join(dir, baseName+"."+ext)
+					if _, err := os.Stat(tryPath); err == nil {
+						path = tryPath
+						break
+					}
+				}
+				// If still not found, fall back to global search with base name
+				if path == name {
+					if foundPath, found := internal.SearchConfigFile(baseName); found {
+						path = foundPath
+					} else {
+						return fmt.Errorf("config file not found for name: %s", name)
+					}
+				}
+			} else {
+				// No path separator, use global search
+				foundPath, found := internal.SearchConfigFile(name)
+				if !found {
+					return fmt.Errorf("config file not found for name: %s", name)
+				}
+				path = foundPath
+			}
 		}
-		path = foundPath
 	}
 
 	c.mu.Lock()
