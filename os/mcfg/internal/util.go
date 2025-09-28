@@ -110,7 +110,7 @@ func SearchConfigFile(name string) (path string, found bool) {
 		}
 	}
 	// Also check for the name directly, in case it includes the extension.
-	if _, err := os.Stat(name); err == nil {
+	if stat, err := os.Stat(name); err == nil && !stat.IsDir() {
 		return name, true
 	}
 	return "", false
