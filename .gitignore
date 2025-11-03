@@ -6,6 +6,7 @@
 .idea/
 .settings/
 .vscode/
+.claude/
 vendor/
 pkg/
 bin/

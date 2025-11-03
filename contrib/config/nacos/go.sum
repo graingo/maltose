@@ -176,6 +176,7 @@ github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1/go.mod h1:wJfORR
 github.com/gopherjs/gopherjs v0.0.0-20200217142428-fce0ec30dd00/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
 github.com/graingo/maltose v0.1.22 h1:mI7b/XRIP0WKripjJmvku11Zsx+rnY5xpf26TK78tys=
 github.com/graingo/maltose v0.1.22/go.mod h1:eZ4NQV74rGvh6gxdWKrEKqzsPvVP+QT7ZOYpQFQYODg=
+github.com/graingo/maltose v0.2.0/go.mod h1:eYyG5IzrwqMgupRUU1M/yyHFocm5D1FqGYIWGI1cxxU=
 github.com/graingo/mconv v1.1.4 h1:/x+8qjjLbdPaCp/Da4ZIbCUW71SKEcQQwRHu4/MdkMs=
 github.com/graingo/mconv v1.1.4/go.mod h1:9Swk60TDpvEBLIDdlqPo7fDz1ci4YQwnNdd2S9T0+q4=
 github.com/jackc/pgpassfile v1.0.0 h1:/6Hmqy13Ss2zCq62VdNG8tM1wchn8zjSGOBJ6icpsIM=
