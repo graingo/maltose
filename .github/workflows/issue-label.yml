@@ -1,0 +1,128 @@
+name: AI Issue Label Mapper
+
+on:
+  issues:
+    types:
+      - labeled
+
+permissions:
+  issues: write
+
+jobs:
+  map-ai-labels:
+    if: startsWith(github.event.label.name, 'ai:')
+    runs-on: ubuntu-latest
+    steps:
+      - name: Map AI assessment labels to repository labels
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue = context.payload.issue;
+            const issue_number = issue.number;
+            const addedLabel = context.payload.label.name;
+
+            const typeLabels = ['bug', 'question', 'enhancement', 'documentation'];
+            const dispositionLabels = ['duplicate', 'invalid', 'wontfix'];
+
+            const removeLabelIfExists = async (name) => {
+              try {
+                await github.rest.issues.removeLabel({
+                  owner,
+                  repo,
+                  issue_number,
+                  name
+                });
+              } catch {
+                // ignore if label doesn't exist
+              }
+            };
+
+            const ensureLabels = async (labels) => {
+              if (!labels.length) return;
+              await github.rest.issues.addLabels({
+                owner,
+                repo,
+                issue_number,
+                labels
+              });
+            };
+
+            const removeOtherLabels = async (group, target) => {
+              for (const label of group) {
+                if (label !== target) {
+                  await removeLabelIfExists(label);
+                }
+              }
+            };
+
+            // Remove request trigger label if still present
+            await removeLabelIfExists('request ai review');
+
+            // Determine assessment state from official AI label
+            const lowerAddedLabel = addedLabel.toLowerCase();
+            const isMissingDetails = lowerAddedLabel.endsWith(':missing details');
+            const isReadyForReview = lowerAddedLabel.endsWith(':ready for review');
+            const isUnsure = lowerAddedLabel.endsWith(':unsure');
+
+            // Find latest AI assessment comment
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100
+            });
+
+            const aiComment = [...comments].reverse().find(comment => {
+              const body = comment.body || '';
+              return body.includes('### AI Assessment:');
+            });
+
+            let category = null;
+            let disposition = null;
+            let needsInfo = null;
+
+            if (aiComment?.body) {
+              const categoryMatch = aiComment.body.match(/Category:\s*(bug|question|enhancement|documentation)/i);
+              if (categoryMatch) {
+                category = categoryMatch[1].toLowerCase();
+              }
+
+              const dispositionMatch = aiComment.body.match(/Disposition:\s*(duplicate|invalid|wontfix|none)/i);
+              if (dispositionMatch) {
+                disposition = dispositionMatch[1].toLowerCase();
+              }
+
+              const needsInfoMatch = aiComment.body.match(/NeedsInfo:\s*(yes|no)/i);
+              if (needsInfoMatch) {
+                needsInfo = needsInfoMatch[1].toLowerCase();
+              }
+            }
+
+            // Apply type label only if not overridden by disposition
+            if (category && typeLabels.includes(category) && (!disposition || disposition === 'none')) {
+              await removeOtherLabels(typeLabels, category);
+              await ensureLabels([category]);
+            }
+
+            // Apply disposition label if any
+            if (disposition && dispositionLabels.includes(disposition)) {
+              await removeOtherLabels(dispositionLabels, disposition);
+              await ensureLabels([disposition]);
+
+              // Optional: remove type labels when disposition is decisive
+              for (const label of typeLabels) {
+                await removeLabelIfExists(label);
+              }
+            }
+
+            // Apply needs-info based on either assessment state or explicit field
+            if (isMissingDetails || needsInfo === 'yes') {
+              await ensureLabels(['needs-info']);
+            }
+
+            if ((isReadyForReview || isUnsure) && needsInfo !== 'yes') {
+              await removeLabelIfExists('needs-info');
+            }

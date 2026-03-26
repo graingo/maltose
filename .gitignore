@@ -26,3 +26,8 @@ node_modules
 .docusaurus
 output
 cover.out
+
+# Ignore for AI
+.claude
+.codex
+.agents
