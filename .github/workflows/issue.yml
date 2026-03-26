@@ -61,5 +61,3 @@ jobs:
           ai_review_label: "request ai review"
           prompts_directory: ".github/prompts"
           labels_to_prompts_mapping: "request ai review,general-intake.prompt.yml"
-          model: openai/gpt-4o-mini
-          max_tokens: 400
