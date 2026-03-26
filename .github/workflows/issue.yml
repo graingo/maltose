@@ -58,8 +58,8 @@ jobs:
           issue_body: ${{ github.event.issue.body }}
           repo_name: ${{ github.event.repository.name }}
           owner: ${{ github.repository_owner }}
-          ai_review_label: 'request ai review'
-          prompts_directory: '.github/prompts'
-          labels_to_prompts_mapping: 'request ai review,general-intake.prompt.yml'
+          ai_review_label: "request ai review"
+          prompts_directory: ".github/prompts"
+          labels_to_prompts_mapping: "request ai review,general-intake.prompt.yml"
           model: openai/gpt-4o-mini
-          max_tokens: 300
+          max_tokens: 400
