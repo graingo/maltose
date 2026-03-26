@@ -10,7 +10,7 @@ permissions:
 
 jobs:
   map-ai-labels:
-    if: startsWith(github.event.label.name, 'ai:')
+    if: ${{ startsWith(github.event.label.name, 'ai:') }}
     runs-on: ubuntu-latest
     steps:
       - name: Map AI assessment labels to repository labels
@@ -35,8 +35,9 @@ jobs:
                   issue_number,
                   name
                 });
-              } catch {
-                // ignore if label doesn't exist
+                core.info(`Removed label: ${name}`);
+              } catch (error) {
+                core.info(`Skip removing label "${name}": ${error.message}`);
               }
             };
 
@@ -48,6 +49,7 @@ jobs:
                 issue_number,
                 labels
               });
+              core.info(`Ensured labels: ${labels.join(', ')}`);
             };
 
             const removeOtherLabels = async (group, target) => {
@@ -58,14 +60,18 @@ jobs:
               }
             };
 
-            // Remove request trigger label if still present
+            core.info(`Triggered by label: ${addedLabel}`);
+
+            // Remove trigger label
             await removeLabelIfExists('request ai review');
 
-            // Determine assessment state from official AI label
+            // Determine official AI assessment state from label
             const lowerAddedLabel = addedLabel.toLowerCase();
             const isMissingDetails = lowerAddedLabel.endsWith(':missing details');
             const isReadyForReview = lowerAddedLabel.endsWith(':ready for review');
             const isUnsure = lowerAddedLabel.endsWith(':unsure');
+
+            core.info(`Assessment flags => missing: ${isMissingDetails}, ready: ${isReadyForReview}, unsure: ${isUnsure}`);
 
             // Find latest AI assessment comment
             const comments = await github.paginate(github.rest.issues.listComments, {
@@ -77,14 +83,20 @@ jobs:
 
             const aiComment = [...comments].reverse().find(comment => {
               const body = comment.body || '';
-              return body.includes('### AI Assessment:');
+              return body.includes('AI Assessment:');
             });
+
+            if (!aiComment) {
+              core.info('No AI assessment comment found.');
+            }
 
             let category = null;
             let disposition = null;
             let needsInfo = null;
 
             if (aiComment?.body) {
+              core.info('AI assessment comment found, parsing content.');
+
               const categoryMatch = aiComment.body.match(/Category:\s*(bug|question|enhancement|documentation)/i);
               if (categoryMatch) {
                 category = categoryMatch[1].toLowerCase();
@@ -101,6 +113,8 @@ jobs:
               }
             }
 
+            core.info(`Parsed values => category: ${category}, disposition: ${disposition}, needsInfo: ${needsInfo}`);
+
             // Apply type label only if not overridden by disposition
             if (category && typeLabels.includes(category) && (!disposition || disposition === 'none')) {
               await removeOtherLabels(typeLabels, category);
@@ -112,13 +126,13 @@ jobs:
               await removeOtherLabels(dispositionLabels, disposition);
               await ensureLabels([disposition]);
 
-              // Optional: remove type labels when disposition is decisive
+              // Disposition is stronger than type: remove type labels
               for (const label of typeLabels) {
                 await removeLabelIfExists(label);
               }
             }
 
-            // Apply needs-info based on either assessment state or explicit field
+            // Apply needs-info
             if (isMissingDetails || needsInfo === 'yes') {
               await ensureLabels(['needs-info']);
             }
@@ -126,3 +140,6 @@ jobs:
             if ((isReadyForReview || isUnsure) && needsInfo !== 'yes') {
               await removeLabelIfExists('needs-info');
             }
+
+            // Finally remove the official AI label that triggered this mapper
+            await removeLabelIfExists(addedLabel);

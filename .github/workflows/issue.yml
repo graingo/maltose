@@ -14,7 +14,7 @@ permissions:
 
 jobs:
   add-ai-review-label:
-    if: github.event.action == 'opened' || github.event.action == 'reopened'
+    if: ${{ github.event.action == 'opened' || github.event.action == 'reopened' }}
     runs-on: ubuntu-latest
     steps:
       - name: Add request ai review label
@@ -31,6 +31,8 @@ jobs:
               typeof l === 'string' ? l : l.name
             );
 
+            core.info(`Current labels: ${currentLabels.join(', ') || '(none)'}`);
+
             if (currentLabels.includes('request ai review')) {
               core.info('Label "request ai review" already exists, skip.');
               return;
@@ -43,8 +45,10 @@ jobs:
               labels: ['request ai review']
             });
 
+            core.info(`Added label "request ai review" to issue #${issue_number}`);
+
   ai-assessment:
-    if: github.event.action == 'labeled' && github.event.label.name == 'request ai review'
+    if: ${{ github.event.action == 'labeled' && github.event.label.name == 'request ai review' }}
     runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
