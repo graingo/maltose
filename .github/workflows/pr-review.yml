@@ -1,0 +1,366 @@
+name: PR Review
+
+on:
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+      - labeled
+
+permissions:
+  contents: read
+  issues: write
+  pull-requests: write
+
+jobs:
+  ai-pr-review:
+    # Run on new/updated PRs, or when ai-rerun label is added
+    if: |
+      github.event.action == 'opened' ||
+      github.event.action == 'synchronize' ||
+      github.event.action == 'reopened' ||
+      (github.event.action == 'labeled' && github.event.label.name == 'ai-rerun')
+    runs-on: ubuntu-latest
+    concurrency:
+      group: pr-review-${{ github.repository }}-${{ github.event.pull_request.number }}
+      cancel-in-progress: true
+    steps:
+      - name: Post pending review comment
+        id: pending_comment
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const resp = await github.rest.issues.createComment({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: pr.number,
+              body: [
+                '## 🤖 AI PR 审查进行中',
+                '',
+                '正在分析本次 PR 的变更内容，请稍候…'
+              ].join('\n')
+            });
+            core.setOutput('comment_id', String(resp.data.id));
+
+      - name: Setup Bun
+        uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: 1.2.19
+
+      - name: Start Copilot API proxy in local runner (bun)
+        shell: bash
+        env:
+          COPILOT_GH_TOKEN: ${{ secrets.COPILOT_GH_TOKEN }}
+        run: |
+          set -euo pipefail
+
+          TOKEN="${COPILOT_GH_TOKEN:-}"
+
+          if [ -z "$TOKEN" ]; then
+            echo "Missing repository secret: COPILOT_GH_TOKEN"
+            exit 1
+          fi
+
+          rm -rf .copilot-api
+          git clone --depth 1 https://github.com/ericc-ch/copilot-api.git .copilot-api
+
+          pushd .copilot-api >/dev/null
+          bun install --frozen-lockfile
+
+          nohup bun run start start --github-token "$TOKEN" --port 4141 --rate-limit 10 --wait \
+            > "$GITHUB_WORKSPACE/copilot-api.log" 2>&1 &
+          echo $! > "$GITHUB_WORKSPACE/copilot-api.pid"
+          popd >/dev/null
+
+          for i in $(seq 1 60); do
+            if curl -fsS http://127.0.0.1:4141/v1/models >/dev/null 2>&1; then
+              echo "copilot-api is ready"
+              break
+            fi
+            sleep 2
+          done
+
+          if ! curl -fsS http://127.0.0.1:4141/v1/models >/dev/null 2>&1; then
+            echo "copilot-api failed to become ready in time"
+            tail -n 200 "$GITHUB_WORKSPACE/copilot-api.log" || true
+            exit 1
+          fi
+
+      - name: Fetch PR diff and analyze with AI
+        id: analyze
+        uses: actions/github-script@v7
+        env:
+          OPENAI_BASE_URL: http://127.0.0.1:4141/v1
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const pull_number = pr.number;
+
+            const failAnalysis = (reason) => {
+              const message = String(reason || 'unknown-error').slice(0, 1500);
+              core.setOutput('review_result', '');
+              core.setOutput('analyze_ok', 'false');
+              core.setOutput('analyze_error', message);
+              core.warning('AI PR review failed: ' + message);
+            };
+
+            try {
+
+            // Fetch changed files (via API — safe, no PR code checkout)
+            const filesResp = await github.rest.pulls.listFiles({
+              owner, repo, pull_number, per_page: 100
+            });
+            const files = filesResp.data || [];
+
+            // Build a diff summary (truncated to avoid token limits)
+            const MAX_PATCH_CHARS = 12000;
+            let totalPatchChars = 0;
+            const fileSummaries = [];
+
+            for (const f of files) {
+              const patch = f.patch || '';
+              const remaining = MAX_PATCH_CHARS - totalPatchChars;
+              if (remaining <= 0) {
+                fileSummaries.push(`[${f.status}] ${f.filename} (diff truncated, total ${f.changes} changes)`);
+                continue;
+              }
+              const truncatedPatch = patch.slice(0, remaining);
+              totalPatchChars += truncatedPatch.length;
+              const truncNote = truncatedPatch.length < patch.length ? '\n... (truncated)' : '';
+              fileSummaries.push([
+                `### [${f.status}] ${f.filename}`,
+                `additions: ${f.additions}, deletions: ${f.deletions}`,
+                '```diff',
+                truncatedPatch + truncNote,
+                '```'
+              ].join('\n'));
+            }
+
+            const diffText = fileSummaries.join('\n\n');
+
+            const prompt = [
+              '你是一个 GitHub PR 代码审查助手，请对以下 Pull Request 进行全面的中文审查。',
+              '',
+              '审查重点：',
+              '1. 变更摘要：简要描述本次 PR 做了什么',
+              '2. 潜在问题：代码逻辑错误、边界条件、并发问题等',
+              '3. 安全风险：敏感信息泄露、注入风险、鉴权缺失等',
+              '4. 测试建议：需要补充哪些测试用例',
+              '5. 代码质量：可读性、命名规范、重复代码等',
+              '6. 综合建议：是否建议合并，需要修改哪些内容',
+              '',
+              '语言要求：所有输出必须使用简体中文，技术术语可保留英文。',
+              '格式要求：使用 Markdown 格式输出，结构清晰。',
+              '',
+              `PR 标题：${pr.title}`,
+              '',
+              `PR 描述：`,
+              pr.body || '（无描述）',
+              '',
+              `变更文件数：${files.length}`,
+              `总新增行数：${files.reduce((s, f) => s + f.additions, 0)}`,
+              `总删除行数：${files.reduce((s, f) => s + f.deletions, 0)}`,
+              '',
+              '变更内容：',
+              diffText || '（无可用 diff）'
+            ].join('\n');
+
+            const baseUrl = process.env.OPENAI_BASE_URL || 'http://127.0.0.1:4141/v1';
+            const preferredModel = process.env.OPENAI_MODEL || 'gpt-5-mini';
+            const headers = { 'Content-Type': 'application/json' };
+            if (process.env.OPENAI_API_KEY) {
+              headers['Authorization'] = 'Bearer ' + process.env.OPENAI_API_KEY;
+            }
+
+            const pickModel = async () => {
+              try {
+                const modelsResp = await fetch(baseUrl + '/models', { headers, method: 'GET' });
+                if (!modelsResp.ok) return preferredModel;
+                const modelsData = await modelsResp.json();
+                const ids = Array.isArray(modelsData?.data)
+                  ? modelsData.data.map(m => String(m?.id || '')).filter(Boolean)
+                  : [];
+                if (ids.includes(preferredModel)) return preferredModel;
+                const candidates = ['gpt-5-mini', 'gpt-4.1', 'gpt-4o', 'o4-mini', 'o3-mini'];
+                for (const c of candidates) {
+                  if (ids.includes(c)) return c;
+                }
+                return ids[0] || preferredModel;
+              } catch {
+                return preferredModel;
+              }
+            };
+
+            const model = await pickModel();
+            core.info(`PR review selected model: ${model}`);
+
+            const resp = await fetch(baseUrl + '/chat/completions', {
+              method: 'POST',
+              headers,
+              body: JSON.stringify({
+                model,
+                temperature: 0.2,
+                messages: [
+                  {
+                    role: 'system',
+                    content: '你是专业的代码审查助手，输出内容必须为简体中文，使用 Markdown 格式，重点关注代码质量、安全风险与测试覆盖。'
+                  },
+                  { role: 'user', content: prompt }
+                ]
+              })
+            });
+
+            const respText = await resp.text();
+            if (!resp.ok) {
+              failAnalysis(`completion-${resp.status}: ${respText.slice(0, 500)}`);
+              return;
+            }
+
+            let data;
+            try {
+              data = JSON.parse(respText);
+            } catch {
+              failAnalysis('non-json response: ' + respText.slice(0, 500));
+              return;
+            }
+
+            const choice = data?.choices?.[0] || {};
+            const msg = choice?.message || {};
+            let reviewText = '';
+            if (typeof msg.content === 'string') {
+              reviewText = msg.content;
+            } else if (Array.isArray(msg.content)) {
+              reviewText = msg.content
+                .map(p => typeof p === 'string' ? p : (p?.text || p?.content || ''))
+                .join('\n')
+                .trim();
+            }
+
+            if (!reviewText.trim()) {
+              failAnalysis('empty review content from AI');
+              return;
+            }
+
+            core.setOutput('review_result', reviewText.slice(0, 60000));
+            core.setOutput('analyze_ok', 'true');
+            core.setOutput('analyze_error', '');
+
+            } catch (e) {
+              failAnalysis(e?.message || String(e));
+            }
+
+      - name: Stop Copilot API proxy
+        if: always()
+        shell: bash
+        run: |
+          set +e
+          if [ -f "$GITHUB_WORKSPACE/copilot-api.pid" ]; then
+            PID="$(cat "$GITHUB_WORKSPACE/copilot-api.pid")"
+            if [ -n "$PID" ] && kill -0 "$PID" >/dev/null 2>&1; then
+              kill "$PID" >/dev/null 2>&1 || true
+              sleep 1
+              kill -9 "$PID" >/dev/null 2>&1 || true
+            fi
+          fi
+          pkill -f "bun run start start" >/dev/null 2>&1 || true
+          echo "----- copilot-api log (tail 200) -----"
+          tail -n 200 "$GITHUB_WORKSPACE/copilot-api.log" || true
+          echo "copilot-api process cleaned"
+
+      - name: Publish AI review comment
+        if: always() && steps.analyze.outputs.analyze_ok == 'true'
+        uses: actions/github-script@v7
+        env:
+          REVIEW_RESULT: ${{ steps.analyze.outputs.review_result }}
+          AI_COMMENT_ID: ${{ steps.pending_comment.outputs.comment_id }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const commentId = Number(process.env.AI_COMMENT_ID || 0);
+            const reviewText = String(process.env.REVIEW_RESULT || '').trim();
+
+            const lines = [];
+            lines.push('## 🤖 AI PR 审查报告');
+            lines.push('');
+            lines.push(reviewText || '（AI 未返回有效内容）');
+            lines.push('');
+            lines.push('---');
+            lines.push('> 如需重新触发 AI 审查，请添加标签 `ai-rerun`。');
+
+            const body = lines.join('\n');
+
+            if (commentId > 0) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: commentId,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body
+              });
+            }
+
+      - name: Fallback comment when AI review fails
+        if: always() && steps.analyze.outputs.analyze_ok != 'true'
+        uses: actions/github-script@v7
+        env:
+          ANALYZE_ERROR: ${{ steps.analyze.outputs.analyze_error }}
+          AI_COMMENT_ID: ${{ steps.pending_comment.outputs.comment_id }}
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const pr = context.payload.pull_request;
+            const reason = String(process.env.ANALYZE_ERROR || 'unknown-error').slice(0, 1000);
+            const commentId = Number(process.env.AI_COMMENT_ID || 0);
+            const body = [
+              '## ⚠️ AI PR 审查暂时失败',
+              '',
+              '本次自动审查未成功完成（可能是服务启动失败、网络波动或上游响应异常）。',
+              `- 诊断信息：\`${reason.replace(/`/g, '\\`')}\``,
+              '可添加标签 `ai-rerun` 重新触发审查。'
+            ].join('\n');
+
+            if (commentId > 0) {
+              await github.rest.issues.updateComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                comment_id: commentId,
+                body
+              });
+            } else {
+              await github.rest.issues.createComment({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: pr.number,
+                body
+              });
+            }
+
+      - name: Remove ai-rerun label after processing
+        if: always() && github.event.action == 'labeled' && github.event.label.name == 'ai-rerun'
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              await github.rest.issues.removeLabel({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                issue_number: context.payload.pull_request.number,
+                name: 'ai-rerun'
+              });
+            } catch {
+              // ignore absent label
+            }
