@@ -8,7 +8,7 @@ body:
   attributes:
   value: |
   请尽量提供可复现的信息，这会帮助我们更快定位问题。
-  创建后仓库会自动进行 AI 初步分诊，请尽量描述清楚。
+  创建后仓库会自动进行 AI 初步分析，请尽量描述清楚。
 
 - type: textarea
   id: description

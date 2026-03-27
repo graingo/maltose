@@ -1,0 +1,229 @@
+name: Issue Auto Close
+
+on:
+  schedule:
+    # GitHub Actions uses UTC.
+    # Asia/Shanghai 02:00 / 14:00 = UTC 18:00 / 06:00
+    - cron: "0 18,6 * * *"
+  workflow_dispatch:
+
+permissions:
+  issues: write
+
+jobs:
+  close-inactive-issues:
+    runs-on: ubuntu-latest
+    concurrency:
+      group: issue-auto-close-${{ github.repository }}
+      cancel-in-progress: false
+    env:
+      NEEDS_INFO_CLOSE_DAYS: ${{ vars.NEEDS_INFO_CLOSE_DAYS }}
+      DUPLICATE_CLOSE_DAYS: ${{ vars.DUPLICATE_CLOSE_DAYS }}
+      WONTFIX_CLOSE_DAYS: ${{ vars.WONTFIX_CLOSE_DAYS }}
+      LEGACY_UNSUPPORTED_CLOSE_DAYS: ${{ vars.UNSUPPORTED_CLOSE_DAYS }}
+    steps:
+      - name: Close expired needs-info, duplicate, and wontfix issues
+        uses: actions/github-script@v7
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+
+            const DAY_MS = 24 * 60 * 60 * 1000;
+            const nowMs = Date.now();
+
+            const parseDays = (raw, fallback) => {
+              const value = Number(String(raw || '').trim());
+              return Number.isFinite(value) && value > 0 ? value : fallback;
+            };
+
+            const needsInfoCloseDays = parseDays(process.env.NEEDS_INFO_CLOSE_DAYS, 7);
+            const duplicateCloseDays = parseDays(process.env.DUPLICATE_CLOSE_DAYS, 3);
+            const wontfixCloseDays = parseDays(
+              process.env.WONTFIX_CLOSE_DAYS || process.env.LEGACY_UNSUPPORTED_CLOSE_DAYS,
+              3
+            );
+
+            const formatBeijingTime = (dateString) =>
+              new Intl.DateTimeFormat('zh-CN', {
+                timeZone: 'Asia/Shanghai',
+                year: 'numeric',
+                month: '2-digit',
+                day: '2-digit',
+                hour: '2-digit',
+                minute: '2-digit',
+                hour12: false
+              }).format(new Date(dateString));
+
+            const getCurrentLabels = (issue) =>
+              new Set(
+                (issue.labels || [])
+                  .map(label => String(typeof label === 'string' ? label : label.name || '').toLowerCase())
+                  .filter(Boolean)
+              );
+
+            const findActiveLabelAppliedAt = (events, labelName) => {
+              const target = String(labelName || '').toLowerCase();
+              const latestRelevant = [...events].reverse().find(event => {
+                const eventName = String(event.event || '').toLowerCase();
+                const eventLabel = String(event.label?.name || '').toLowerCase();
+                return ['labeled', 'unlabeled'].includes(eventName) && eventLabel === target;
+              });
+
+              if (!latestRelevant || String(latestRelevant.event || '').toLowerCase() !== 'labeled') {
+                return null;
+              }
+
+              return latestRelevant.created_at || null;
+            };
+
+            const issueAuthorRepliedAfter = async (issue, afterTime) => {
+              const author = String(issue.user?.login || '').toLowerCase();
+              if (!author) return false;
+
+              const comments = await github.paginate(github.rest.issues.listComments, {
+                owner,
+                repo,
+                issue_number: issue.number,
+                per_page: 100
+              });
+
+              const afterMs = new Date(afterTime).getTime();
+              return comments.some(comment => {
+                const commenter = String(comment.user?.login || '').toLowerCase();
+                const createdMs = new Date(comment.created_at).getTime();
+                return commenter === author && Number.isFinite(createdMs) && createdMs > afterMs;
+              });
+            };
+
+            const closeIssue = async (issue, body) => {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number: issue.number,
+                body
+              });
+
+              await github.rest.issues.update({
+                owner,
+                repo,
+                issue_number: issue.number,
+                state: 'closed'
+              });
+            };
+
+            const openIssues = await github.paginate(github.rest.issues.listForRepo, {
+              owner,
+              repo,
+              state: 'open',
+              per_page: 100
+            });
+
+            let closedNeedsInfo = 0;
+            let closedDuplicate = 0;
+            let closedWontfix = 0;
+
+            for (const issue of openIssues) {
+              if (issue.pull_request) {
+                continue;
+              }
+
+              const currentLabels = getCurrentLabels(issue);
+              const hasDuplicate = currentLabels.has('duplicate');
+              const hasNeedsInfo = currentLabels.has('needs-info');
+              const hasWontfix = currentLabels.has('wontfix');
+
+              if (!hasDuplicate && !hasNeedsInfo && !hasWontfix) {
+                continue;
+              }
+
+              const events = await github.paginate(github.rest.issues.listEvents, {
+                owner,
+                repo,
+                issue_number: issue.number,
+                per_page: 100
+              });
+
+              if (hasDuplicate) {
+                const duplicateAppliedAt = findActiveLabelAppliedAt(events, 'duplicate');
+                if (duplicateAppliedAt) {
+                  const ageDays = (nowMs - new Date(duplicateAppliedAt).getTime()) / DAY_MS;
+                  if (Number.isFinite(ageDays) && ageDays >= duplicateCloseDays) {
+                    const appliedAtText = formatBeijingTime(duplicateAppliedAt);
+                    await closeIssue(
+                      issue,
+                      [
+                        '由于该 Issue 已被标记为 `duplicate` 且超过设定时限，现自动关闭。',
+                        '',
+                        `- 标记时间：${appliedAtText}（UTC+8）`,
+                        `- 自动关闭阈值：${duplicateCloseDays} 天`,
+                        '',
+                        '如果你认为这不是重复问题，可以补充说明后重新打开。'
+                      ].join('\n')
+                    );
+                    closedDuplicate += 1;
+                    continue;
+                  }
+                }
+              }
+
+              if (hasWontfix) {
+                const wontfixAppliedAt = findActiveLabelAppliedAt(events, 'wontfix');
+                if (wontfixAppliedAt) {
+                  const ageDays = (nowMs - new Date(wontfixAppliedAt).getTime()) / DAY_MS;
+                  if (Number.isFinite(ageDays) && ageDays >= wontfixCloseDays) {
+                    const appliedAtText = formatBeijingTime(wontfixAppliedAt);
+                    await closeIssue(
+                      issue,
+                      [
+                        '由于该 Issue 已被维护者标记为 `wontfix` 且超过设定时限，现自动关闭。',
+                        '',
+                        `- 标记时间：${appliedAtText}（UTC+8）`,
+                        `- 自动关闭阈值：${wontfixCloseDays} 天`,
+                        '',
+                        '该标签用于表示暂不处理，或当前不在维护范围内。如有新的背景信息，可以补充说明后重新打开。'
+                      ].join('\n')
+                    );
+                    closedWontfix += 1;
+                    continue;
+                  }
+                }
+              }
+
+              if (hasNeedsInfo) {
+                const needsInfoAppliedAt = findActiveLabelAppliedAt(events, 'needs-info');
+                if (!needsInfoAppliedAt) {
+                  continue;
+                }
+
+                const ageDays = (nowMs - new Date(needsInfoAppliedAt).getTime()) / DAY_MS;
+                if (!Number.isFinite(ageDays) || ageDays < needsInfoCloseDays) {
+                  continue;
+                }
+
+                const authorReplied = await issueAuthorRepliedAfter(issue, needsInfoAppliedAt);
+                if (authorReplied) {
+                  core.info(`Skip issue #${issue.number}: issue author replied after needs-info label was applied.`);
+                  continue;
+                }
+
+                const appliedAtText = formatBeijingTime(needsInfoAppliedAt);
+                await closeIssue(
+                  issue,
+                  [
+                    '由于该 Issue 已被标记为 `needs-info` 且超过设定时限仍未收到提问者补充信息，现自动关闭。',
+                    '',
+                    `- 标记时间：${appliedAtText}（UTC+8）`,
+                    `- 自动关闭阈值：${needsInfoCloseDays} 天`,
+                    '',
+                    '如果后续补充了必要信息，可以重新打开该 Issue，我们会继续跟进。'
+                  ].join('\n')
+                );
+                closedNeedsInfo += 1;
+              }
+            }
+
+            core.notice(
+              `Issue auto close finished. Closed duplicate: ${closedDuplicate}, closed wontfix: ${closedWontfix}, closed needs-info: ${closedNeedsInfo}.`
+            );

@@ -8,7 +8,7 @@ body:
   attributes:
   value: |
   如果你不确定这是不是 bug，也可以先作为 Question 提交。
-  创建后仓库会自动进行 AI 初步分诊。
+  创建后仓库会自动进行 AI 初步分析。
 
 - type: textarea
   id: question

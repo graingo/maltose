@@ -8,7 +8,7 @@ body:
   attributes:
   value: |
   如果你发现 README、使用说明、示例代码或 API 文档内容有误，请在这里提交。
-  创建后仓库会自动进行 AI 初步分诊。
+  创建后仓库会自动进行 AI 初步分析。
 
 - type: textarea
   id: doc_problem

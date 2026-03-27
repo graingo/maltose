@@ -8,7 +8,7 @@ body:
   attributes:
   value: |
   请尽量先描述问题，再描述你希望的方案。
-  创建后仓库会自动进行 AI 初步分诊。
+  创建后仓库会自动进行 AI 初步分析。
 
 - type: textarea
   id: problem
