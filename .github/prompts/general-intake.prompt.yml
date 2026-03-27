@@ -44,7 +44,7 @@ messages:
       当前 open issues 摘要（仅用于辅助判断是否重复）：
       {{open_issues}}
 
-model: openai/gpt-5-mini
+model: openai/gpt-4o
 responseFormat: json_schema
 jsonSchema: |-
   {
