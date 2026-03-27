@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 使用文档
+    url: https://github.com/graingo/maltose/blob/master/README.MD
+    about: 先查看中文 README，了解快速开始和框架设计。
+  - name: English README
+    url: https://github.com/graingo/maltose/blob/master/README_EN.MD
+    about: Review the English README before opening a usage issue.
