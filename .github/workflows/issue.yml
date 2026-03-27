@@ -36,6 +36,15 @@ jobs:
           script: |
             const fs = require('fs');
             const path = require('path');
+            const promptBlockIndent = '      ';
+            const toPromptFileValue = (value) =>
+              [
+                '',
+                ...String(value || '')
+                  .replace(/\r\n/g, '\n')
+                  .split('\n')
+                  .map(line => (line ? `${promptBlockIndent}${line}` : ''))
+              ].join('\n');
 
             const owner = context.repo.owner;
             const repo = context.repo.repo;
@@ -203,9 +212,9 @@ jobs:
             const openIssuesFile = path.join(baseDir, `issue-${issueNumber}-open-issues.txt`);
             const commentsFile = path.join(baseDir, `issue-${issueNumber}-comments.txt`);
 
-            fs.writeFileSync(bodyFile, String(issue.body || '（无正文）'));
-            fs.writeFileSync(openIssuesFile, openIssueSummary);
-            fs.writeFileSync(commentsFile, recentComments);
+            fs.writeFileSync(bodyFile, toPromptFileValue(issue.body || '（无正文）'));
+            fs.writeFileSync(openIssuesFile, toPromptFileValue(openIssueSummary));
+            fs.writeFileSync(commentsFile, toPromptFileValue(recentComments));
 
             const currentLabels = (issue.labels || [])
               .map(label => String(typeof label === 'string' ? label : label.name || '').trim())
