@@ -239,9 +239,12 @@ jobs:
         with:
           prompt-file: ./.github/prompts/general-intake.prompt.yml
           input: |
-            trigger_reason: ${{ steps.prepare.outputs.trigger_reason }}
-            current_labels: ${{ steps.prepare.outputs.current_labels }}
-            issue_title: ${{ steps.prepare.outputs.issue_title }}
+            trigger_reason: |
+              ${{ steps.prepare.outputs.trigger_reason }}
+            current_labels: |
+              ${{ steps.prepare.outputs.current_labels }}
+            issue_title: |
+              ${{ steps.prepare.outputs.issue_title }}
           file_input: |
             issue_body: ${{ steps.prepare.outputs.issue_body_file }}
             recent_comments: ${{ steps.prepare.outputs.recent_comments_file }}
@@ -258,9 +261,12 @@ jobs:
         with:
           prompt-file: ./.github/prompts/general-intake.prompt.yml
           input: |
-            trigger_reason: ${{ steps.prepare.outputs.trigger_reason }}
-            current_labels: ${{ steps.prepare.outputs.current_labels }}
-            issue_title: ${{ steps.prepare.outputs.issue_title }}
+            trigger_reason: |
+              ${{ steps.prepare.outputs.trigger_reason }}
+            current_labels: |
+              ${{ steps.prepare.outputs.current_labels }}
+            issue_title: |
+              ${{ steps.prepare.outputs.issue_title }}
           file_input: |
             issue_body: ${{ steps.prepare.outputs.issue_body_file }}
             recent_comments: ${{ steps.prepare.outputs.recent_comments_file }}
