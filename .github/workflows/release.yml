@@ -1,132 +1,255 @@
 name: 手动发布
-# 更新依赖并标记所有模块
 
 on:
-  # 允许从 GitHub Actions UI 手动触发此工作流
   workflow_dispatch:
     inputs:
       version:
-        description: "要发布的版本 (例如: v0.1.0)"
+        description: "要发布的版本，例如 v0.1.0"
         required: true
         type: string
+
+concurrency:
+  group: release-${{ github.repository }}
+  cancel-in-progress: false
 
 jobs:
   release:
     runs-on: ubuntu-latest
     permissions:
-      contents: write # 需要写权限才能将提交和标签推送回仓库
+      contents: write
+    env:
+      RELEASE_BRANCH: master
+      MODULES: |
+        ./cmd/maltose
+        ./contrib/config/apollo
+        ./contrib/config/nacos
+        ./contrib/metric/otlpmetric
+        ./contrib/trace/otlptrace
+      APOLLO_IP: http://localhost:8080
+      APOLLO_APP_ID: SampleApp
+      APOLLO_CLUSTER: default
+      NACOS_IP_ADDR: localhost
+      NACOS_PORT: 8848
+      DB_TYPE: mysql
+      DB_HOST: 127.0.0.1
+      DB_PORT: 3306
+      DB_USER: root
+      DB_PASS: ""
+      DB_NAME: testdb
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
         with:
-          token: ${{ secrets.PAT_TOKEN }}
+          fetch-depth: 0
+          token: ${{ secrets.PAT_TOKEN || github.token }}
 
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23" # 确保此版本与您的项目匹配
+          go-version: "1.23"
 
       - name: Configure Git
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-      - name: Update dependencies, commit, tag and push
+      - name: Validate release context
+        shell: bash
         run: |
-          # 如果任何命令失败，立即退出
-          set -e
+          set -euo pipefail
 
-          VERSION=${{ github.event.inputs.version }}
+          VERSION="${{ github.event.inputs.version }}"
 
-          # 验证版本格式 (必须是 vX.Y.Z)
           if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
             echo "::error::版本格式不正确，必须为 vX.Y.Z 格式。"
             exit 1
           fi
 
-          # --- [1/4] 更新 version.go ---
-          echo "===== [1/4] 正在更新 version.go... ====="
-          # 使用 sed 更新 version.go 中的版本号
-          # 该文件路径相对于仓库根目录
-          sed -i "s/^\s*VERSION = \".*\"/\tVERSION = \"$VERSION\"/" version.go
-          echo "-> version.go 已更新为版本 $VERSION"
-          echo "==================================="
-          echo ""
+          if [[ "${GITHUB_REF_NAME}" != "${RELEASE_BRANCH}" ]]; then
+            echo "::error::只能从 ${RELEASE_BRANCH} 分支发版，当前分支为 ${GITHUB_REF_NAME}。"
+            exit 1
+          fi
 
-          # --- [2/4] 更新子模块依赖 ---
-          echo "===== [2/4] 正在更新子模块依赖... ====="
-          find . -name go.mod | while read -r mod_file; do
-            dir=$(dirname "$mod_file")
-            if [ "$dir" == "." ]; then
-              continue
+          git fetch origin "${RELEASE_BRANCH}" --tags
+
+          LOCAL_SHA="$(git rev-parse HEAD)"
+          REMOTE_SHA="$(git rev-parse "origin/${RELEASE_BRANCH}")"
+          if [[ "${LOCAL_SHA}" != "${REMOTE_SHA}" ]]; then
+            echo "::error::当前工作流不是基于最新的 ${RELEASE_BRANCH} HEAD 运行。"
+            echo "::error::local=${LOCAL_SHA} remote=${REMOTE_SHA}"
+            exit 1
+          fi
+
+          readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
+            echo "::error::根标签 ${VERSION} 已存在。"
+            exit 1
+          fi
+
+          for dir in "${modules[@]}"; do
+            module_path="${dir#./}"
+            tag_name="${module_path}/${VERSION}"
+            if git ls-remote --exit-code --tags origin "refs/tags/${tag_name}" >/dev/null 2>&1; then
+              echo "::error::子模块标签 ${tag_name} 已存在。"
+              exit 1
             fi
-            module_path=${dir#./}
-            echo "-> 正在处理模块: $module_path"
+          done
+
+      - name: Start Apollo Containers
+        run: |
+          docker compose -f ".github/workflows/apollo/docker-compose.yml" up -d --build
+
+      - name: Start Nacos Containers
+        run: |
+          docker compose -f ".github/workflows/nacos/docker-compose.yml" up -d --build
+
+      - name: Wait for Apollo to be ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in {1..60}; do
+            if curl -sf http://localhost:8080 >/dev/null; then
+              echo "Apollo is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Apollo 启动超时。"
+          exit 1
+
+      - name: Wait for Nacos to be ready
+        shell: bash
+        run: |
+          set -euo pipefail
+          for i in {1..60}; do
+            if curl -sf http://localhost:8848/nacos >/dev/null; then
+              echo "Nacos is up"
+              exit 0
+            fi
+            sleep 2
+          done
+          echo "::error::Nacos 启动超时。"
+          exit 1
+
+      - name: Prepare release changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ github.event.inputs.version }}"
+          readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
+
+          echo "===== [1/2] 更新版本号 ====="
+          sed -i "s/^\s*VERSION = \".*\"/\tVERSION = \"${VERSION}\"/" version.go
+          echo "-> version.go 已更新为 ${VERSION}"
+
+          echo "===== [2/2] 更新子模块依赖 ====="
+          for dir in "${modules[@]}"; do
+            module_path="${dir#./}"
+            echo "-> 正在处理模块: ${module_path}"
             (
-              cd "$dir"
-              # 对于非 contrib 模块，移除本地 replace 指令以确保从远程拉取。
-              # 对于 contrib 模块，则保留该指令。
-              if [[ "$module_path" != contrib* ]]; then
-                if grep -q "github.com/graingo/maltose =>" go.mod; then
-                  echo "--> 非 contrib 模块，移除 replace 指令..."
-                  go mod edit -dropreplace=github.com/graingo/maltose
-                fi
-              else
-                echo "--> contrib 模块，跳过移除 replace 指令。"
+              cd "${dir}"
+              if [[ "${module_path}" != contrib* ]] && grep -q "github.com/graingo/maltose =>" go.mod; then
+                echo "--> 非 contrib 模块，移除 replace 指令"
+                go mod edit -dropreplace=github.com/graingo/maltose
               fi
-              # 将依赖设置为新版本
-              go mod edit -require="github.com/graingo/maltose@$VERSION"
-              # 此处不执行 go mod tidy，因为此时 $VERSION 标签尚未在远程仓库中创建，
-              # 执行 tidy 会导致依赖解析失败。
-              # go.sum 文件将在使用者下次执行 go mod tidy 时自动更新。
+              go mod edit -require="github.com/graingo/maltose@${VERSION}"
             )
           done
-          echo "=========================================="
-          echo ""
 
-          # --- [3/4] 提交变更 ---
-          echo "===== [3/4] 正在提交变更... ====="
-          # 检查是否有文件变更需要提交
-          if [[ -z $(git status -s --untracked-files=no) ]]; then
-            echo "-> 没有文件变更需要提交。"
-          else
-            echo "-> 正在提交所有 go.mod 和 go.sum 文件的变更..."
-            git add .
-            git commit -m "chore(release): 为 $VERSION 更新依赖"
-          fi
-          echo "================================"
-          echo ""
+      - name: Validate release workspace
+        shell: bash
+        run: |
+          set -euo pipefail
 
-          # --- [4/4] 创建并推送标签 ---
-          echo "===== [4/4] 正在创建并推送标签... ====="
-          echo "-> 正在为根模块打标签: $VERSION"
-          git tag "$VERSION"
+          readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
+          trap 'rm -f go.work go.work.sum' EXIT
 
-          # 查找所有子目录中的 go.mod 文件并为其打标签
-          find . -name go.mod | while read -r mod_file; do
-            dir=$(dirname "$mod_file")
-            if [ "$dir" == "." ]; then
-              continue
-            fi
-            module_path=${dir#./}
-            TAG_NAME="${module_path}/${VERSION}"
-            echo "-> 正在为子模块 '$module_path' 打标签: $TAG_NAME"
-            git tag "$TAG_NAME"
+          go work init .
+          for dir in "${modules[@]}"; do
+            go work use "${dir}"
           done
-          echo "===================================="
 
-          echo ""
-          echo "正在将提交和所有标签推送到远程仓库..."
-          git push origin HEAD
-          git push origin --tags
+          echo "-> 测试根模块"
+          go test ./...
 
-          echo "✅ 发布流程成功完成！"
+          for dir in "${modules[@]}"; do
+            echo "-> 测试子模块: ${dir#./}"
+            (
+              cd "${dir}"
+              go test ./...
+            )
+          done
 
-      - name: Release version
+      - name: Commit release changes
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ github.event.inputs.version }}"
+          readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
+
+          git add version.go
+          for dir in "${modules[@]}"; do
+            git add "${dir}/go.mod"
+            if [[ -f "${dir}/go.sum" ]]; then
+              git add "${dir}/go.sum"
+            fi
+          done
+
+          if git diff --cached --quiet; then
+            echo "::error::没有检测到可提交的发版变更。"
+            exit 1
+          fi
+
+          git commit -m "chore(release): prepare ${VERSION}"
+
+      - name: Create release tags
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ github.event.inputs.version }}"
+          readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
+
+          git tag "${VERSION}"
+          for dir in "${modules[@]}"; do
+            module_path="${dir#./}"
+            git tag "${module_path}/${VERSION}"
+          done
+
+      - name: Push release commit and tags
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="${{ github.event.inputs.version }}"
+          readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
+
+          git push origin "HEAD:${RELEASE_BRANCH}"
+
+          tags=("${VERSION}")
+          for dir in "${modules[@]}"; do
+            tags+=("${dir#./}/${VERSION}")
+          done
+          git push origin "${tags[@]}"
+
+      - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.event.inputs.version }}
-          name: "${{ github.event.inputs.version }}"
+          name: ${{ github.event.inputs.version }}
           generate_release_notes: true
           draft: false
           prerelease: false
+
+      - name: Stop Nacos Containers
+        if: always()
+        run: |
+          docker compose -f ".github/workflows/nacos/docker-compose.yml" down || true
+
+      - name: Stop Apollo Containers
+        if: always()
+        run: |
+          docker compose -f ".github/workflows/apollo/docker-compose.yml" down || true
