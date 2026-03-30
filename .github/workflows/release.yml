@@ -172,13 +172,13 @@ jobs:
           done
 
           echo "-> 测试根模块"
-          go test ./...
+          go test -race ./...
 
           for dir in "${modules[@]}"; do
             echo "-> 测试子模块: ${dir#./}"
             (
               cd "${dir}"
-              go test ./...
+              go test -race ./...
             )
           done
 
