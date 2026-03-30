@@ -17,6 +17,28 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+    services:
+      redis:
+        image: redis:6
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+      mysql:
+        image: mysql:8.0
+        ports:
+          - 3306:3306
+        env:
+          TZ: Asia/Shanghai
+          MYSQL_ALLOW_EMPTY_PASSWORD: "yes"
+        options: >-
+          --health-cmd "mysqladmin ping -h localhost"
+          --health-interval 5s
+          --health-timeout 1s
+          --health-retries 10
     env:
       RELEASE_BRANCH: master
       MODULES: |
@@ -231,13 +253,13 @@ jobs:
           VERSION="${{ github.event.inputs.version }}"
           readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
 
-          git push origin "HEAD:${RELEASE_BRANCH}"
-
           tags=("${VERSION}")
           for dir in "${modules[@]}"; do
             tags+=("${dir#./}/${VERSION}")
           done
-          git push origin "${tags[@]}"
+
+          # 原子性推送：要么分支和所有 tags 一起成功，要么全部失败，避免不一致状态
+          git push --atomic origin "HEAD:${RELEASE_BRANCH}" "${tags[@]}"
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
