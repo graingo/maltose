@@ -141,7 +141,11 @@ jobs:
           readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
 
           echo "===== [1/2] 更新版本号 ====="
-          sed -i "s/^\s*VERSION = \".*\"/\tVERSION = \"${VERSION}\"/" version.go
+          sed -i "s/^[[:space:]]*VERSION = \".*\"/\tVERSION = \"${VERSION}\"/" version.go
+          if ! grep -q "VERSION = \"${VERSION}\"" version.go; then
+            echo "::error::未能在 version.go 中更新 VERSION 为 ${VERSION}，请检查 VERSION 定义行格式。"
+            exit 1
+          fi
           echo "-> version.go 已更新为 ${VERSION}"
 
           echo "===== [2/2] 更新子模块依赖 ====="
