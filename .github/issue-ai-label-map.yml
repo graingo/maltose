@@ -1,0 +1,8 @@
+bug: bug
+question: question
+enhancement: enhancement
+documentation: documentation
+duplicate: duplicate
+needs-info: needs-info
+rerun:
+  - ai-rerun
