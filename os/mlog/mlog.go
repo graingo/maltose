@@ -2,6 +2,7 @@ package mlog
 
 import (
 	"context"
+	"sync/atomic"
 )
 
 // ILogger is the interface for the logger.
@@ -31,18 +32,24 @@ var (
 	// Ensure Logger implements ILogger interface
 	_ ILogger = &Logger{}
 
-	// defaultLogger is the default logger.
-	defaultLogger = New()
+	defaultLogger atomic.Pointer[Logger]
 )
+
+func init() {
+	defaultLogger.Store(New())
+}
 
 // DefaultLogger returns the default logger.
 func DefaultLogger() *Logger {
-	return defaultLogger
+	return defaultLogger.Load()
 }
 
 // SetDefaultLogger sets the default logger for package glog.
 // Note that there might be concurrent safety issue if calls this function
 // in different goroutines.
 func SetDefaultLogger(l *Logger) {
-	defaultLogger = l
+	if l == nil {
+		l = New()
+	}
+	defaultLogger.Store(l)
 }

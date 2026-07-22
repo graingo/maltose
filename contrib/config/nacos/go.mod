@@ -15,6 +15,7 @@ require (
 
 require (
 	filippo.io/edwards25519 v1.1.0 // indirect
+	github.com/BurntSushi/toml v1.5.0 // indirect
 	github.com/alibabacloud-go/alibabacloud-gateway-pop v0.0.6 // indirect
 	github.com/alibabacloud-go/alibabacloud-gateway-spi v0.0.5 // indirect
 	github.com/alibabacloud-go/darabonba-array v0.1.0 // indirect

@@ -199,7 +199,9 @@ func (s *Server) handleMetricsAfterRequestDone(r *Request, startTime time.Time) 
 	)
 
 	// record request duration distribution
-	metricManager.HTTPServerRequestDuration.Record(
+	mmetric.RecordHistogram(
+		ctx,
+		metricManager.HTTPServerRequestDuration,
 		durationMilli,
 		responseOptions,
 	)

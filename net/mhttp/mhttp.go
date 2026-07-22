@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"sync"
 
 	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/graingo/maltose/errors/mcode"
@@ -12,6 +13,8 @@ import (
 	"github.com/gin-gonic/gin"
 	ut "github.com/go-playground/universal-translator"
 )
+
+var configureGinOnce sync.Once
 
 const (
 	DefaultServerName  = "default"
@@ -37,15 +40,15 @@ type Server struct {
 // New creates a new HTTP server.
 func New(config ...*Config) *Server {
 	conf := defaultConfig()
-	if len(config) > 0 {
-		conf = config[0]
+	if len(config) > 0 && config[0] != nil {
+		conf = cloneConfig(config[0])
 	}
 
-	// disable gin's default log output
-	gin.DefaultWriter = io.Discard
-	gin.DefaultErrorWriter = io.Discard
-	// set to production mode
-	gin.SetMode(gin.ReleaseMode)
+	configureGinOnce.Do(func() {
+		gin.DefaultWriter = io.Discard
+		gin.DefaultErrorWriter = io.Discard
+		gin.SetMode(gin.ReleaseMode)
+	})
 
 	engine := gin.New()
 
@@ -71,8 +74,6 @@ func New(config ...*Config) *Server {
 		middlewares: make([]MiddlewareFunc, 0),
 		parent:      nil,
 	}
-	gin.Recovery()
-
 	// add default middlewares
 	s.Use(
 		internalMiddlewareTrace(),

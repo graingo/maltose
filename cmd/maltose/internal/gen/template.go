@@ -11,7 +11,7 @@ const (
 
 	import (
 		"context"
-		"{{.ApiModule}}"
+		"{{.APIModule}}"
 	)
 
 	type c{{.Service}} struct{}
@@ -23,7 +23,7 @@ const (
 
 	{{range .Functions}}
 	// {{.Name}} is the handler for the {{.Name}} API.
-	func (c *c{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.ReqName}}) (res *{{$.ApiPkg}}.{{.ResName}}, err error) {
+	func (c *c{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.APIPkg}}.{{.ReqName}}) (res *{{$.APIPkg}}.{{.ResName}}, err error) {
 		// TODO: Implement the business logic here.
 		panic("implement me")
 	}
@@ -53,12 +53,12 @@ const (
 
 	import (
 		"context"
-		"{{.ApiModule}}"
+		"{{.APIModule}}"
 	)
 
 	{{range .Functions}}
 	// {{.Name}} is the handler for the {{.Name}} API.
-	func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.ReqName}}) (res *{{$.ApiPkg}}.{{.ResName}}, err error) {
+	func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.APIPkg}}.{{.ReqName}}) (res *{{$.APIPkg}}.{{.ResName}}, err error) {
 		// TODO: Implement the business logic here.
 		panic("implement me")
 	}
@@ -69,7 +69,7 @@ const (
 	TplGenControllerMethodOnly = `
 {{range .Functions}}
 // {{.Name}} is the handler for the {{.Name}} API.
-func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.ReqName}}) (res *{{$.ApiPkg}}.{{.ResName}}, err error) {
+func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.APIPkg}}.{{.ReqName}}) (res *{{$.APIPkg}}.{{.ResName}}, err error) {
 	// TODO: Implement the business logic here.
 	panic("implement me")
 }
@@ -101,7 +101,7 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.R
 	TplGenServiceMethodOnly = `
 {{range .Functions}}
 // {{.Name}} is the handler for the {{.Name}} API.
-func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.ReqName}}) (res *{{$.ApiPkg}}.{{.ResName}}, err error) {
+func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.APIPkg}}.{{.ReqName}}) (res *{{$.APIPkg}}.{{.ResName}}, err error) {
 	// TODO: Implement the business logic here.
 	panic("implement me")
 }
@@ -138,7 +138,7 @@ func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.Req
 	// TplGenServiceInterfaceMethodOnly is the template for appending new methods to an existing service interface file.
 	TplGenServiceInterfaceMethodOnly = `
 {{range .Functions}}
-	{{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.ReqName}}) (res *{{$.ApiPkg}}.{{.ResName}}, err error)
+	{{.Name}}(ctx context.Context, req *{{$.APIPkg}}.{{.ReqName}}) (res *{{$.APIPkg}}.{{.ResName}}, err error)
 {{end}}
 `
 
@@ -151,7 +151,7 @@ func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.Req
 	import (
 		"context"
 
-		"{{.ApiModule}}"
+		"{{.APIModule}}"
 		"{{.SvcPackage}}"
 	)
 
@@ -167,9 +167,9 @@ func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.Req
 	}
 
 	{{range .Functions}}
-	func (s *s{{$.Service}}) {{.Name}}(ctx context.Context{{if .ReqName}}, input {{if .ReqIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ReqName}}{{end}}) ({{if .ResName}}output {{if .ResIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ResName}}, {{end}}err error) {
+	func (s *s{{$.Service}}) {{.Name}}(ctx context.Context{{if .ReqName}}, input {{if .ReqIsPointer}}*{{end}}{{$.APIPkg}}.{{.ReqName}}{{end}}) ({{if .ResName}}output {{if .ResIsPointer}}*{{end}}{{$.APIPkg}}.{{.ResName}}, {{end}}err error) {
 		// TODO: Implement the business logic of {{.Name}}.
-		{{if .ResName}}{{if .ResIsPointer}}output = new({{$.ApiPkg}}.{{.ResName}}){{end}}{{end}}
+		{{if .ResName}}{{if .ResIsPointer}}output = new({{$.APIPkg}}.{{.ResName}}){{end}}{{end}}
 		return
 	}
 	{{end}}
@@ -178,9 +178,9 @@ func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.ApiPkg}}.{{.Req
 	// TplGenServiceLogicAppend is the template for appending new methods to a service logic file.
 	TplGenServiceLogicAppend = `
 {{range .Functions}}
-func (s *s{{$.Service}}) {{.Name}}(ctx context.Context{{if .ReqName}}, input {{if .ReqIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ReqName}}{{end}}) ({{if .ResName}}output {{if .ResIsPointer}}*{{end}}{{$.ApiPkg}}.{{.ResName}}, {{end}}err error) {
+func (s *s{{$.Service}}) {{.Name}}(ctx context.Context{{if .ReqName}}, input {{if .ReqIsPointer}}*{{end}}{{$.APIPkg}}.{{.ReqName}}{{end}}) ({{if .ResName}}output {{if .ResIsPointer}}*{{end}}{{$.APIPkg}}.{{.ResName}}, {{end}}err error) {
 	// TODO: Implement the business logic of {{.Name}}.
-	{{if .ResName}}{{if .ResIsPointer}}output = new({{$.ApiPkg}}.{{.ResName}}){{end}}{{end}}
+	{{if .ResName}}{{if .ResIsPointer}}output = new({{$.APIPkg}}.{{.ResName}}){{end}}{{end}}
 	return
 }
 {{end}}

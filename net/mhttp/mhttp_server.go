@@ -56,18 +56,22 @@ func (s *Server) Run() {
 		} else {
 			err = s.srv.ListenAndServe()
 		}
-		if err != nil && err != http.ErrServerClosed {
-			errChan <- err
+		if err == http.ErrServerClosed {
+			err = nil
 		}
+		errChan <- err
 	}()
 
 	// listen system signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
 
 	select {
 	case err := <-errChan:
-		s.logger().Errorf(ctx, err, "HTTP server %s start failed", s.config.ServerName)
+		if err != nil {
+			s.logger().Errorf(ctx, err, "HTTP server %s start failed", s.config.ServerName)
+		}
 	case <-quit:
 		s.logger().Infof(ctx, "Shutting down server...")
 

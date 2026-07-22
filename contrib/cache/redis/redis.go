@@ -328,6 +328,10 @@ func (c *AdapterRedis) UpdateExpire(ctx context.Context, key string, duration ti
 		_, err = c.redis.Del(ctx, key)
 		return
 	}
+	if duration == 0 {
+		_, err = c.redis.Persist(ctx, key)
+		return
+	}
 	_, err = c.redis.Expire(ctx, key, duration)
 	return
 }

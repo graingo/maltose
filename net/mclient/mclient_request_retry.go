@@ -64,6 +64,21 @@ func DefaultRetryConfig() RetryConfig {
 
 // SetRetry sets retry configuration.
 func (r *Request) SetRetry(config RetryConfig) *Request {
+	if config.Count < 0 {
+		config.Count = 0
+	}
+	if config.BaseInterval < 0 {
+		config.BaseInterval = 0
+	}
+	if config.BackoffFactor <= 0 {
+		config.BackoffFactor = 1
+	}
+	if config.MaxInterval <= 0 {
+		config.MaxInterval = DefaultRetryConfig().MaxInterval
+	}
+	if config.JitterFactor < 0 {
+		config.JitterFactor = 0
+	}
 	r.retryCount = config.Count
 	r.retryInterval = config.BaseInterval
 	r.retryConfig = config

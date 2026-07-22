@@ -15,6 +15,9 @@ type Hook interface {
 
 // AddHook adds a hook to the logger.
 func (l *Logger) AddHook(hook Hook) error {
+	if hook == nil {
+		return merror.New("hook cannot be nil")
+	}
 	l.hookMu.Lock()
 	defer l.hookMu.Unlock()
 	for _, h := range l.hooks {

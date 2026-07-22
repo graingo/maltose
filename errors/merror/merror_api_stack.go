@@ -73,8 +73,8 @@ func HasStack(err error) bool {
 // Note that in the default comparison logic of `Error`,
 // if the `code` and `text` of the two errors are the same, it is considered that they are the same.
 func Equal(err, target error) bool {
-	if err == target {
-		return true
+	if err == nil || target == nil {
+		return err == nil && target == nil
 	}
 	if e, ok := err.(IEqual); ok {
 		return e.Equal(target)

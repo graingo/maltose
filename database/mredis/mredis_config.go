@@ -62,6 +62,16 @@ func defaultConfig() *Config {
 	}
 }
 
+func cloneConfig(config *Config) *Config {
+	if config == nil {
+		return defaultConfig()
+	}
+	cloned := *config
+	cloned.Hooks = append([]Hook(nil), config.Hooks...)
+	cloned.loggerHook = nil
+	return &cloned
+}
+
 func (c *Config) SetConfigWithMap(config map[string]any) error {
 	return mconv.ToStructE(config, c)
 }

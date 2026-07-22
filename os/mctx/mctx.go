@@ -22,7 +22,10 @@ func WithSpan(ctx context.Context, spanName string) context.Context {
 	if spanName == "" {
 		spanName = "mctx.WithSpan"
 	}
-	ctx, _ = mtrace.NewSpan(ctx, spanName)
+	ctx, span := mtrace.NewSpan(ctx, spanName)
+	// The API returns only a context, so callers have no span handle to end.
+	// End the synthetic context span immediately to avoid retaining it forever.
+	span.End()
 	return ctx
 }
 

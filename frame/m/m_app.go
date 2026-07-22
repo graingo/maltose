@@ -15,12 +15,13 @@ import (
 
 // App is the core application structure that manages the lifecycle of services and hooks.
 type App struct {
-	servers       []AppServer
-	shutdownHooks []func(ctx context.Context) error
-	shutdownOnce  sync.Once
-	logger        *mlog.Logger
-	ctx           context.Context
-	cancel        context.CancelFunc
+	servers         []AppServer
+	shutdownHooks   []func(ctx context.Context) error
+	shutdownOnce    sync.Once
+	shutdownTimeout time.Duration
+	logger          *mlog.Logger
+	ctx             context.Context
+	cancel          context.CancelFunc
 }
 
 // An Option configures an App.
@@ -43,7 +44,18 @@ func WithShutdownHook(hooks ...func(ctx context.Context) error) Option {
 // WithLogger sets the logger for the application.
 func WithLogger(logger *mlog.Logger) Option {
 	return func(a *App) {
-		a.logger = logger
+		if logger != nil {
+			a.logger = logger
+		}
+	}
+}
+
+// WithShutdownTimeout sets the maximum duration for each server stop and for shutdown hooks.
+func WithShutdownTimeout(timeout time.Duration) Option {
+	return func(a *App) {
+		if timeout > 0 {
+			a.shutdownTimeout = timeout
+		}
 	}
 }
 
@@ -62,11 +74,12 @@ type AppServer interface {
 func NewApp(opts ...Option) *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	app := &App{
-		servers:       make([]AppServer, 0),
-		shutdownHooks: make([]func(ctx context.Context) error, 0),
-		logger:        mlog.New(),
-		ctx:           ctx,
-		cancel:        cancel,
+		servers:         make([]AppServer, 0),
+		shutdownHooks:   make([]func(ctx context.Context) error, 0),
+		logger:          mlog.New(),
+		shutdownTimeout: 10 * time.Second,
+		ctx:             ctx,
+		cancel:          cancel,
 	}
 	for _, opt := range opts {
 		opt(app)
@@ -76,28 +89,34 @@ func NewApp(opts ...Option) *App {
 
 // Run starts the application and waits for a signal to gracefully shutdown.
 func (a *App) Run() error {
+	defer a.cancel()
 	eg, ctx := errgroup.WithContext(a.ctx)
 
 	// Start all servers and their corresponding stop listeners.
 	for _, s := range a.servers {
 		srv := s
+		if srv == nil {
+			continue
+		}
 		// Start the server in a goroutine.
 		eg.Go(func() error {
-			return srv.Start(ctx)
+			err := srv.Start(ctx)
+			// A server returning, with or without an error, ends the application lifecycle.
+			a.cancel()
+			return err
 		})
 		// Start a corresponding stop listener for the server.
 		eg.Go(func() error {
 			// Wait for the context to be canceled.
 			<-ctx.Done()
-			// Call the server's Stop method.
-			// We use a background context because the parent `ctx` is already canceled.
-			return srv.Stop(context.Background())
+			return stopServer(srv, a.shutdownTimeout)
 		})
 	}
 
 	// Start a goroutine to listen for OS signals.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
 	eg.Go(func() error {
 		select {
 		case <-ctx.Done():
@@ -121,7 +140,7 @@ func (a *App) Run() error {
 		a.logger.Warnf(context.Background(), "Shutdown initiated due to a service startup failure. You can see the error from return value.")
 	}
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
+	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), a.shutdownTimeout)
 	defer shutdownCancel()
 
 	var shutdownErr error
@@ -143,4 +162,19 @@ func (a *App) Run() error {
 	}
 
 	return shutdownErr
+}
+
+func stopServer(server AppServer, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- server.Stop(ctx)
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

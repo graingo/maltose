@@ -43,15 +43,15 @@ func DB(name ...string) *mdb.DB {
 			panic(merror.NewCodef(mcode.CodeMissingConfiguration, `configuration node "%s" not found`, configNodeNameDB))
 		}
 
-		globalConfigMap := dbConfigNode.(map[string]any)
+		globalConfigMap := mustConfigMap(dbConfigNode, configNodeNameDB)
 
 		var databaseConfigMap map[string]any
 		// try to get specific instance config
 		if instanceConfig, ok := globalConfigMap[instanceName]; ok {
-			databaseConfigMap = instanceConfig.(map[string]any)
+			databaseConfigMap = mustConfigMap(instanceConfig, fmt.Sprintf("%s.%s", configNodeNameDB, instanceName))
 		} else if defaultConfig, ok := globalConfigMap["default"]; ok {
 			// try to get default instance config
-			databaseConfigMap = defaultConfig.(map[string]any)
+			databaseConfigMap = mustConfigMap(defaultConfig, configNodeNameDB+".default")
 		} else if len(globalConfigMap) > 0 {
 			// use flat structure config
 			databaseConfigMap = globalConfigMap
@@ -70,10 +70,10 @@ func DB(name ...string) *mdb.DB {
 		var loggerConfigMap map[string]any
 		if loggerConfig, ok := databaseConfigMap[configNodeNameLogger]; ok {
 			// specific instance logger config
-			loggerConfigMap = loggerConfig.(map[string]any)
+			loggerConfigMap = mustConfigMap(loggerConfig, fmt.Sprintf("%s.%s.%s", configNodeNameDB, instanceName, configNodeNameLogger))
 		} else if globalLoggerConfig, ok := configMap[configNodeNameLogger]; ok {
 			// global logger config
-			loggerConfigMap = globalLoggerConfig.(map[string]any)
+			loggerConfigMap = mustConfigMap(globalLoggerConfig, configNodeNameLogger)
 		}
 
 		// apply logger config

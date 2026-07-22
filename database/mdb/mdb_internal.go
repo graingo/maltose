@@ -2,13 +2,15 @@ package mdb
 
 import (
 	"context"
-	"fmt"
+	"net"
+	"net/url"
 	"time"
 
+	driverMySQL "github.com/go-sql-driver/mysql"
 	"github.com/graingo/maltose"
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/os/mlog"
-	"gorm.io/driver/mysql"
+	gormMySQL "gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -25,11 +27,25 @@ func createDriver(cfg *Config) (gorm.Dialector, error) {
 		// Build DSN from connection parameters if DSN is not provided
 		switch cfg.Type {
 		case "mysql":
-			dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-				cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBName)
+			mysqlConfig := driverMySQL.NewConfig()
+			mysqlConfig.User = cfg.User
+			mysqlConfig.Passwd = cfg.Password
+			mysqlConfig.Net = "tcp"
+			mysqlConfig.Addr = net.JoinHostPort(cfg.Host, cfg.Port)
+			mysqlConfig.DBName = cfg.DBName
+			mysqlConfig.Params = map[string]string{"charset": "utf8mb4"}
+			mysqlConfig.ParseTime = true
+			mysqlConfig.Loc = time.Local
+			dsn = mysqlConfig.FormatDSN()
 		case "postgres":
-			dsn = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-				cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName)
+			postgresURL := &url.URL{
+				Scheme:   "postgres",
+				User:     url.UserPassword(cfg.User, cfg.Password),
+				Host:     net.JoinHostPort(cfg.Host, cfg.Port),
+				Path:     cfg.DBName,
+				RawQuery: "sslmode=disable",
+			}
+			dsn = postgresURL.String()
 		}
 	}
 
@@ -41,7 +57,7 @@ func createDriver(cfg *Config) (gorm.Dialector, error) {
 	var driver gorm.Dialector
 	switch cfg.Type {
 	case "mysql":
-		driver = mysql.Open(dsn)
+		driver = gormMySQL.Open(dsn)
 	case "postgres":
 		driver = postgres.Open(dsn)
 	case "sqlite":
@@ -112,6 +128,9 @@ func configureConnectionPool(db *gorm.DB, cfg *Config) error {
 		maxIdleTime = time.Hour // Default 1 hour
 	}
 	sqlDB.SetConnMaxIdleTime(maxIdleTime)
+
+	// Set maximum lifetime for connections. A zero value disables lifetime-based closing.
+	sqlDB.SetConnMaxLifetime(cfg.MaxLifetime)
 
 	return nil
 }

@@ -30,7 +30,7 @@ func Instance(name ...string) *DB {
 		if config, ok := GetConfig(key); ok {
 			r, err := New(config)
 			if err != nil {
-				intlog.Errorf(context.TODO(), `new db instance failed: "%s"`, key)
+				intlog.Errorf(context.TODO(), `new db instance failed: "%s": %v`, key, err)
 				return nil
 			}
 			return r
@@ -45,7 +45,8 @@ func Instance(name ...string) *DB {
 
 // SetConfig sets the db configuration with the specified name.
 func SetConfig(name string, cfg *Config) {
-	configs.Set(name, cfg)
+	configs.Set(name, cloneConfig(cfg))
+	invalidateInstance(name)
 }
 
 // SetConfigByMap sets the db configuration with the specified name.
@@ -59,6 +60,7 @@ func SetConfigByMap(m map[string]any, name ...string) error {
 		return err
 	}
 	configs.Set(key, config)
+	invalidateInstance(key)
 	return nil
 }
 
@@ -79,7 +81,7 @@ func GetConfig(name ...string) (config *Config, ok bool) {
 		key = name[0]
 	}
 	if v := configs.Get(key); v != nil {
-		return v.(*Config), true
+		return cloneConfig(v.(*Config)), true
 	}
 	return &Config{}, false
 }
@@ -91,6 +93,13 @@ func RemoveConfig(name ...string) {
 		key = name[0]
 	}
 	configs.Remove(key)
+	invalidateInstance(key)
 
 	intlog.Printf(context.TODO(), `db configuration "%s" removed`, key)
+}
+
+func invalidateInstance(key string) {
+	if instance, ok := instances.Pop(key).(*DB); ok {
+		_ = instance.Close()
+	}
 }

@@ -77,8 +77,8 @@ func TestLimit_Borrow(t *testing.T) {
 
 				// Update max if needed
 				for {
-					max := atomic.LoadInt32(&maxReached)
-					if current <= max || atomic.CompareAndSwapInt32(&maxReached, max, current) {
+					peak := atomic.LoadInt32(&maxReached)
+					if current <= peak || atomic.CompareAndSwapInt32(&maxReached, peak, current) {
 						break
 					}
 				}
@@ -93,8 +93,8 @@ func TestLimit_Borrow(t *testing.T) {
 		wg.Wait()
 
 		// Should never exceed the limit
-		max := atomic.LoadInt32(&maxReached)
-		assert.LessOrEqual(t, max, int32(maxConcurrent),
+		peak := atomic.LoadInt32(&maxReached)
+		assert.LessOrEqual(t, peak, int32(maxConcurrent),
 			"Concurrent executions should not exceed limit")
 	})
 }
@@ -219,7 +219,7 @@ func TestLimit_HTTPClientScenario(t *testing.T) {
 		start := time.Now()
 
 		for i := 0; i < totalRequests; i++ {
-			go func(id int) {
+			go func() {
 				defer wg.Done()
 
 				// Acquire slot
@@ -229,7 +229,7 @@ func TestLimit_HTTPClientScenario(t *testing.T) {
 				// Simulate HTTP request
 				time.Sleep(10 * time.Millisecond)
 				atomic.AddInt32(&completed, 1)
-			}(i)
+			}()
 		}
 
 		wg.Wait()

@@ -3,13 +3,16 @@ package mclient
 import (
 	"bytes"
 	"io"
+	"net/http"
+	"sort"
 	"time"
 
 	"github.com/graingo/maltose"
 	"github.com/graingo/maltose/os/mlog"
 )
 
-var LogMaxBodySize = -1
+// LogMaxBodySize controls request/response body logging. Zero disables body logging.
+var LogMaxBodySize = 0
 
 // MiddlewareLog creates a middleware that logs request and response details in two steps:
 // 1. Before the request is sent ("started").
@@ -21,6 +24,7 @@ func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 			return next
 		}
 	}
+	bodyLimit := LogMaxBodySize
 
 	return func(next HandlerFunc) HandlerFunc {
 		return func(req *Request) (*Response, error) {
@@ -30,18 +34,19 @@ func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 			// --- Step 1: Log request start ---
 
 			var reqBodyBytes []byte
-			if req.Body != nil {
-				// Safely read request body for logging and then restore it
-				reqBodyBytes, _ = io.ReadAll(req.Body)
-				req.Body = io.NopCloser(bytes.NewBuffer(reqBodyBytes))
+			if bodyLimit != 0 && req.Body != nil {
+				reqBodyBytes, req.Body = readBodyForLog(req.Body, bodyLimit)
 			}
 
 			requestFields := mlog.Fields{
 				mlog.String("method", req.Request.Method),
-				mlog.String("url", req.Request.URL.String()),
+				mlog.String("url", urlWithoutQuery(req.Request)),
+			}
+			if queryKeys := requestQueryKeys(req.Request); len(queryKeys) > 0 {
+				requestFields = append(requestFields, mlog.Any("query_keys", queryKeys))
 			}
 			if len(reqBodyBytes) > 0 {
-				requestFields = append(requestFields, mlog.String("request_body", getBodyString(reqBodyBytes, LogMaxBodySize)))
+				requestFields = append(requestFields, mlog.String("request_body", getBodyString(reqBodyBytes, bodyLimit)))
 			}
 
 			l.Infow(ctx, "http client request started", requestFields...)
@@ -65,11 +70,11 @@ func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 
 			// If we got a response, add its details to the log
 			finalFields = append(finalFields, mlog.Int("status", resp.StatusCode))
-			if resp.Body != nil {
-				bodyBytes, _ := io.ReadAll(resp.Body)
-				resp.Body = io.NopCloser(bytes.NewBuffer(bodyBytes)) // Restore body for next handler
+			if bodyLimit != 0 && resp.Body != nil {
+				bodyBytes, restoredBody := readBodyForLog(resp.Body, bodyLimit)
+				resp.Body = restoredBody
 				if len(bodyBytes) > 0 {
-					finalFields = append(finalFields, mlog.String("response_body", getBodyString(bodyBytes, LogMaxBodySize)))
+					finalFields = append(finalFields, mlog.String("response_body", getBodyString(bodyBytes, bodyLimit)))
 				}
 			}
 
@@ -81,6 +86,53 @@ func MiddlewareLog(logger *mlog.Logger) MiddlewareFunc {
 
 			return resp, nil
 		}
+	}
+}
+
+func urlWithoutQuery(request *http.Request) string {
+	if request == nil || request.URL == nil {
+		return ""
+	}
+	urlCopy := *request.URL
+	urlCopy.RawQuery = ""
+	urlCopy.ForceQuery = false
+	return urlCopy.String()
+}
+
+func requestQueryKeys(request *http.Request) []string {
+	if request == nil || request.URL == nil {
+		return nil
+	}
+	query := request.URL.Query()
+	keys := make([]string, 0, len(query))
+	for key := range query {
+		keys = append(keys, key)
+	}
+	sort.Strings(keys)
+	return keys
+}
+
+type replayReadCloser struct {
+	io.Reader
+	io.Closer
+}
+
+func readBodyForLog(body io.ReadCloser, limit int) ([]byte, io.ReadCloser) {
+	if limit < 0 {
+		data, err := io.ReadAll(body)
+		if err != nil {
+			return nil, body
+		}
+		_ = body.Close()
+		return data, io.NopCloser(bytes.NewReader(data))
+	}
+	data, err := io.ReadAll(io.LimitReader(body, int64(limit+1)))
+	if err != nil {
+		return nil, body
+	}
+	return data, &replayReadCloser{
+		Reader: io.MultiReader(bytes.NewReader(data), body),
+		Closer: body,
 	}
 }
 

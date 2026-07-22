@@ -2,6 +2,7 @@ package mvar_test
 
 import (
 	"encoding/json"
+	"sync"
 	"testing"
 	"time"
 
@@ -172,4 +173,46 @@ func TestVar_Set(t *testing.T) {
 	old = v.Set("new")
 	assert.Equal(t, "initial", old)
 	assert.Equal(t, "new", v.Val())
+}
+
+func TestVar_SafeConcurrentAccess(_ *testing.T) {
+	v := mvar.New(0, true)
+	var wg sync.WaitGroup
+	for i := 0; i < 100; i++ {
+		wg.Add(2)
+		go func(value int) {
+			defer wg.Done()
+			v.Set(value)
+		}(i)
+		go func() {
+			defer wg.Done()
+			_ = v.Val()
+			_ = v.IsNil()
+		}()
+	}
+	wg.Wait()
+}
+
+func TestVarTypedNilAndNamedContainerEmptiness(t *testing.T) {
+	type namedSlice []int
+	type namedMap map[string]int
+
+	var pointer *int
+	var slice namedSlice
+	var data namedMap
+
+	assert.True(t, mvar.New(pointer).IsNil())
+	assert.True(t, mvar.New(slice).IsNil())
+	assert.True(t, mvar.New(data).IsNil())
+	assert.True(t, mvar.New(namedSlice{}).IsEmpty())
+	assert.True(t, mvar.New(namedMap{}).IsEmpty())
+	assert.False(t, mvar.New(namedSlice{1}).IsEmpty())
+}
+
+func TestVar_ReflectionKindsAndUnexportedFields(t *testing.T) {
+	assert.True(t, mvar.New([]float64{1}).IsSlice())
+	assert.True(t, mvar.New(map[int]string{1: "one"}).IsMap())
+	assert.NotPanics(t, func() {
+		_ = mvar.New(time.Now()).Map()
+	})
 }

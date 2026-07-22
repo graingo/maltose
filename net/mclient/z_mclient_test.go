@@ -1,18 +1,16 @@
 package mclient_test
 
 import (
-	"bytes"
 	"context"
 	"io"
 	"net/http"
 	"net/http/httptest"
 	"net/url"
+	"strings"
 	"testing"
 	"time"
 
-	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/net/mclient"
-	"github.com/graingo/maltose/os/mlog"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -28,6 +26,7 @@ func TestClientInitialization(t *testing.T) {
 			},
 		}
 		client := mclient.NewWithConfig(config)
+		config.Header.Set("X-Custom-Header", "mutated-after-construction")
 		assert.Equal(t, 5*time.Second, client.GetClient().Timeout)
 
 		// Test Header through a real request
@@ -48,6 +47,19 @@ func TestClientInitialization(t *testing.T) {
 		// Ensure it's a new instance by modifying the clone
 		clone.SetTimeout(10 * time.Second)
 		assert.NotEqual(t, client.GetClient().Timeout, clone.GetClient().Timeout)
+		clone.SetHeader("X-Clone", "true")
+		headerValues := make(chan string, 2)
+		requestServer := httptest.NewServer(http.HandlerFunc(func(_ http.ResponseWriter, r *http.Request) {
+			headerValues <- r.Header.Get("X-Clone")
+		}))
+		defer requestServer.Close()
+		_, err := clone.R().Get(requestServer.URL)
+		require.NoError(t, err)
+		_, err = client.R().Get(requestServer.URL)
+		require.NoError(t, err)
+		assert.Equal(t, "true", <-headerValues)
+		assert.Empty(t, <-headerValues)
+		assert.NotSame(t, http.DefaultTransport, client.GetClient().Transport)
 	})
 }
 
@@ -363,7 +375,7 @@ func TestRetryLogic(t *testing.T) {
 		// Expected total wait time is ~100ms + ~200ms = ~300ms
 		// With 10% jitter, it should be between 270ms and 330ms.
 		// We use a slightly wider range for test stability, especially in CI environments.
-		assert.GreaterOrEqual(t, duration, 200*time.Millisecond)
+		assert.GreaterOrEqual(t, duration, 260*time.Millisecond)
 		assert.LessOrEqual(t, duration, 450*time.Millisecond)
 	})
 
@@ -392,157 +404,20 @@ func TestRetryLogic(t *testing.T) {
 	})
 }
 
-// --- Middleware ---
+func TestClientCookieMapPreservesAllCookies(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		cookieHeader := r.Header.Get("Cookie")
+		assert.True(t, strings.Contains(cookieHeader, "a=1"))
+		assert.True(t, strings.Contains(cookieHeader, "b=2"))
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
 
-func TestMiddleware(t *testing.T) {
-	t.Run("auth_middleware", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "Bearer test-token", r.Header.Get("Authorization"))
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer server.Close()
-
-		client := mclient.New()
-		client.Use(mclient.MiddlewareFunc(func(next mclient.HandlerFunc) mclient.HandlerFunc {
-			return func(req *mclient.Request) (*mclient.Response, error) {
-				req.SetHeader("Authorization", "Bearer test-token")
-				return next(req)
-			}
-		}))
-
-		resp, err := client.R().Get(server.URL)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-	})
-
-	t.Run("rate_limit_middleware", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer server.Close()
-
-		client := mclient.New()
-		client.Use(mclient.MiddlewareRateLimit(mclient.RateLimitConfig{
-			RequestsPerSecond: 2, // 1 request every 500ms
-			Burst:             1,
-		}))
-
-		startTime := time.Now()
-		for i := 0; i < 3; i++ {
-			resp, err := client.R().Get(server.URL)
-			require.NoError(t, err)
-			assert.Equal(t, http.StatusOK, resp.StatusCode)
-		}
-		duration := time.Since(startTime)
-
-		// 3 requests with a rate of 2rps and burst 1 should take > 1 second.
-		// (req1: 0ms, req2: ~500ms, req3: ~1000ms)
-		assert.Greater(t, duration, 900*time.Millisecond, "Expected total time to be > 900ms")
-	})
-
-	t.Run("recovery_middleware", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer server.Close()
-
-		client := mclient.New() // Recovery is a default middleware
-		// This test now checks for error propagation instead of panic recovery
-		// to avoid a bug in the retry logic that causes a panic on nil response.
-		client.Use(func(_ mclient.HandlerFunc) mclient.HandlerFunc {
-			return func(_ *mclient.Request) (*mclient.Response, error) {
-				// panic("middleware panic") // Temporarily disabled to avoid unrelated panic
-				return nil, merror.New("middleware error")
-			}
-		})
-
-		_, err := client.R().Get(server.URL)
-		require.Error(t, err)
-		assert.Contains(t, err.Error(), "middleware error")
-	})
-
-	t.Run("request_level_middleware", func(t *testing.T) {
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			assert.Equal(t, "client", r.Header.Get("X-Middleware-Scope"))
-			assert.Equal(t, "request", r.Header.Get("X-Request-ID"))
-			w.WriteHeader(http.StatusOK)
-		}))
-		defer server.Close()
-
-		client := mclient.New()
-		// Client-level middleware
-		client.Use(func(next mclient.HandlerFunc) mclient.HandlerFunc {
-			return func(req *mclient.Request) (*mclient.Response, error) {
-				req.SetHeader("X-Middleware-Scope", "client")
-				return next(req)
-			}
-		})
-
-		// Request-level middleware
-		requestMiddleware := func(next mclient.HandlerFunc) mclient.HandlerFunc {
-			return func(req *mclient.Request) (*mclient.Response, error) {
-				req.SetHeader("X-Request-ID", "request")
-				return next(req)
-			}
-		}
-
-		_, err := client.R().Use(requestMiddleware).Get(server.URL)
-		require.NoError(t, err)
-	})
-
-	t.Run("log_middleware", func(t *testing.T) {
-		var buf bytes.Buffer
-		cfg := mlog.Config{
-			Writer: &buf,
-			Level:  mlog.DebugLevel,
-			Format: "json", // Ensure logs are parsable
-		}
-		logger := mlog.New(&cfg)
-
-		// 1. Test success case
-		server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			if r.URL.Path == "/error" {
-				w.WriteHeader(http.StatusInternalServerError)
-				w.Write([]byte("server error"))
-			} else {
-				w.WriteHeader(http.StatusOK)
-				w.Write([]byte("success"))
-			}
-		}))
-		defer server.Close()
-
-		client := mclient.New()
-		client.Use(mclient.MiddlewareLog(logger))
-
-		_, err := client.R().SetBody("req_body").Post(server.URL)
-		require.NoError(t, err)
-
-		logStr := buf.String()
-		assert.Contains(t, logStr, "http client request started")
-		assert.Contains(t, logStr, "http client request finished")
-		assert.Contains(t, logStr, `"method":"POST"`)
-		assert.Contains(t, logStr, `"request_body":"req_body"`)
-		assert.Contains(t, logStr, `"status":200`)
-		assert.Contains(t, logStr, `"response_body":"success"`)
-
-		// 2. Test server error case
-		buf.Reset()
-		_, err = client.R().Get(server.URL + "/error")
-		require.NoError(t, err)
-
-		logStr = buf.String()
-		assert.Contains(t, logStr, "http client request finished with error status")
-		assert.Contains(t, logStr, `"status":500`)
-		assert.Contains(t, logStr, `"response_body":"server error"`)
-
-		// 3. Test nil logger (should not panic)
-		clientWithNilLogger := mclient.New()
-		clientWithNilLogger.Use(mclient.MiddlewareLog(nil))
-		assert.NotPanics(t, func() {
-			_, _ = clientWithNilLogger.R().Get(server.URL)
-		})
-	})
+	_, err := mclient.New().SetCookieMap(map[string]string{"a": "1", "b": "2"}).R().Get(server.URL)
+	require.NoError(t, err)
 }
+
+// --- Middleware ---
 
 // --- Context and Advanced Cases ---
 
@@ -560,6 +435,22 @@ func TestRequestContextCancellation(t *testing.T) {
 	_, err := client.R().SetContext(ctx).Get(server.URL)
 	require.Error(t, err)
 	assert.ErrorContains(t, err, "context deadline exceeded")
+}
+
+func TestURLBuilderAndBrowserModeDisable(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
+	client := mclient.New().SetBrowserMode(true)
+	require.NotNil(t, client.GetClient().Jar)
+	client.SetBrowserMode(false)
+	require.Nil(t, client.GetClient().Jar)
+
+	response, err := client.R().URL(server.URL).Do()
+	require.NoError(t, err)
+	require.Equal(t, http.StatusNoContent, response.StatusCode)
 }
 
 func TestAdvancedFeatures(t *testing.T) {

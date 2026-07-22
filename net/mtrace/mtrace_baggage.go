@@ -26,11 +26,17 @@ func NewBaggage(ctx context.Context) *Baggage {
 
 // SetValue sets a single baggage value.
 func (b *Baggage) SetValue(key string, value interface{}) context.Context {
-	member, _ := baggage.NewMember(key, mconv.ToString(value))
+	member, err := baggage.NewMember(key, mconv.ToString(value))
+	if err != nil {
+		return b.ctx
+	}
 	// Correctly create a new baggage with the new member.
 	// We must start from the existing baggage in the context.
 	bag := baggage.FromContext(b.ctx)
-	bag, _ = bag.SetMember(member)
+	bag, err = bag.SetMember(member)
+	if err != nil {
+		return b.ctx
+	}
 	b.ctx = baggage.ContextWithBaggage(b.ctx, bag)
 	return b.ctx
 }
@@ -39,8 +45,15 @@ func (b *Baggage) SetValue(key string, value interface{}) context.Context {
 func (b *Baggage) SetMap(data map[string]interface{}) context.Context {
 	bag := baggage.FromContext(b.ctx)
 	for k, v := range data {
-		member, _ := baggage.NewMember(k, mconv.ToString(v))
-		bag, _ = bag.SetMember(member)
+		member, err := baggage.NewMember(k, mconv.ToString(v))
+		if err != nil {
+			continue
+		}
+		updated, err := bag.SetMember(member)
+		if err != nil {
+			continue
+		}
+		bag = updated
 	}
 	b.ctx = baggage.ContextWithBaggage(b.ctx, bag)
 	return b.ctx

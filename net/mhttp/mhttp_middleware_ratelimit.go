@@ -21,6 +21,16 @@ type RateLimitConfig struct {
 	ErrorHandler func(*Request)
 }
 
+func normalizeRateLimitConfig(config RateLimitConfig) RateLimitConfig {
+	if config.Rate <= 0 {
+		config.Rate = 100
+	}
+	if config.Burst <= 0 {
+		config.Burst = 10
+	}
+	return config
+}
+
 // DefaultRateLimitConfig returns a default rate limit configuration
 func DefaultRateLimitConfig() RateLimitConfig {
 	return RateLimitConfig{
@@ -31,34 +41,8 @@ func DefaultRateLimitConfig() RateLimitConfig {
 
 // MiddlewareRateLimit creates a middleware that implements rate limiting using a token bucket algorithm
 func MiddlewareRateLimit(config RateLimitConfig) MiddlewareFunc {
-	if config.Rate <= 0 {
-		config.Rate = 100 // Default to 100 requests per second
-	}
-	if config.Burst <= 0 {
-		config.Burst = 10 // Default burst size
-	}
-
-	// Create a token bucket
-	tokens := float64(config.Burst)
-	lastRefill := time.Now()
-	var mu sync.Mutex
-
-	// Refill tokens at the specified rate
-	refillInterval := time.Duration(float64(time.Second) / config.Rate)
-	ticker := time.NewTicker(refillInterval)
-	go func() {
-		for range ticker.C {
-			mu.Lock()
-			now := time.Now()
-			elapsed := now.Sub(lastRefill).Seconds()
-			tokens += elapsed * config.Rate
-			if tokens > float64(config.Burst) {
-				tokens = float64(config.Burst)
-			}
-			lastRefill = now
-			mu.Unlock()
-		}
-	}()
+	config = normalizeRateLimitConfig(config)
+	limiter := &rateLimiter{tokens: float64(config.Burst), lastRefill: time.Now(), lastSeen: time.Now()}
 
 	return func(r *Request) {
 		// Skip rate limiting if SkipFunc returns true
@@ -66,9 +50,7 @@ func MiddlewareRateLimit(config RateLimitConfig) MiddlewareFunc {
 			return
 		}
 
-		mu.Lock()
-		if tokens < 1 {
-			mu.Unlock()
+		if !limiter.allow(config.Rate, config.Burst) {
 			if config.ErrorHandler != nil {
 				config.ErrorHandler(r)
 			} else {
@@ -76,24 +58,24 @@ func MiddlewareRateLimit(config RateLimitConfig) MiddlewareFunc {
 					"error": "Too Many Requests",
 				})
 			}
+			r.Abort()
 			return
 		}
-		tokens--
-		currentTokens := tokens
-		mu.Unlock()
 
 		// Log rate limit info if debug is enabled
 		if r.Request.Context() != nil {
-			intlog.Printf(r.Request.Context(), "Rate limit: %.2f tokens remaining", currentTokens)
+			intlog.Printf(r.Request.Context(), "Rate limiter allowed request")
 		}
 	}
 }
 
 // MiddlewareRateLimitByIP creates a middleware that implements rate limiting per IP address
 func MiddlewareRateLimitByIP(config RateLimitConfig) MiddlewareFunc {
+	config = normalizeRateLimitConfig(config)
 	// Create a map to store rate limiters for each IP
 	limiters := make(map[string]*rateLimiter)
 	var mu sync.RWMutex
+	lastCleanup := time.Now()
 
 	return func(r *Request) {
 		// Skip rate limiting if SkipFunc returns true
@@ -111,13 +93,30 @@ func MiddlewareRateLimitByIP(config RateLimitConfig) MiddlewareFunc {
 
 		if !exists {
 			mu.Lock()
-			limiter = &rateLimiter{
-				tokens:     float64(config.Burst),
-				lastRefill: time.Now(),
+			if existing, ok := limiters[ip]; ok {
+				limiter = existing
+			} else {
+				limiter = &rateLimiter{
+					tokens:     float64(config.Burst),
+					lastRefill: time.Now(),
+					lastSeen:   time.Now(),
+				}
+				limiters[ip] = limiter
 			}
-			limiters[ip] = limiter
 			mu.Unlock()
 		}
+
+		mu.Lock()
+		if time.Since(lastCleanup) >= time.Minute {
+			cutoff := time.Now().Add(-10 * time.Minute)
+			for key, candidate := range limiters {
+				if candidate.lastAccessBefore(cutoff) {
+					delete(limiters, key)
+				}
+			}
+			lastCleanup = time.Now()
+		}
+		mu.Unlock()
 
 		// Check rate limit
 		if !limiter.allow(config.Rate, config.Burst) {
@@ -128,6 +127,7 @@ func MiddlewareRateLimitByIP(config RateLimitConfig) MiddlewareFunc {
 					"error": "Too Many Requests",
 				})
 			}
+			r.Abort()
 			return
 		}
 	}
@@ -137,6 +137,7 @@ func MiddlewareRateLimitByIP(config RateLimitConfig) MiddlewareFunc {
 type rateLimiter struct {
 	tokens     float64
 	lastRefill time.Time
+	lastSeen   time.Time
 	mu         sync.Mutex
 }
 
@@ -151,6 +152,7 @@ func (l *rateLimiter) allow(rate float64, burst int) bool {
 		l.tokens = float64(burst)
 	}
 	l.lastRefill = now
+	l.lastSeen = now
 
 	if l.tokens < 1 {
 		return false
@@ -158,4 +160,10 @@ func (l *rateLimiter) allow(rate float64, burst int) bool {
 
 	l.tokens--
 	return true
+}
+
+func (l *rateLimiter) lastAccessBefore(cutoff time.Time) bool {
+	l.mu.Lock()
+	defer l.mu.Unlock()
+	return l.lastSeen.Before(cutoff)
 }

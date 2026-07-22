@@ -60,6 +60,16 @@ func defaultConfig() *Config {
 	}
 }
 
+func cloneConfig(config *Config) *Config {
+	if config == nil {
+		return defaultConfig()
+	}
+	cloned := *config
+	cloned.Replicas = append([]Config(nil), config.Replicas...)
+	cloned.Plugins = append([]gorm.Plugin(nil), config.Plugins...)
+	return &cloned
+}
+
 func (c *Config) SetConfigWithMap(config map[string]any) error {
 	return mconv.ToStructE(config, c)
 }

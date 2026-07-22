@@ -2,9 +2,10 @@ package mlog
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"sync"
-	"unsafe"
 
 	"go.uber.org/zap"
 )
@@ -16,6 +17,7 @@ type Logger struct {
 	config     *Config
 	level      zap.AtomicLevel
 	withFields []Field
+	closer     io.Closer
 	mu         sync.RWMutex
 	hookMu     sync.RWMutex
 }
@@ -23,9 +25,10 @@ type Logger struct {
 // New creates a new Logger instance.
 func New(cfg ...*Config) *Logger {
 	config := defaultConfig()
-	if len(cfg) > 0 {
+	if len(cfg) > 0 && cfg[0] != nil {
 		config = cfg[0]
 	}
+	config = cloneConfig(config)
 
 	l := &Logger{
 		config:     config,
@@ -33,7 +36,11 @@ func New(cfg ...*Config) *Logger {
 		withFields: make([]Field, 0),
 	}
 	// build zap logger
-	l.parent, l.level = buildZapLogger(l.config)
+	var err error
+	l.parent, l.level, l.closer, err = buildZapLogger(l.config)
+	if err != nil {
+		panic(err)
+	}
 	// add hooks
 	l.AddHook(&traceHook{})
 	if len(l.config.CtxKeys) > 0 {
@@ -68,6 +75,10 @@ func NewWithZap(zapLogger *zap.Logger, cfg ...*Config) *Logger {
 	if len(cfg) > 0 && cfg[0] != nil {
 		config = cfg[0]
 	}
+	config = cloneConfig(config)
+	if zapLogger == nil {
+		zapLogger = zap.NewNop()
+	}
 
 	l := &Logger{
 		parent:     zapLogger,
@@ -88,8 +99,21 @@ func NewWithZap(zapLogger *zap.Logger, cfg ...*Config) *Logger {
 
 // Close closes the logger and its underlying resources.
 func (l *Logger) Close() error {
-	// Sync flushes any buffered log entries.
-	return l.parent.Sync()
+	l.mu.Lock()
+	parent := l.parent
+	closer := l.closer
+	l.parent = zap.NewNop()
+	l.closer = nil
+	l.mu.Unlock()
+
+	var syncErr, closeErr error
+	if parent != nil {
+		syncErr = parent.Sync()
+	}
+	if closer != nil {
+		closeErr = closer.Close()
+	}
+	return errors.Join(syncErr, closeErr)
 }
 
 // SetConfigWithMap sets the logger configuration using a map.
@@ -97,43 +121,45 @@ func (l *Logger) SetConfigWithMap(configMap map[string]any) error {
 	l.mu.Lock()
 	defer l.mu.Unlock()
 
-	// Update the config struct first to parse and validate the map.
-	if err := l.config.SetConfigWithMap(configMap); err != nil {
+	config := cloneConfig(l.config)
+	if err := config.SetConfigWithMap(configMap); err != nil {
 		return err
 	}
-
-	// Rebuild the zap logger with the new configuration.
-	l.parent, l.level = buildZapLogger(l.config)
-
-	// Re-apply the stored 'With' fields to the new logger instance.
-	if len(l.withFields) > 0 {
-		zapFields := *(*[]zap.Field)(unsafe.Pointer(&l.withFields))
-		l.parent = l.parent.With(zapFields...)
-	}
-
-	l.refreshHooks()
-
-	return nil
+	return l.setConfigLocked(config)
 }
 
 // SetConfig sets the logger configuration.
 func (l *Logger) SetConfig(config *Config) error {
+	if config == nil {
+		return errors.New("logger config cannot be nil")
+	}
 	l.mu.Lock()
 	defer l.mu.Unlock()
+	return l.setConfigLocked(cloneConfig(config))
+}
 
-	l.config = config
-	// Rebuild the zap logger with the new configuration.
-	l.parent, l.level = buildZapLogger(l.config)
-
-	// Re-apply the stored 'With' fields to the new logger instance.
-	if len(l.withFields) > 0 {
-		zapFields := *(*[]zap.Field)(unsafe.Pointer(&l.withFields))
-		l.parent = l.parent.With(zapFields...)
+func (l *Logger) setConfigLocked(config *Config) error {
+	parent, level, closer, err := buildZapLogger(config)
+	if err != nil {
+		return err
 	}
 
+	if len(l.withFields) > 0 {
+		parent = parent.With(toZapFields(l.withFields)...)
+	}
+
+	oldParent, oldCloser := l.parent, l.closer
+	l.parent, l.level, l.closer, l.config = parent, level, closer, config
 	l.refreshHooks()
 
-	return nil
+	var closeErr error
+	if oldParent != nil {
+		_ = oldParent.Sync()
+	}
+	if oldCloser != nil {
+		closeErr = oldCloser.Close()
+	}
+	return closeErr
 }
 
 // With adds a field to the logger.
@@ -141,19 +167,20 @@ func (l *Logger) With(fields ...Field) *Logger {
 	l.mu.RLock()
 	defer l.mu.RUnlock()
 
-	zapFields := *(*[]zap.Field)(unsafe.Pointer(&fields))
-
-	newZapLogger := l.parent.With(zapFields...)
+	newZapLogger := l.parent.With(toZapFields(fields)...)
 
 	newWithFields := make([]Field, 0, len(l.withFields)+len(fields))
 	newWithFields = append(newWithFields, l.withFields...)
 	newWithFields = append(newWithFields, fields...)
 
-	// 4. Return a new Logger instance that carries the full state.
+	l.hookMu.RLock()
+	hooks := append([]Hook(nil), l.hooks...)
+	l.hookMu.RUnlock()
+
 	return &Logger{
 		parent:     newZapLogger,
-		hooks:      l.hooks,
-		config:     l.config,
+		hooks:      hooks,
+		config:     cloneConfig(l.config),
 		level:      l.level,
 		withFields: newWithFields,
 	}
@@ -161,7 +188,9 @@ func (l *Logger) With(fields ...Field) *Logger {
 
 // GetConfig returns the current configuration of the logger.
 func (l *Logger) GetConfig() *Config {
-	return l.config
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	return cloneConfig(l.config)
 }
 
 func (l *Logger) Debugf(ctx context.Context, format string, v ...any) {

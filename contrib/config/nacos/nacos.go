@@ -3,6 +3,9 @@ package nacos
 import (
 	"context"
 	"encoding/json"
+	"fmt"
+	"path/filepath"
+	"strings"
 
 	"github.com/go-playground/validator/v10"
 	"github.com/graingo/maltose/errors/merror"
@@ -22,7 +25,7 @@ type Config struct {
 	ClientConfig   constant.ClientConfig                       `binding:"required"` // See constant.ClientConfig
 	ConfigParam    vo.ConfigParam                              `binding:"required"` // See vo.ConfigParam
 	Watch          bool                                        // Watch watches remote configuration updates, which updates local configuration in memory immediately when remote configuration changes.
-	OnConfigChange func(namespace, group, dataId, data string) // Configure change callback function
+	OnConfigChange func(namespace, group, dataID, data string) // Configure change callback function
 }
 
 // Client implements gcfg.Adapter implementing using nacos service.
@@ -33,7 +36,7 @@ type Client struct {
 }
 
 // New creates and returns gcfg.Adapter implementing using nacos service.
-func New(ctx context.Context, config Config) (adapte mcfg.Adapter, err error) {
+func New(_ context.Context, config Config) (adapte mcfg.Adapter, err error) {
 	// Data validation.
 	err = validator.New().Struct(config)
 	if err != nil {
@@ -50,7 +53,7 @@ func New(ctx context.Context, config Config) (adapte mcfg.Adapter, err error) {
 		"clientConfig":  config.ClientConfig,
 	})
 	if err != nil {
-		return nil, merror.Wrapf(err, `create nacos client failed with config: %+v`, config)
+		return nil, merror.Wrap(err, `create nacos client failed`)
 	}
 
 	err = client.addWatcher()
@@ -66,7 +69,7 @@ func New(ctx context.Context, config Config) (adapte mcfg.Adapter, err error) {
 //
 // Note that this function does not return error as it just does simply check for
 // backend configuration service.
-func (c *Client) Available(ctx context.Context, resource ...string) (ok bool) {
+func (c *Client) Available(_ context.Context, resource ...string) (ok bool) {
 	if len(resource) == 0 && !c.value.IsNil() {
 		return true
 	}
@@ -78,7 +81,7 @@ func (c *Client) Available(ctx context.Context, resource ...string) (ok bool) {
 // Pattern like:
 // "x.y.z" for map item.
 // "x.0.y" for slice item.
-func (c *Client) Get(ctx context.Context, pattern string) (value interface{}, err error) {
+func (c *Client) Get(_ context.Context, pattern string) (value interface{}, err error) {
 	if c.value.IsNil() {
 		if err = c.updateLocalValue(); err != nil {
 			return nil, err
@@ -90,23 +93,27 @@ func (c *Client) Get(ctx context.Context, pattern string) (value interface{}, er
 // Data retrieves and returns all configuration data in current resource as map.
 // Note that this function may lead lots of memory usage if configuration data is too large,
 // you can implement this function if necessary.
-func (c *Client) Data(ctx context.Context) (data map[string]interface{}, err error) {
+func (c *Client) Data(_ context.Context) (data map[string]interface{}, err error) {
 	if c.value.IsNil() {
 		if err = c.updateLocalValue(); err != nil {
 			return nil, err
 		}
 	}
-	return gjson.Parse(c.value.String()).Value().(map[string]any), nil
+	value := gjson.Parse(c.value.String()).Value()
+	data, ok := value.(map[string]any)
+	if !ok {
+		return nil, merror.New("nacos configuration root must be an object")
+	}
+	return data, nil
 }
 
 func (c *Client) addWatcher() error {
 	if !c.config.Watch {
 		return nil
 	}
-	c.config.ConfigParam.OnChange = func(namespace, group, dataId, data string) {
-		c.doUpdate(data)
-		if c.config.OnConfigChange != nil {
-			go c.config.OnConfigChange(namespace, group, dataId, data)
+	c.config.ConfigParam.OnChange = func(namespace, group, dataID, data string) {
+		if err := c.doUpdate(data); err == nil && c.config.OnConfigChange != nil {
+			go c.config.OnConfigChange(namespace, group, dataID, data)
 		}
 	}
 
@@ -118,10 +125,37 @@ func (c *Client) addWatcher() error {
 }
 
 func (c *Client) doUpdate(content string) (err error) {
-	if !gjson.Valid(content) {
-		return merror.Wrap(err, `parse config map item from nacos failed`)
+	configType := strings.TrimSpace(c.config.ConfigParam.Type)
+	if configType == "" {
+		configType = strings.TrimPrefix(filepath.Ext(c.config.ConfigParam.DataId), ".")
 	}
-	c.value.Set(content)
+	if configType == "" {
+		configType = "json"
+	}
+
+	var normalized []byte
+	if configType == "json" {
+		var data map[string]any
+		if err := json.Unmarshal([]byte(content), &data); err != nil {
+			return merror.Wrap(err, `parse config map item from nacos failed`)
+		}
+		normalized, err = json.Marshal(data)
+	} else {
+		parser := viper.New()
+		parser.SetConfigType(configType)
+		if err := parser.ReadConfig(strings.NewReader(content)); err != nil {
+			return merror.Wrap(err, `parse config map item from nacos failed`)
+		}
+		settings := parser.AllSettings()
+		if len(settings) == 0 && strings.TrimSpace(content) != "" {
+			return fmt.Errorf("parse config map item from nacos failed: configuration root is empty")
+		}
+		normalized, err = json.Marshal(settings)
+	}
+	if err != nil {
+		return merror.Wrap(err, `encode config map item from nacos failed`)
+	}
+	c.value.Set(string(normalized))
 	return nil
 }
 
@@ -155,7 +189,6 @@ func (c *Client) MergeConfigMap(ctx context.Context, data map[string]any) error 
 		return merror.Wrap(err, "failed to marshal merged config")
 	}
 
-	c.doUpdate(string(mergedJSON))
-
+	c.value.Set(string(mergedJSON))
 	return nil
 }

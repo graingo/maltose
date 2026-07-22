@@ -24,7 +24,7 @@ type Hook redis.Hook
 func New(config ...*Config) (*Redis, error) {
 	cfg := defaultConfig()
 	if len(config) > 0 && config[0] != nil {
-		cfg = config[0]
+		cfg = cloneConfig(config[0])
 	}
 	if cfg == nil {
 		return nil, merror.NewCode(
@@ -65,7 +65,8 @@ func New(config ...*Config) (*Redis, error) {
 
 	// Enable tracing.
 	if err := redisotel.InstrumentTracing(client); err != nil {
-		panic(err)
+		_ = client.Close()
+		return nil, merror.Wrap(err, "failed to instrument Redis tracing")
 	}
 
 	// Add hooks from config
@@ -86,6 +87,8 @@ func (r *Redis) Client() redis.UniversalClient {
 
 // AddHook adds a hook to the client.
 func (r *Redis) AddHook(hook Hook) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.config.Hooks = append(r.config.Hooks, hook)
 	r.client.AddHook(hook)
 }

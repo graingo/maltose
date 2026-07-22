@@ -60,13 +60,13 @@ func (r *Request) Method(method string) *Request {
 }
 
 // URL sets the request URL.
-func (r *Request) URL(url string) *Request {
+func (r *Request) URL(rawURL string) *Request {
 	if r.Request == nil {
 		r.Request = &http.Request{
 			Header: make(http.Header),
 		}
 	}
-	parsed, err := r.Request.URL.Parse(url)
+	parsed, err := url.Parse(rawURL)
 	if err == nil {
 		r.Request.URL = parsed
 	}

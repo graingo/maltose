@@ -132,7 +132,9 @@ func WithTraceID(ctx context.Context, traceID string) (context.Context, error) {
 		// If there is no SpanContext in the current context,
 		// we create a new one with the given traceID and a new random spanID.
 		var spanID trace.SpanID
-		_, _ = rand.Read(spanID[:])
+		if _, err := rand.Read(spanID[:]); err != nil {
+			return ctx, merror.Wrap(err, "generate span ID failed")
+		}
 		sc = trace.NewSpanContext(trace.SpanContextConfig{
 			TraceID: generatedTraceID,
 			SpanID:  spanID,

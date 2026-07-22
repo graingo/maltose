@@ -30,13 +30,13 @@ import (
 func init() {
 	var (
 		ctx     = context.Background()
-		appId   = "SampleApp"
+		appID   = "SampleApp"
 		cluster = "default"
 		ip      = "http://localhost:8080"
 	)
 	// Create apollo Client that implements mcfg.Adapter
 	adapter, err := apollo.New(ctx, apollo.Config{
-		AppID:   appId,
+		AppID:   appID,
 		IP:      ip,
 		Cluster: cluster,
 	})

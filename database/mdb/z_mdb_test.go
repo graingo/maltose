@@ -286,3 +286,17 @@ func TestMDB(t *testing.T) {
 		})
 	})
 }
+
+func TestMDBInstanceIsInvalidatedWhenConfigChanges(t *testing.T) {
+	const name = "config-invalidation-test"
+	mdb.SetConfig(name, &mdb.Config{Type: "sqlite", DSN: "file:instance_one?mode=memory&cache=shared"})
+	first := mdb.Instance(name)
+	require.NotNil(t, first)
+
+	mdb.SetConfig(name, &mdb.Config{Type: "sqlite", DSN: "file:instance_two?mode=memory&cache=shared"})
+	assert.Error(t, first.Ping(context.Background()), "replaced instance should be closed")
+	second := mdb.Instance(name)
+	require.NotNil(t, second)
+	assert.NotSame(t, first, second)
+	mdb.RemoveConfig(name)
+}

@@ -140,21 +140,34 @@ func (c *Config) MustGet(ctx context.Context, pattern string, def ...any) *mvar.
 
 // Data gets all configuration data.
 func (c *Config) Data(ctx context.Context) (map[string]any, error) {
-	// Use read lock to check for cached data.
 	c.mu.RLock()
 	if c.cachedData != nil {
-		defer c.mu.RUnlock()
-		return c.cachedData.Map(), nil
+		data := deepCopyMap(c.cachedData.Map())
+		c.mu.RUnlock()
+		return data, nil
 	}
+	adapter := c.adapter
 	c.mu.RUnlock()
+	if adapter == nil {
+		return nil, merror.New("config adapter is nil")
+	}
 
-	// If no cache, use write lock to load and set data.
+	// Adapters such as Apollo and Nacos maintain their own live cache. Avoid
+	// caching their raw data here so watch updates remain visible immediately.
+	if hooks.count() == 0 {
+		rawData, err := adapter.Data(ctx)
+		if err != nil {
+			return nil, err
+		}
+		return deepCopyMap(rawData), nil
+	}
+
 	c.mu.Lock()
 	defer c.mu.Unlock()
 
 	// Double check, as another goroutine might have populated it in the meantime.
 	if c.cachedData != nil {
-		return c.cachedData.Map(), nil
+		return deepCopyMap(c.cachedData.Map()), nil
 	}
 
 	rawData, err := c.adapter.Data(ctx)
@@ -162,17 +175,12 @@ func (c *Config) Data(ctx context.Context) (map[string]any, error) {
 		return nil, err
 	}
 
-	if hooks.Count() > 0 {
-		processedData, err := runAfterLoadHooks(ctx, rawData)
-		if err != nil {
-			return nil, err
-		}
-		c.cachedData = mvar.New(processedData)
-		return processedData, nil
+	processedData, err := runAfterLoadHooks(ctx, deepCopyMap(rawData))
+	if err != nil {
+		return nil, err
 	}
-
-	c.cachedData = mvar.New(rawData)
-	return rawData, nil
+	c.cachedData = mvar.New(deepCopyMap(processedData))
+	return deepCopyMap(processedData), nil
 }
 
 // Available checks if the adapter is available.

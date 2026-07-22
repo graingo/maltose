@@ -14,7 +14,7 @@ import (
 var (
 	ctx     = context.Background()
 	ip      = os.Getenv("APOLLO_IP")
-	appId   = os.Getenv("APOLLO_APP_ID")
+	appID   = os.Getenv("APOLLO_APP_ID")
 	cluster = os.Getenv("APOLLO_CLUSTER")
 )
 
@@ -22,8 +22,8 @@ func init() {
 	if ip == "" {
 		ip = "http://localhost:8080"
 	}
-	if appId == "" {
-		appId = "SampleApp"
+	if appID == "" {
+		appID = "SampleApp"
 	}
 	if cluster == "" {
 		cluster = "default"
@@ -33,7 +33,7 @@ func init() {
 func TestApollo(t *testing.T) {
 	// Create adapter
 	adapter, err := apollo.New(ctx, apollo.Config{
-		AppID:     appId,
+		AppID:     appID,
 		IP:        ip,
 		Cluster:   cluster,
 		MustStart: true, // In test, we want to fail fast if connection fails.

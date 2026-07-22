@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"slices"
+	"sync"
 	"testing"
 	"time"
 
@@ -136,6 +137,23 @@ func TestProviderAndMeter(t *testing.T) {
 		err = p.Shutdown(context.Background())
 		assert.NoError(t, err)
 	})
+}
+
+func TestConcurrentObservationsDoNotReuseAttributeBackingArrays(t *testing.T) {
+	provider, _ := setupTestProvider(t)
+	base := make(mmetric.Attributes, 1, 32)
+	base[0] = attribute.String("scope", "shared")
+	counter := provider.Meter(mmetric.MeterOption{Attributes: base}).MustCounter("concurrent.counter", mmetric.MetricOption{})
+
+	var wg sync.WaitGroup
+	for i := 0; i < 50; i++ {
+		wg.Add(1)
+		go func(index int) {
+			defer wg.Done()
+			counter.Inc(context.Background(), mmetric.WithAttributes(attribute.Int("worker", index)))
+		}(i)
+	}
+	wg.Wait()
 }
 
 func TestInstruments(t *testing.T) {

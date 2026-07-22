@@ -20,7 +20,7 @@ import (
 
 var (
 	ctx          = context.Background()
-	nacosIpAddr  = "localhost"
+	nacosIPAddr  = "localhost"
 	nacosPort    = uint64(8848)
 	serverConfig constant.ServerConfig
 	clientConfig constant.ClientConfig
@@ -28,7 +28,7 @@ var (
 
 func init() {
 	if ip := os.Getenv("NACOS_IP_ADDR"); ip != "" {
-		nacosIpAddr = ip
+		nacosIPAddr = ip
 	}
 	if portStr := os.Getenv("NACOS_PORT"); portStr != "" {
 		if port, err := strconv.ParseUint(portStr, 10, 64); err == nil {
@@ -37,7 +37,7 @@ func init() {
 	}
 
 	serverConfig = constant.ServerConfig{
-		IpAddr: nacosIpAddr,
+		IpAddr: nacosIPAddr,
 		Port:   nacosPort,
 	}
 	clientConfig = constant.ClientConfig{
@@ -48,7 +48,7 @@ func init() {
 	}
 }
 
-func setup(t *testing.T, dataId, group, content string) config_client.IConfigClient {
+func setup(t *testing.T, dataID, group, content string) config_client.IConfigClient {
 	configClient, err := clients.NewConfigClient(
 		vo.NacosClientParam{
 			ClientConfig:  &clientConfig,
@@ -58,7 +58,7 @@ func setup(t *testing.T, dataId, group, content string) config_client.IConfigCli
 	require.NoError(t, err)
 
 	_, err = configClient.PublishConfig(vo.ConfigParam{
-		DataId:  dataId,
+		DataId:  dataID,
 		Group:   group,
 		Content: content,
 		Type:    "toml",
@@ -71,29 +71,29 @@ func setup(t *testing.T, dataId, group, content string) config_client.IConfigCli
 	return configClient
 }
 
-func teardown(t *testing.T, client config_client.IConfigClient, dataId, group string) {
+func teardown(t *testing.T, client config_client.IConfigClient, dataID, group string) {
 	_, err := client.DeleteConfig(vo.ConfigParam{
-		DataId: dataId,
+		DataId: dataID,
 		Group:  group,
 	})
 	require.NoError(t, err)
 }
 
 func TestNacos(t *testing.T) {
-	dataId := "test-config-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	dataID := "test-config-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	group := "test-group"
 	initialContent := `
 [server]
 address = ":8080"
 `
-	client := setup(t, dataId, group, initialContent)
-	defer teardown(t, client, dataId, group)
+	client := setup(t, dataID, group, initialContent)
+	defer teardown(t, client, dataID, group)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
 
 	configParam := vo.ConfigParam{
-		DataId: dataId,
+		DataId: dataID,
 		Group:  group,
 	}
 
@@ -103,11 +103,11 @@ address = ":8080"
 		ClientConfig:  clientConfig,
 		ConfigParam:   configParam,
 		Watch:         true,
-		OnConfigChange: func(namespace, group, dataId, data string) {
+		OnConfigChange: func(namespace, changedGroup, changedDataID, data string) {
 			defer wg.Done()
 			assert.Equal(t, "public", namespace)
-			assert.Equal(t, group, group)
-			assert.Equal(t, dataId, dataId)
+			assert.Equal(t, group, changedGroup)
+			assert.Equal(t, dataID, changedDataID)
 			assert.Contains(t, data, "new-value")
 		},
 	})
@@ -135,7 +135,7 @@ address = ":9090"
 new-key = "new-value"
 `
 	_, err = client.PublishConfig(vo.ConfigParam{
-		DataId:  dataId,
+		DataId:  dataID,
 		Group:   group,
 		Content: newContent,
 		Type:    "toml",

@@ -23,9 +23,14 @@ func (s *Server) bindRoutes(_ context.Context) {
 		var allHandlers []gin.HandlerFunc
 		var collectedMiddlewares []MiddlewareFunc
 
-		// Traverse up from the current group to the root, collecting middlewares.
+		// Traverse up from the current group to the root.
+		var groups []*RouterGroup
 		for g := item.Group; g != nil; g = g.parent {
-			collectedMiddlewares = append(collectedMiddlewares, g.middlewares...)
+			groups = append(groups, g)
+		}
+		// Apply parent middleware before child middleware.
+		for i := len(groups) - 1; i >= 0; i-- {
+			collectedMiddlewares = append(collectedMiddlewares, groups[i].middlewares...)
 		}
 
 		// Add collected middlewares in correct order to ensure parent middlewares run first.

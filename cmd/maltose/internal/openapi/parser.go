@@ -7,9 +7,9 @@ import (
 	"os"
 	"path/filepath"
 	"reflect"
+	"sort"
 	"strings"
 
-	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/graingo/maltose/errors/merror"
 )
 
@@ -47,6 +47,7 @@ func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 	fset := token.NewFileSet()
 	var apiDefs []APIDefinition
 	allStructs := make(map[string]*ast.StructType)
+	structSources := make(map[string]string)
 	fileToPkgPath := make(map[string]string) // file path -> package path
 
 	// First pass: Walk files to get their package paths relative to the root `dir`
@@ -64,25 +65,35 @@ func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 		return nil, nil, merror.Wrapf(err, "failed to walk directory %s", dir)
 	}
 
-	// Second pass: Parse files and collect all structs
+	paths := make([]string, 0, len(fileToPkgPath))
 	for path := range fileToPkgPath {
+		paths = append(paths, path)
+	}
+	sort.Strings(paths)
+
+	// Second pass: Parse files and collect all structs in deterministic order.
+	for _, path := range paths {
 		file, err := parser.ParseFile(fset, path, nil, parser.ParseComments)
 		if err != nil {
-			utils.PrintWarn("⚠️ Could not parse {{.Path}}: {{.Error}}", utils.TplData{"Path": path, "Error": err})
-			continue
+			return nil, nil, merror.Wrapf(err, "failed to parse Go file %s", path)
 		}
 
-		if !containsMeta(file) {
-			continue
-		}
-
+		var parseErr error
 		ast.Inspect(file, func(n ast.Node) bool {
 			if genDecl, ok := n.(*ast.GenDecl); ok && genDecl.Tok == token.TYPE {
 				for _, spec := range genDecl.Specs {
 					if typeSpec, ok := spec.(*ast.TypeSpec); ok {
 						if structType, ok := typeSpec.Type.(*ast.StructType); ok {
+							if previous, exists := structSources[typeSpec.Name.Name]; exists {
+								parseErr = merror.Newf(
+									"duplicate struct name %q in %s and %s; OpenAPI types must be uniquely named",
+									typeSpec.Name.Name, previous, path,
+								)
+								return false
+							}
 							// Store the struct along with its source file path for later lookup
 							allStructs[typeSpec.Name.Name] = structType
+							structSources[typeSpec.Name.Name] = path
 							// A bit of a hack: store file path in a field's doc comment
 							if structType.Fields != nil && len(structType.Fields.List) > 0 {
 								if structType.Fields.List[0].Doc == nil {
@@ -96,10 +107,19 @@ func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 			}
 			return true
 		})
+		if parseErr != nil {
+			return nil, nil, parseErr
+		}
 	}
 
 	// Third pass: find "Req" structs, build API definitions and calculate paths
-	for name, structType := range allStructs {
+	structNames := make([]string, 0, len(allStructs))
+	for name := range allStructs {
+		structNames = append(structNames, name)
+	}
+	sort.Strings(structNames)
+	for _, name := range structNames {
+		structType := allStructs[name]
 		if !strings.HasSuffix(name, "Req") {
 			continue
 		}
@@ -194,6 +214,12 @@ func ParseDir(dir string) ([]APIDefinition, map[string]*ast.StructType, error) {
 
 		apiDefs = append(apiDefs, apiDef)
 	}
+	sort.Slice(apiDefs, func(i, j int) bool {
+		if apiDefs[i].Path == apiDefs[j].Path {
+			return apiDefs[i].Method < apiDefs[j].Method
+		}
+		return apiDefs[i].Path < apiDefs[j].Path
+	})
 
 	return apiDefs, allStructs, nil
 }

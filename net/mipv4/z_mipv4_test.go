@@ -1,6 +1,7 @@
 package mipv4_test
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/graingo/maltose/net/mipv4"
@@ -59,4 +60,28 @@ func TestIsIntranet(t *testing.T) {
 			assert.Equal(t, tc.expected, mipv4.IsIntranet(tc.ip))
 		})
 	}
+}
+
+func TestCachedAddressesAreConcurrentSafeAndCopied(t *testing.T) {
+	var wg sync.WaitGroup
+	for i := 0; i < 20; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, _ = mipv4.GetIntranetIPArray()
+			_, _ = mipv4.GetLocalIP()
+		}()
+	}
+	wg.Wait()
+
+	addresses, err := mipv4.GetIntranetIPArray()
+	assert.NoError(t, err)
+	if len(addresses) == 0 {
+		return
+	}
+	original := addresses[0]
+	addresses[0] = "mutated"
+	fresh, err := mipv4.GetIntranetIPArray()
+	assert.NoError(t, err)
+	assert.Equal(t, original, fresh[0])
 }

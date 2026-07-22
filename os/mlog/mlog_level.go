@@ -32,11 +32,15 @@ func AllLevels() []Level {
 
 // SetLevel sets the logging level.
 func (l *Logger) SetLevel(level Level) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	l.level.SetLevel(zapcore.Level(level))
 }
 
 // GetLevel returns the logging level value.
 func (l *Logger) GetLevel() Level {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
 	return Level(l.level.Level())
 }
 

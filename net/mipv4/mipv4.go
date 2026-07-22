@@ -2,6 +2,7 @@ package mipv4
 
 import (
 	"net"
+	"sync"
 )
 
 var (
@@ -9,12 +10,16 @@ var (
 	localIPv4 = ""
 	// intranetIPv4Array cache intranet IPv4 address array.
 	intranetIPv4Array []string
+	intranetMu        sync.Mutex
+	localMu           sync.Mutex
 )
 
 // GetIntranetIPArray gets the local intranet IPv4 address array.
 func GetIntranetIPArray() ([]string, error) {
+	intranetMu.Lock()
+	defer intranetMu.Unlock()
 	if intranetIPv4Array != nil {
-		return intranetIPv4Array, nil
+		return append([]string(nil), intranetIPv4Array...), nil
 	}
 	ips := make([]string, 0)
 	// get all network interfaces
@@ -47,7 +52,7 @@ func GetIntranetIPArray() ([]string, error) {
 		}
 	}
 	intranetIPv4Array = ips
-	return ips, nil
+	return append([]string(nil), ips...), nil
 }
 
 // GetIPArray gets the local all IPv4 address array.
@@ -78,6 +83,8 @@ func GetIPArray() ([]string, error) {
 
 // GetLocalIP gets the local first IPv4 address.
 func GetLocalIP() (string, error) {
+	localMu.Lock()
+	defer localMu.Unlock()
 	if localIPv4 != "" {
 		return localIPv4, nil
 	}

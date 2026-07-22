@@ -30,7 +30,9 @@ func Log(name ...string) *mlog.Logger {
 
 		// It firstly searches configuration of the instance name.
 		certainLoggerNodeName := fmt.Sprintf(`%s.%s`, configNodeNameLogger, instanceName)
-		if v, _ := Config().Get(ctx, certainLoggerNodeName); !v.IsNil() {
+		if v, err := Config().Get(ctx, certainLoggerNodeName); err != nil {
+			panic(merror.NewCodef(mcode.CodeInvalidConfiguration, `get logger config for instance "%s" failed: %v`, instanceName, err))
+		} else if !v.IsNil() {
 			if err := logger.SetConfigWithMap(v.Map()); err != nil {
 				panic(merror.NewCodef(mcode.CodeInvalidConfiguration, `set logger config for instance "%s" failed: %v`, instanceName, err))
 			}
@@ -39,7 +41,9 @@ func Log(name ...string) *mlog.Logger {
 
 		// If the configuration for the instance name is not found,
 		// it then searches the default configuration.
-		if v, _ := Config().Get(ctx, configNodeNameLogger); !v.IsNil() {
+		if v, err := Config().Get(ctx, configNodeNameLogger); err != nil {
+			panic(merror.NewCodef(mcode.CodeInvalidConfiguration, `get default logger config failed: %v`, err))
+		} else if !v.IsNil() {
 			if err := logger.SetConfigWithMap(v.Map()); err != nil {
 				panic(merror.NewCodef(mcode.CodeInvalidConfiguration, `set logger config for default failed: %v`, err))
 			}

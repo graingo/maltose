@@ -51,13 +51,13 @@ func Redis(name ...string) *mredis.Redis {
 			panic(merror.NewCode(mcode.CodeMissingConfiguration, `no configuration found for creating redis client`))
 		}
 
-		globalConfigMap := redisConfigNode.(map[string]any)
+		globalConfigMap := mustConfigMap(redisConfigNode, configNodeNameRedis)
 		// try to get specific instance config.
 		if instanceConfig, ok := globalConfigMap[instanceName]; ok {
-			redisConfigMap = instanceConfig.(map[string]any)
+			redisConfigMap = mustConfigMap(instanceConfig, fmt.Sprintf("%s.%s", configNodeNameRedis, instanceName))
 		} else if defaultConfig, ok := globalConfigMap["default"]; ok {
 			// try to get default instance config
-			redisConfigMap = defaultConfig.(map[string]any)
+			redisConfigMap = mustConfigMap(defaultConfig, configNodeNameRedis+".default")
 		} else if len(globalConfigMap) > 0 {
 			// use flat structure config
 			redisConfigMap = globalConfigMap
@@ -77,10 +77,10 @@ func Redis(name ...string) *mredis.Redis {
 		var loggerConfigMap map[string]any
 		if loggerConfig, ok := redisConfigMap[configNodeNameLogger]; ok {
 			// specific instance logger config
-			loggerConfigMap = loggerConfig.(map[string]any)
+			loggerConfigMap = mustConfigMap(loggerConfig, fmt.Sprintf("%s.%s.%s", configNodeNameRedis, instanceName, configNodeNameLogger))
 		} else if globalLoggerConfig, ok := configMap[configNodeNameLogger]; ok {
 			// global logger config
-			loggerConfigMap = globalLoggerConfig.(map[string]any)
+			loggerConfigMap = mustConfigMap(globalLoggerConfig, configNodeNameLogger)
 		}
 
 		// apply logger config

@@ -35,12 +35,26 @@ func TestContainer_GetOrSetFunc(t *testing.T) {
 	assert.Equal(t, "John", val)
 }
 
+func TestContainer_GetOrSetFuncDoesNotCacheNil(t *testing.T) {
+	c := minstance.New()
+	assert.Nil(t, c.GetOrSetFunc("key", func() any { return nil }))
+	assert.Equal(t, 0, c.Count())
+	assert.Equal(t, "value", c.GetOrSetFunc("key", func() any { return "value" }))
+}
+
 func TestContainer_Remove(t *testing.T) {
 	c := minstance.New()
 	c.Set("name", "John")
 	assert.Equal(t, "John", c.Get("name"))
 
 	c.Remove("name")
+	assert.Nil(t, c.Get("name"))
+}
+
+func TestContainer_Pop(t *testing.T) {
+	c := minstance.New()
+	c.Set("name", "John")
+	assert.Equal(t, "John", c.Pop("name"))
 	assert.Nil(t, c.Get("name"))
 }
 

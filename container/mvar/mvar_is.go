@@ -4,7 +4,20 @@ import "reflect"
 
 // IsNil checks if the value is nil.
 func (v *Var) IsNil() bool {
-	return v == nil || v.value == nil
+	if v == nil {
+		return true
+	}
+	value := v.Val()
+	if value == nil {
+		return true
+	}
+	rv := reflect.ValueOf(value)
+	switch rv.Kind() {
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+		return rv.IsNil()
+	default:
+		return false
+	}
 }
 
 // IsEmpty checks if the value is empty.
@@ -54,7 +67,15 @@ func (v *Var) IsEmpty() bool {
 	case map[any]any:
 		return len(value) == 0
 	default:
-		return v.IsNil()
+		rv := reflect.ValueOf(value)
+		switch rv.Kind() {
+		case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
+			return rv.Len() == 0
+		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Ptr:
+			return rv.IsNil()
+		default:
+			return false
+		}
 	}
 }
 
@@ -88,20 +109,14 @@ func (v *Var) IsFloat() bool {
 
 // IsSlice checks if the value is a slice type.
 func (v *Var) IsSlice() bool {
-	switch v.Val().(type) {
-	case []interface{}, []int, []string, []byte, []rune:
-		return true
-	}
-	return false
+	value := v.Val()
+	return value != nil && reflect.TypeOf(value).Kind() == reflect.Slice
 }
 
 // IsMap checks if the value is a map type.
 func (v *Var) IsMap() bool {
-	switch v.Val().(type) {
-	case map[string]interface{}, map[interface{}]interface{}:
-		return true
-	}
-	return false
+	value := v.Val()
+	return value != nil && reflect.TypeOf(value).Kind() == reflect.Map
 }
 
 // IsStruct checks if the value is a struct type.

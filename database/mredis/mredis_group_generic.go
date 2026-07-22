@@ -20,6 +20,11 @@ func (r *Redis) Expire(ctx context.Context, key string, expiration time.Duration
 	return r.client.Expire(ctx, key, expiration).Result()
 }
 
+// Persist removes the expiration from a key.
+func (r *Redis) Persist(ctx context.Context, key string) (bool, error) {
+	return r.client.Persist(ctx, key).Result()
+}
+
 // Keys is a redis KEYS command.
 func (r *Redis) Keys(ctx context.Context, pattern string) ([]string, error) {
 	return r.client.Keys(ctx, pattern).Result()

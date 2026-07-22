@@ -40,6 +40,8 @@ dmitri.shuralyov.com/gpu/mtl v0.0.0-20190408044501-666a987793e9/go.mod h1:H6x//7
 filippo.io/edwards25519 v1.1.0 h1:FNf4tywRC1HmFuKW5xopWpigGjJKiJSV0Cqo0cJWDaA=
 filippo.io/edwards25519 v1.1.0/go.mod h1:BxyFTGdWcka3PhytdK4V28tE5sGfRvvvRV7EaN4VDT4=
 github.com/BurntSushi/toml v0.3.1/go.mod h1:xHWCNGjB5oqiDr8zfno3MHue2Ht5sIBksp03qcyfWMU=
+github.com/BurntSushi/toml v1.5.0 h1:W5quZX/G/csjUnuI8SUYlsHs9M38FC7znL0lIO+DvMg=
+github.com/BurntSushi/toml v1.5.0/go.mod h1:ukJfTF/6rtPPRCnwkur4qwRxa8vTRFBF0uk2lLoLwho=
 github.com/BurntSushi/xgb v0.0.0-20160522181843-27f122750802/go.mod h1:IVnqGOEym/WlBOVXweHU+Q+/VP0lqqI8lqeDx9IjBqo=
 github.com/agiledragon/gomonkey/v2 v2.11.0 h1:5oxSgA+tC1xuGsrIorR+sYiziYltmJyEZ9qA25b6l5U=
 github.com/agiledragon/gomonkey/v2 v2.11.0/go.mod h1:ap1AmDzcVOAz1YpeJ3TCzIgstoaWLA6jbbgxfB4w2iY=
@@ -199,9 +201,8 @@ github.com/google/uuid v1.6.0/go.mod h1:TIyPZe4MgqvfeYDBFedMoGGpEw/LqOeaOT+nhxU+
 github.com/googleapis/gax-go/v2 v2.0.4/go.mod h1:0Wqv26UfaUD9n4G6kQubkQ+KchISgw+vpHVxEJEs9eg=
 github.com/googleapis/gax-go/v2 v2.0.5/go.mod h1:DWXyrwAJ9X0FpwwEdw+IPEYBICEFu5mhpdKc/us6bOk=
 github.com/gopherjs/gopherjs v0.0.0-20181017120253-0766667cb4d1/go.mod h1:wJfORRmW1u3UXTncJ5qlYoELFm8eSnnEO6hX4iZ3EWY=
-github.com/graingo/maltose v0.1.22 h1:mI7b/XRIP0WKripjJmvku11Zsx+rnY5xpf26TK78tys=
-github.com/graingo/maltose v0.1.22/go.mod h1:eZ4NQV74rGvh6gxdWKrEKqzsPvVP+QT7ZOYpQFQYODg=
-github.com/graingo/maltose v0.2.0/go.mod h1:eYyG5IzrwqMgupRUU1M/yyHFocm5D1FqGYIWGI1cxxU=
+github.com/graingo/maltose v0.2.2 h1:8yVMYD4+FQ5tNHHG6aPqTUa42Jtm+jQVHrtOOYlB1dc=
+github.com/graingo/maltose v0.2.2/go.mod h1:eYyG5IzrwqMgupRUU1M/yyHFocm5D1FqGYIWGI1cxxU=
 github.com/graingo/mconv v1.1.4 h1:/x+8qjjLbdPaCp/Da4ZIbCUW71SKEcQQwRHu4/MdkMs=
 github.com/graingo/mconv v1.1.4/go.mod h1:9Swk60TDpvEBLIDdlqPo7fDz1ci4YQwnNdd2S9T0+q4=
 github.com/grpc-ecosystem/grpc-gateway v1.16.0/go.mod h1:BDjrQk3hbvj6Nolgz8mAMFbcEtjT1g+wF4CSlocrBnw=

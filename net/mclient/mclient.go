@@ -19,9 +19,13 @@ type Client struct {
 // New creates and returns a new HTTP client object.
 // It comes with a set of default internal middlewares for recovery, tracing, and metrics.
 func New() *Client {
+	transport := http.DefaultTransport
+	if defaultTransport, ok := http.DefaultTransport.(*http.Transport); ok {
+		transport = defaultTransport.Clone()
+	}
 	c := &Client{
 		client: &http.Client{
-			Transport: http.DefaultTransport,
+			Transport: transport,
 			Timeout:   30 * time.Second,
 		},
 		config: ClientConfig{
@@ -51,6 +55,8 @@ func NewWithConfig(config ClientConfig) *Client {
 	// Preserve default User-Agent if not provided in the custom config.
 	if config.Header == nil {
 		config.Header = make(http.Header)
+	} else {
+		config.Header = config.Header.Clone()
 	}
 	if config.Header.Get("User-Agent") == "" {
 		config.Header.Set("User-Agent", c.config.Header.Get("User-Agent"))
@@ -76,13 +82,13 @@ func (c *Client) Use(middlewares ...MiddlewareFunc) *Client {
 
 // Clone creates and returns a copy of the current client.
 func (c *Client) Clone() *Client {
-	newClient := New()
-	newClient.client = &http.Client{
-		Transport: c.client.Transport,
-		Timeout:   c.client.Timeout,
-	}
+	httpClient := *c.client
+	newClient := &Client{client: &httpClient}
 	newClient.config = c.config
-	newClient.middlewares = append(newClient.middlewares, c.middlewares...)
+	if c.config.Header != nil {
+		newClient.config.Header = c.config.Header.Clone()
+	}
+	newClient.middlewares = append([]MiddlewareFunc(nil), c.middlewares...)
 	return newClient
 }
 
@@ -99,7 +105,7 @@ func (c *Client) do(req *http.Request) (*http.Response, error) {
 
 	for k, v := range c.config.Header {
 		if reqCopy.Header.Get(k) == "" && len(v) > 0 {
-			reqCopy.Header.Set(k, v[0])
+			reqCopy.Header[k] = append([]string(nil), v...)
 		}
 	}
 
@@ -121,6 +127,9 @@ func (c *Client) SetTransport(transport http.RoundTripper) *Client {
 
 // SetConfig sets the client configuration.
 func (c *Client) SetConfig(config ClientConfig) *Client {
+	if config.Header != nil {
+		config.Header = config.Header.Clone()
+	}
 	c.config = config
 
 	// Apply configuration to HTTP client

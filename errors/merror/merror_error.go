@@ -86,12 +86,12 @@ func (err *Error) Unwrap() error {
 // Equal compares two errors for equality.
 // Note that in the default error comparison, only when their `code` and `text` are the same, the error is considered the same.
 func (err *Error) Equal(target error) bool {
-	if err == target {
-		return true
+	if err == nil || target == nil {
+		return err == nil && target == nil
 	}
 	// Code should be the same.
 	// Note that if both errors have `nil` code, they are also considered equal.
-	if err.code != Code(target) {
+	if !equalCode(err.code, Code(target)) {
 		return false
 	}
 	// Text should be the same.
@@ -99,4 +99,11 @@ func (err *Error) Equal(target error) bool {
 		return false
 	}
 	return true
+}
+
+func equalCode(left, right mcode.Code) bool {
+	if left == nil || right == nil {
+		return left == nil && right == nil
+	}
+	return left.Code() == right.Code()
 }

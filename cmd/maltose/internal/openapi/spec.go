@@ -38,6 +38,10 @@ func BuildSpec(apiDefs []APIDefinition, projectName string, allStructs map[strin
 		if apiDef.Path == "" {
 			continue
 		}
+		method := strings.ToUpper(apiDef.Method)
+		if method != "GET" && method != "POST" && method != "PUT" && method != "DELETE" {
+			return nil, fmt.Errorf("unsupported HTTP method %q for path %s", apiDef.Method, apiDef.Path)
+		}
 
 		pathItem := spec.Paths.Find(apiDef.Path)
 		if pathItem == nil {
@@ -53,7 +57,7 @@ func BuildSpec(apiDefs []APIDefinition, projectName string, allStructs map[strin
 		}
 
 		// Handle Request
-		if strings.ToUpper(apiDef.Method) == "GET" {
+		if method == "GET" {
 			for _, field := range apiDef.Request.Fields {
 				paramSchema := builder.typeToSchemaRef(field.Type).Value // Unpack SchemaRef for parameters
 				param := openapi3.NewQueryParameter(field.JSONName).
@@ -99,14 +103,26 @@ func BuildSpec(apiDefs []APIDefinition, projectName string, allStructs map[strin
 		})
 
 		// Add operation to path item
-		switch strings.ToUpper(apiDef.Method) {
+		switch method {
 		case "GET":
+			if pathItem.Get != nil {
+				return nil, fmt.Errorf("duplicate GET operation for path %s", apiDef.Path)
+			}
 			pathItem.Get = op
 		case "POST":
+			if pathItem.Post != nil {
+				return nil, fmt.Errorf("duplicate POST operation for path %s", apiDef.Path)
+			}
 			pathItem.Post = op
 		case "PUT":
+			if pathItem.Put != nil {
+				return nil, fmt.Errorf("duplicate PUT operation for path %s", apiDef.Path)
+			}
 			pathItem.Put = op
 		case "DELETE":
+			if pathItem.Delete != nil {
+				return nil, fmt.Errorf("duplicate DELETE operation for path %s", apiDef.Path)
+			}
 			pathItem.Delete = op
 		}
 	}

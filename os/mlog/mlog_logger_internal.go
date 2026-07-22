@@ -5,7 +5,6 @@ import (
 	"io"
 	"os"
 	"slices"
-	"unsafe"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -18,7 +17,7 @@ func (l *Logger) refreshHooks() {
 	}
 }
 
-func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel) {
+func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel, io.Closer, error) {
 	encoderCfg := zap.NewProductionEncoderConfig()
 
 	// TimeFormat
@@ -52,7 +51,7 @@ func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel) {
 			MaxAge:     config.MaxAge,
 		})
 		if err != nil {
-			panic(err)
+			return nil, zap.AtomicLevel{}, nil, err
 		}
 		writers = append(writers, zapcore.AddSync(fileWriter))
 	}
@@ -87,11 +86,31 @@ func buildZapLogger(config *Config) (*zap.Logger, zap.AtomicLevel) {
 		opts = append(opts, zap.Development())
 	}
 
-	return zapLogger.WithOptions(opts...), level
+	return zapLogger.WithOptions(opts...), level, fileWriter, nil
+}
+
+func toZapFields(fields []Field) []zap.Field {
+	zapFields := make([]zap.Field, len(fields))
+	for i, field := range fields {
+		zapFields[i] = zap.Field{
+			Key:       field.Key,
+			Type:      field.Type,
+			Integer:   field.Integer,
+			String:    field.String,
+			Interface: field.Interface,
+		}
+	}
+	return zapFields
 }
 
 // log logs the message with the given level and attributes.
 func (l *Logger) log(ctx context.Context, level Level, msg string, fields ...Field) {
+	l.mu.RLock()
+	defer l.mu.RUnlock()
+	if l.parent == nil {
+		return
+	}
+
 	// Get entry from the pool.
 	entry := entryPool.Get().(*Entry)
 	entry.ctx = ctx
@@ -105,15 +124,16 @@ func (l *Logger) log(ctx context.Context, level Level, msg string, fields ...Fie
 	}()
 
 	// Fire hooks.
-	for _, hook := range l.hooks {
+	l.hookMu.RLock()
+	hooks := append([]Hook(nil), l.hooks...)
+	l.hookMu.RUnlock()
+	for _, hook := range hooks {
 		if slices.Contains(hook.Levels(), level) {
 			hook.Fire(entry)
 		}
 	}
 
-	// NOTE: This is a zero-cost cast that relies on mlog.Field having the same memory layout as zapcore.Field.
-	// Be cautious when upgrading zap or changing mlog.Field definition.
-	zapFields := *(*[]zap.Field)(unsafe.Pointer(&entry.fields))
+	zapFields := toZapFields(entry.fields)
 	switch level {
 	case DebugLevel:
 		l.parent.Debug(entry.msg, zapFields...)

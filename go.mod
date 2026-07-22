@@ -11,6 +11,7 @@ require (
 	github.com/go-playground/locales v0.14.1
 	github.com/go-playground/universal-translator v0.18.1
 	github.com/go-playground/validator/v10 v10.27.0
+	github.com/go-sql-driver/mysql v1.9.3
 	github.com/graingo/mconv v1.1.4
 	github.com/redis/go-redis/extra/redisotel/v9 v9.11.0
 	github.com/redis/go-redis/v9 v9.11.0
@@ -46,7 +47,6 @@ require (
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/go-openapi/jsonpointer v0.21.1 // indirect
 	github.com/go-openapi/swag v0.23.1 // indirect
-	github.com/go-sql-driver/mysql v1.9.3 // indirect
 	github.com/goccy/go-json v0.10.5 // indirect
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/jackc/pgpassfile v1.0.0 // indirect

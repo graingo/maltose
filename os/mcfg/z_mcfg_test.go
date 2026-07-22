@@ -380,6 +380,58 @@ func TestConfig_Hooks(t *testing.T) {
 	})
 }
 
+func TestConfig_HooksRunInRegistrationOrder(t *testing.T) {
+	t.Cleanup(mcfg.ClearHooks)
+	mcfg.ClearHooks()
+
+	adapter, err := mcfg.NewAdapterContent(`steps: []`, "yaml")
+	require.NoError(t, err)
+	mcfg.RegisterAfterLoadHook(func(_ context.Context, data map[string]any) (map[string]any, error) {
+		data["steps"] = append(data["steps"].([]any), "first")
+		return data, nil
+	})
+	mcfg.RegisterAfterLoadHook(func(_ context.Context, data map[string]any) (map[string]any, error) {
+		data["steps"] = append(data["steps"].([]any), "second")
+		return data, nil
+	})
+
+	data, err := mcfg.NewWithAdapter(adapter).Data(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []any{"first", "second"}, data["steps"])
+}
+
+func TestConfig_SeesAdapterUpdatesWithoutManualCacheClear(t *testing.T) {
+	t.Cleanup(mcfg.ClearHooks)
+	mcfg.ClearHooks()
+
+	adapter, err := mcfg.NewAdapterContent(`key: initial`, "yaml")
+	require.NoError(t, err)
+	config := mcfg.NewWithAdapter(adapter)
+	assert.Equal(t, "initial", config.GetString(ctx, "key"))
+
+	require.NoError(t, adapter.SetContent(`key: updated`, "yaml"))
+	assert.Equal(t, "updated", config.GetString(ctx, "key"))
+}
+
+func TestConfig_DataReturnsDeepCopy(t *testing.T) {
+	t.Cleanup(mcfg.ClearHooks)
+	mcfg.ClearHooks()
+
+	adapter, err := mcfg.NewAdapterContent("nested:\n  value: original\nitems:\n  - name: first", "yaml")
+	require.NoError(t, err)
+	config := mcfg.NewWithAdapter(adapter)
+
+	data, err := config.Data(ctx)
+	require.NoError(t, err)
+	data["nested"].(map[string]any)["value"] = "mutated"
+	data["items"].([]any)[0].(map[string]any)["name"] = "mutated"
+
+	fresh, err := config.Data(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, "original", fresh["nested"].(map[string]any)["value"])
+	assert.Equal(t, "first", fresh["items"].([]any)[0].(map[string]any)["name"])
+}
+
 // --- Concurrency ---
 
 func TestConfig_Concurrency(t *testing.T) {

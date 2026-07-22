@@ -35,22 +35,24 @@ func Server(name ...string) *mhttp.Server {
 			}
 
 			if serverConfigNode, ok := configMap[configNodeNameServer]; ok {
-				globalConfigMap := serverConfigNode.(map[string]any)
+				globalConfigMap := mustConfigMap(serverConfigNode, configNodeNameServer)
 
 				var serverConfigMap map[string]any
 				// try to get instance specific config
 				if instanceConfig, ok := globalConfigMap[instanceName]; ok {
-					serverConfigMap = instanceConfig.(map[string]any)
+					serverConfigMap = mustConfigMap(instanceConfig, fmt.Sprintf("%s.%s", configNodeNameServer, instanceName))
 				} else if defaultConfig, ok := globalConfigMap["default"]; ok {
 					// try to get default instance config
-					serverConfigMap = defaultConfig.(map[string]any)
+					serverConfigMap = mustConfigMap(defaultConfig, configNodeNameServer+".default")
 				} else if len(globalConfigMap) > 0 {
 					// use flat structure config
 					serverConfigMap = globalConfigMap
 				}
 
 				if len(serverConfigMap) > 0 {
-					server.SetConfigWithMap(serverConfigMap)
+					if err := server.SetConfigWithMap(serverConfigMap); err != nil {
+						panic(merror.NewCodef(mcode.CodeInvalidConfiguration, "set server config failed: %v", err))
+					}
 
 					// check current config for logger node
 					var loggerConfigMap map[string]any
@@ -58,7 +60,7 @@ func Server(name ...string) *mhttp.Server {
 						loggerConfigMap = cfg
 					} else if globalLoggerConfig, ok := configMap[configNodeNameLogger]; ok {
 						// try to get global logger config
-						loggerConfigMap = globalLoggerConfig.(map[string]any)
+						loggerConfigMap = mustConfigMap(globalLoggerConfig, configNodeNameLogger)
 					}
 
 					// apply logger config

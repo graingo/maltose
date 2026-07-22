@@ -468,7 +468,7 @@ func TestPool_RealWorldScenarios(t *testing.T) {
 		assert.LessOrEqual(t, pool.Size(), 10)
 	})
 
-	t.Run("buffer_pool", func(t *testing.T) {
+	t.Run("buffer_pool", func(_ *testing.T) {
 		type Buffer struct {
 			data []byte
 		}

@@ -177,7 +177,9 @@ func (w *fileWriter) Close() error {
 
 	// Close file
 	if w.file != nil {
-		return w.file.Close()
+		err := w.file.Close()
+		w.file = nil
+		return err
 	}
 	return nil
 }
@@ -199,7 +201,9 @@ func (w *fileWriter) checkAndRotate() error {
 
 	// Close current file if open
 	if w.file != nil {
-		w.file.Close()
+		if err := w.file.Close(); err != nil {
+			return err
+		}
 		w.file = nil
 	}
 

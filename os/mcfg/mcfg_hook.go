@@ -3,8 +3,7 @@ package mcfg
 import (
 	"context"
 	"fmt"
-
-	"github.com/graingo/maltose/container/minstance"
+	"sync"
 )
 
 // StatefulHook is an interface for hooks that need to maintain state across multiple calls.
@@ -15,11 +14,42 @@ type StatefulHook interface {
 
 type ConfigHookFunc func(ctx context.Context, data map[string]any) (map[string]any, error)
 
-var (
-	// hooks stores the hooks to be executed after configuration is loaded,
-	// using a concurrent-safe instance manager.
-	hooks = minstance.New()
-)
+type hookRegistry struct {
+	mu      sync.RWMutex
+	keys    map[string]struct{}
+	ordered []ConfigHookFunc
+}
+
+var hooks = &hookRegistry{keys: make(map[string]struct{})}
+
+func (r *hookRegistry) register(key string, hook ConfigHookFunc) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.keys[key]; exists {
+		return
+	}
+	r.keys[key] = struct{}{}
+	r.ordered = append(r.ordered, hook)
+}
+
+func (r *hookRegistry) all() []ConfigHookFunc {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return append([]ConfigHookFunc(nil), r.ordered...)
+}
+
+func (r *hookRegistry) count() int {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	return len(r.ordered)
+}
+
+func (r *hookRegistry) clear() {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.keys = make(map[string]struct{})
+	r.ordered = nil
+}
 
 // RegisterAfterLoadHook registers a hook to be executed after configuration is loaded.
 // It accepts either a function with the signature `func(context.Context, map[string]any) (map[string]any, error)`
@@ -40,14 +70,13 @@ func RegisterAfterLoadHook(hook any) {
 		panic(fmt.Sprintf("unsupported hook type: %T. Must be a ConfigHookFunc or a StatefulHook", h))
 	}
 
-	// Use a unique key for each hook to store it in the instance manager.
-	hooks.Set(fmt.Sprintf("%p", hook), hookFunc)
+	hooks.register(fmt.Sprintf("%p", hook), hookFunc)
 }
 
 // ClearHooks removes all registered hooks.
 // This is intended for testing purposes only.
 func ClearHooks() {
-	hooks = minstance.New()
+	hooks.clear()
 }
 
 // runAfterLoadHooks executes all registered after-load hooks in order.
@@ -55,14 +84,10 @@ func runAfterLoadHooks(ctx context.Context, data map[string]any) (map[string]any
 	processedData := data
 	var err error
 
-	// All retrieves all registered hooks in a thread-safe manner.
-	allHooks := hooks.All()
-	for _, hookInstance := range allHooks {
-		if hook, ok := hookInstance.(ConfigHookFunc); ok {
-			processedData, err = hook(ctx, processedData)
-			if err != nil {
-				return nil, err
-			}
+	for _, hook := range hooks.all() {
+		processedData, err = hook(ctx, processedData)
+		if err != nil {
+			return nil, err
 		}
 	}
 
