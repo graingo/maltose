@@ -343,6 +343,24 @@ func (c *AdapterRedis) logicalKey(key string) string {
 	return strings.TrimPrefix(key, c.keyPrefix)
 }
 
+// scanPattern returns a Redis glob that matches the adapter namespace only.
+// Redis SCAN treats several characters as pattern operators, so a literal
+// prefix must be escaped before the trailing wildcard is added.
+func (c *AdapterRedis) scanPattern() string {
+	return escapeRedisGlob(c.keyPrefix) + "*"
+}
+
+func escapeRedisGlob(value string) string {
+	replacer := strings.NewReplacer(
+		`\`, `\\`,
+		`*`, `\*`,
+		`?`, `\?`,
+		`[`, `\[`,
+		`]`, `\]`,
+	)
+	return replacer.Replace(value)
+}
+
 func waitForLockRetry(ctx context.Context, interval time.Duration) error {
 	timer := time.NewTimer(interval)
 	defer timer.Stop()
@@ -432,11 +450,13 @@ func (c *AdapterRedis) Values(ctx context.Context) (values []interface{}, err er
 }
 
 func (c *AdapterRedis) scanPhysicalKeys(ctx context.Context) ([]string, error) {
-	iterator := c.redis.Client().Scan(ctx, 0, c.keyPrefix+"*", 100).Iterator()
+	iterator := c.redis.Client().Scan(ctx, 0, c.scanPattern(), 100).Iterator()
 	keys := make([]string, 0)
 	for iterator.Next(ctx) {
 		key := iterator.Val()
-		if !strings.HasSuffix(key, lockKeySuffix) {
+		// Keep a defensive literal-prefix check even though SCAN uses an escaped
+		// pattern. This prevents future pattern changes from crossing namespaces.
+		if strings.HasPrefix(key, c.keyPrefix) && !strings.HasSuffix(key, lockKeySuffix) {
 			keys = append(keys, key)
 		}
 	}
@@ -535,10 +555,14 @@ func (c *AdapterRedis) Clear(ctx context.Context) error {
 }
 
 func (c *AdapterRedis) clearNamespace(ctx context.Context) error {
-	iterator := c.redis.Client().Scan(ctx, 0, c.keyPrefix+"*", 100).Iterator()
+	iterator := c.redis.Client().Scan(ctx, 0, c.scanPattern(), 100).Iterator()
 	keys := make([]string, 0, 100)
 	for iterator.Next(ctx) {
-		keys = append(keys, iterator.Val())
+		key := iterator.Val()
+		if !strings.HasPrefix(key, c.keyPrefix) {
+			continue
+		}
+		keys = append(keys, key)
 		if len(keys) == cap(keys) {
 			if err := c.redis.Client().Unlink(ctx, keys...).Err(); err != nil {
 				return err

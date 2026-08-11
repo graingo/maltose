@@ -30,6 +30,12 @@ func TestCacheKeyMapping(t *testing.T) {
 	assert.Equal(t, "user:1", adapter.logicalKey("app:cache:user:1"))
 }
 
+func TestScanPatternEscapesRedisGlobCharacters(t *testing.T) {
+	adapter := NewAdapterRedisWithOptions(nil, WithKeyPrefix(`tenant[1]*?\:cache:`)).(*AdapterRedis)
+
+	assert.Equal(t, `tenant\[1\]\*\?\\:cache:*`, adapter.scanPattern())
+}
+
 func TestNewLockTokenReturnsUniqueTokens(t *testing.T) {
 	first, err := newLockToken()
 	require.NoError(t, err)

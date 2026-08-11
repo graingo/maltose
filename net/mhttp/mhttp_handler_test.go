@@ -2,6 +2,7 @@ package mhttp_test
 
 import (
 	"context"
+	"errors"
 	"io"
 	"net"
 	"net/http"
@@ -84,4 +85,59 @@ func TestStopClosesImmediatelyWhenGracefulShutdownIsDisabled(t *testing.T) {
 	case <-time.After(time.Second):
 		t.Fatal("server did not stop after graceful shutdown was disabled")
 	}
+}
+
+func TestStopClosesServerWhenGracefulWaitExceedsDeadline(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+
+	server := mhttp.New()
+	require.NoError(t, server.SetConfigWithMap(map[string]any{
+		"graceful_wait_time": time.Second,
+		"graceful_timeout":   time.Second,
+	}))
+	server.GET("/ready", func(request *mhttp.Request) {
+		request.String(http.StatusOK, "ready")
+	})
+
+	serveDone := make(chan error, 1)
+	go func() {
+		serveDone <- server.StartListener(context.Background(), listener)
+	}()
+
+	response, err := http.Get("http://" + listener.Addr().String() + "/ready")
+	require.NoError(t, err)
+	require.NoError(t, response.Body.Close())
+
+	stopCtx, cancel := context.WithTimeout(context.Background(), 20*time.Millisecond)
+	defer cancel()
+	err = server.Stop(stopCtx)
+	require.Error(t, err)
+	assert.True(t, errors.Is(err, context.DeadlineExceeded))
+
+	select {
+	case err := <-serveDone:
+		require.NoError(t, err)
+	case <-time.After(time.Second):
+		t.Fatal("StartListener remained blocked after the shutdown deadline")
+	}
+}
+
+func TestStartDoesNotListenWithCanceledContext(t *testing.T) {
+	listener, err := net.Listen("tcp", "127.0.0.1:0")
+	require.NoError(t, err)
+	address := listener.Addr().String()
+	require.NoError(t, listener.Close())
+
+	server := mhttp.New()
+	server.SetAddress(address)
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+
+	err = server.Start(ctx)
+	require.ErrorIs(t, err, context.Canceled)
+
+	listener, err = net.Listen("tcp", address)
+	require.NoError(t, err, "a canceled Start must not occupy the configured address")
+	require.NoError(t, listener.Close())
 }

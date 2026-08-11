@@ -78,6 +78,24 @@ func TestKeyPrefixScopesGlobalOperations(t *testing.T) {
 	assert.Zero(t, size)
 }
 
+func TestKeyPrefixTreatsRedisGlobCharactersLiterally(t *testing.T) {
+	client := integrationRedisClient(t)
+	adapter := NewAdapterRedisWithOptions(client, WithKeyPrefix("tenant[1]:")).(*AdapterRedis)
+	ctx := context.Background()
+
+	require.NoError(t, adapter.Set(ctx, "inside", "owned", 0))
+	require.NoError(t, client.Set(ctx, "tenant1:outside", "preserved"))
+
+	keys, err := adapter.Keys(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []string{"inside"}, keys)
+
+	require.NoError(t, adapter.Clear(ctx))
+	exists, err := client.Exists(ctx, "tenant1:outside")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), exists)
+}
+
 func integrationRedisClient(t *testing.T) *mredis.Redis {
 	t.Helper()
 	client, err := mredis.New(&mredis.Config{Address: "localhost:6379", DB: 10})

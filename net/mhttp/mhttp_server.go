@@ -2,6 +2,7 @@ package mhttp
 
 import (
 	"context"
+	"errors"
 	"net"
 	"net/http"
 	"os"
@@ -69,6 +70,11 @@ func (s *Server) Start(ctx context.Context) error {
 	}
 	s.setHTTPServer(server)
 	defer s.clearHTTPServer(server)
+	// Register the server before checking cancellation so a concurrent Stop
+	// either closes this server or the canceled context prevents it from listening.
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	var err error
 	if s.config.TLSEnable {
@@ -98,6 +104,9 @@ func (s *Server) StartListener(ctx context.Context, listener net.Listener) error
 	}
 	s.setHTTPServer(server)
 	defer s.clearHTTPServer(server)
+	if err := ctx.Err(); err != nil {
+		return err
+	}
 
 	var err error
 	if s.config.TLSEnable {
@@ -124,8 +133,13 @@ func (s *Server) Stop(ctx context.Context) error {
 
 	shutdownCtx, cancel := gracefulShutdownContext(ctx, s.config.GracefulTimeout)
 	defer cancel()
-	if err := waitForGracefulShutdown(shutdownCtx, s.config.GracefulWaitTime); err != nil {
-		return err
+	if waitErr := waitForGracefulShutdown(shutdownCtx, s.config.GracefulWaitTime); waitErr != nil {
+		// Shutdown marks the server as stopping even if the context has already
+		// expired. Close then forcefully releases active connections so Start
+		// cannot remain blocked after the application shutdown deadline.
+		shutdownErr := server.Shutdown(shutdownCtx)
+		closeErr := server.Close()
+		return errors.Join(waitErr, shutdownErr, closeErr)
 	}
 	return server.Shutdown(shutdownCtx)
 }

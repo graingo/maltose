@@ -180,9 +180,35 @@ jobs:
 
       - name: Check public API compatibility
         run: |
+          set -euo pipefail
           base_version=$(git tag --list 'v[0-9]*' --sort=-version:refname | head -n 1)
           if [[ -z "$base_version" ]]; then
             echo "No release tag found; skipping API compatibility check"
             exit 0
           fi
-          go run golang.org/x/exp/cmd/gorelease@v0.0.0-20260810151157-a8b543ca52da -base="$base_version"
+
+          report_file=$(mktemp)
+          trap 'rm -f "$report_file"' EXIT
+          go run golang.org/x/exp/cmd/gorelease@v0.0.0-20260810151157-a8b543ca52da \
+            -base="$base_version" | tee "$report_file"
+
+          # gorelease reports incompatible changes but intentionally exits 0
+          # for v0 modules. Fail the job when any incompatibility other than
+          # the release VERSION constant is present.
+          if ! awk '
+            /^# [^#]/ { current_package = $0; in_incompatible = 0; next }
+            /^## incompatible changes$/ { in_incompatible = 1; next }
+            /^## / { in_incompatible = 0 }
+            in_incompatible && NF {
+              if (current_package == "# github.com/graingo/maltose" &&
+                  $0 ~ /^VERSION: value changed from /) {
+                next
+              }
+              print
+              found = 1
+            }
+            END { exit found ? 1 : 0 }
+          ' "$report_file"; then
+            echo "::error::Public API contains backward-incompatible changes"
+            exit 1
+          fi

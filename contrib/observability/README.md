@@ -36,3 +36,7 @@ return app.Run()
 ```
 
 Set `enabled: false` or omit the node to receive a no-op provider that is safe to close.
+
+`trace.sample_ratio` accepts values from `0` through `1`. When configuration is
+loaded with `FromConfig`, an omitted value defaults to `1`; an explicit `0`
+disables span sampling without being rewritten to full sampling.

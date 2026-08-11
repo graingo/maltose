@@ -15,12 +15,13 @@ import (
 )
 
 const (
-	defaultConfigPattern   = "observability"
-	defaultServiceName     = "maltose-service"
-	defaultEnvironment     = "production"
-	defaultExportTimeout   = 10 * time.Second
-	defaultExportInterval  = 10 * time.Second
-	defaultShutdownTimeout = 10 * time.Second
+	defaultConfigPattern    = "observability"
+	defaultServiceName      = "maltose-service"
+	defaultEnvironment      = "production"
+	defaultExportTimeout    = 10 * time.Second
+	defaultExportInterval   = 10 * time.Second
+	defaultShutdownTimeout  = 10 * time.Second
+	defaultTraceSampleRatio = 1.0
 )
 
 // Config defines shared resource information and signal-specific OTLP settings.
@@ -76,7 +77,7 @@ func FromConfig(ctx context.Context, config *mcfg.Config, pattern ...string) (*P
 		configPattern = pattern[0]
 	}
 
-	settings := Config{}
+	settings := defaultConfig()
 	if err := config.Struct(ctx, &settings, configPattern); err != nil {
 		return nil, merror.Wrapf(err, "failed to load observability config from %q", configPattern)
 	}
@@ -93,6 +94,12 @@ func New(ctx context.Context, config Config) (*Provider, error) {
 	}
 	if !config.Trace.Enabled && !config.Metric.Enabled {
 		return nil, merror.New("observability requires at least one enabled signal")
+	}
+	if config.Trace.Enabled && (config.Trace.SampleRatio < 0 || config.Trace.SampleRatio > 1) {
+		return nil, merror.Newf(
+			"observability.trace.sample_ratio must be between 0 and 1, got %v",
+			config.Trace.SampleRatio,
+		)
 	}
 
 	if config.Trace.Enabled {
@@ -143,6 +150,12 @@ func (p *Provider) shutdownTrace(ctx context.Context) {
 	}
 }
 
+func defaultConfig() Config {
+	return Config{
+		Trace: TraceConfig{SampleRatio: defaultTraceSampleRatio},
+	}
+}
+
 func normalizeConfig(config Config) Config {
 	if config.ServiceName == "" {
 		config.ServiceName = defaultServiceName
@@ -158,9 +171,6 @@ func normalizeConfig(config Config) Config {
 	}
 	if config.Trace.Timeout <= 0 {
 		config.Trace.Timeout = defaultExportTimeout
-	}
-	if config.Trace.SampleRatio <= 0 || config.Trace.SampleRatio > 1 {
-		config.Trace.SampleRatio = 1
 	}
 	if config.Metric.Protocol == "" {
 		config.Metric.Protocol = string(otlpmetric.ProtocolGRPC)

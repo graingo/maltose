@@ -39,6 +39,31 @@ func TestNewValidatesEnabledSignals(t *testing.T) {
 	require.EqualError(t, err, `unsupported observability.metric.protocol "invalid"`)
 }
 
+func TestNewPreservesZeroTraceSampleRatio(t *testing.T) {
+	config := normalizeConfig(Config{
+		Trace: TraceConfig{SampleRatio: 0},
+	})
+
+	assert.Zero(t, config.Trace.SampleRatio)
+}
+
+func TestNewRejectsTraceSampleRatioOutsideRange(t *testing.T) {
+	_, err := New(context.Background(), Config{
+		Enabled: true,
+		Trace: TraceConfig{
+			Enabled:     true,
+			Endpoint:    "localhost:4317",
+			SampleRatio: 1.1,
+		},
+	})
+
+	require.EqualError(t, err, "observability.trace.sample_ratio must be between 0 and 1, got 1.1")
+}
+
+func TestDefaultConfigSamplesAllTraces(t *testing.T) {
+	assert.Equal(t, 1.0, defaultConfig().Trace.SampleRatio)
+}
+
 func TestFromConfigLoadsDefaults(t *testing.T) {
 	adapter, err := mcfg.NewAdapterContent(`
 observability:
@@ -46,10 +71,31 @@ observability:
   service_name: checkout
 `, "yaml")
 	require.NoError(t, err)
+	config := mcfg.NewWithAdapter(adapter)
+	settings := defaultConfig()
+	require.NoError(t, config.Struct(context.Background(), &settings, defaultConfigPattern))
+	assert.Equal(t, 1.0, settings.Trace.SampleRatio)
 
-	provider, err := FromConfig(context.Background(), mcfg.NewWithAdapter(adapter))
+	provider, err := FromConfig(context.Background(), config)
 	require.NoError(t, err)
 	assert.Equal(t, defaultShutdownTimeout, provider.shutdownTimeout)
+}
+
+func TestFromConfigPreservesExplicitZeroTraceSampleRatio(t *testing.T) {
+	adapter, err := mcfg.NewAdapterContent(`
+observability:
+  enabled: false
+  trace:
+    sample_ratio: 0
+`, "yaml")
+	require.NoError(t, err)
+	settings := defaultConfig()
+	require.NoError(t, mcfg.NewWithAdapter(adapter).Struct(
+		context.Background(),
+		&settings,
+		defaultConfigPattern,
+	))
+	assert.Zero(t, settings.Trace.SampleRatio)
 }
 
 func TestProviderShutdownIsIdempotent(t *testing.T) {
