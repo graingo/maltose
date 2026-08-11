@@ -7,6 +7,16 @@ import (
 	"github.com/graingo/maltose/errors/merror"
 )
 
+func recoverAsError(err *error) {
+	if recovered := recover(); recovered != nil {
+		if recoveredErr, ok := recovered.(error); ok {
+			*err = recoveredErr
+			return
+		}
+		*err = merror.Newf("framework instance initialization panicked: %v", recovered)
+	}
+}
+
 func mustConfigMap(value any, node string) map[string]any {
 	configMap, ok := value.(map[string]any)
 	if !ok {

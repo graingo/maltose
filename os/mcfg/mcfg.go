@@ -220,50 +220,137 @@ func (c *Config) Struct(ctx context.Context, v any, pattern string, hooks ...mco
 	return mconv.ToStructE(data, v, hooks...)
 }
 
-// GetString gets the configuration value as a string.
-func (c *Config) GetString(ctx context.Context, pattern string, def ...any) string {
+// String gets the configuration value as a string.
+func (c *Config) String(ctx context.Context, pattern string, def ...any) (string, error) {
 	val, err := c.Get(ctx, pattern, def...)
 	if err != nil {
-		panic(err)
-	}
-	return val.String()
-}
-
-// GetInt gets the configuration value as an int.
-func (c *Config) GetInt(ctx context.Context, pattern string, def ...any) int {
-	val, err := c.Get(ctx, pattern, def...)
-	if err != nil {
-		panic(err)
-	}
-	return val.Int()
-}
-
-// GetBool gets the configuration value as a bool.
-func (c *Config) GetBool(ctx context.Context, pattern string, def ...any) bool {
-	val, err := c.Get(ctx, pattern, def...)
-	if err != nil {
-		panic(err)
-	}
-	return val.Bool()
-}
-
-// GetMap gets the configuration value as a map.
-func (c *Config) GetMap(ctx context.Context, pattern string, def ...any) map[string]any {
-	val, err := c.Get(ctx, pattern, def...)
-	if err != nil {
-		panic(err)
-	}
-	return val.Map()
-}
-
-// GetSlice gets the configuration value as a slice.
-func (c *Config) GetSlice(ctx context.Context, pattern string, def ...any) []any {
-	val, err := c.Get(ctx, pattern, def...)
-	if err != nil {
-		panic(err)
+		return "", err
 	}
 	if val == nil {
-		return nil
+		return "", nil
 	}
-	return mconv.ToSlice(val.Val())
+	return val.String(), nil
+}
+
+// MustGetString gets a string value and panics if the adapter returns an error.
+func (c *Config) MustGetString(ctx context.Context, pattern string, def ...any) string {
+	value, err := c.String(ctx, pattern, def...)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+// GetString gets a string value and panics if the adapter returns an error.
+// Deprecated: use String for explicit error handling or MustGetString during startup.
+func (c *Config) GetString(ctx context.Context, pattern string, def ...any) string {
+	return c.MustGetString(ctx, pattern, def...)
+}
+
+// Int gets the configuration value as an int.
+func (c *Config) Int(ctx context.Context, pattern string, def ...any) (int, error) {
+	val, err := c.Get(ctx, pattern, def...)
+	if err != nil {
+		return 0, err
+	}
+	if val == nil {
+		return 0, nil
+	}
+	return val.Int(), nil
+}
+
+// MustGetInt gets an int value and panics if the adapter returns an error.
+func (c *Config) MustGetInt(ctx context.Context, pattern string, def ...any) int {
+	value, err := c.Int(ctx, pattern, def...)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+// GetInt gets an int value and panics if the adapter returns an error.
+// Deprecated: use Int for explicit error handling or MustGetInt during startup.
+func (c *Config) GetInt(ctx context.Context, pattern string, def ...any) int {
+	return c.MustGetInt(ctx, pattern, def...)
+}
+
+// Bool gets the configuration value as a bool.
+func (c *Config) Bool(ctx context.Context, pattern string, def ...any) (bool, error) {
+	val, err := c.Get(ctx, pattern, def...)
+	if err != nil {
+		return false, err
+	}
+	if val == nil {
+		return false, nil
+	}
+	return val.Bool(), nil
+}
+
+// MustGetBool gets a bool value and panics if the adapter returns an error.
+func (c *Config) MustGetBool(ctx context.Context, pattern string, def ...any) bool {
+	value, err := c.Bool(ctx, pattern, def...)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+// GetBool gets a bool value and panics if the adapter returns an error.
+// Deprecated: use Bool for explicit error handling or MustGetBool during startup.
+func (c *Config) GetBool(ctx context.Context, pattern string, def ...any) bool {
+	return c.MustGetBool(ctx, pattern, def...)
+}
+
+// Map gets the configuration value as a map.
+func (c *Config) Map(ctx context.Context, pattern string, def ...any) (map[string]any, error) {
+	val, err := c.Get(ctx, pattern, def...)
+	if err != nil {
+		return nil, err
+	}
+	if val == nil {
+		return nil, nil
+	}
+	return val.Map(), nil
+}
+
+// MustGetMap gets a map value and panics if the adapter returns an error.
+func (c *Config) MustGetMap(ctx context.Context, pattern string, def ...any) map[string]any {
+	value, err := c.Map(ctx, pattern, def...)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+// GetMap gets a map value and panics if the adapter returns an error.
+// Deprecated: use Map for explicit error handling or MustGetMap during startup.
+func (c *Config) GetMap(ctx context.Context, pattern string, def ...any) map[string]any {
+	return c.MustGetMap(ctx, pattern, def...)
+}
+
+// Slice gets the configuration value as a slice.
+func (c *Config) Slice(ctx context.Context, pattern string, def ...any) ([]any, error) {
+	val, err := c.Get(ctx, pattern, def...)
+	if err != nil {
+		return nil, err
+	}
+	if val == nil {
+		return nil, nil
+	}
+	return mconv.ToSlice(val.Val()), nil
+}
+
+// MustGetSlice gets a slice value and panics if the adapter returns an error.
+func (c *Config) MustGetSlice(ctx context.Context, pattern string, def ...any) []any {
+	value, err := c.Slice(ctx, pattern, def...)
+	if err != nil {
+		panic(err)
+	}
+	return value
+}
+
+// GetSlice gets a slice value and panics if the adapter returns an error.
+// Deprecated: use Slice for explicit error handling or MustGetSlice during startup.
+func (c *Config) GetSlice(ctx context.Context, pattern string, def ...any) []any {
+	return c.MustGetSlice(ctx, pattern, def...)
 }

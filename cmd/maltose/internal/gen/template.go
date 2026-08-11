@@ -24,8 +24,8 @@ const (
 	{{range .Functions}}
 	// {{.Name}} is the handler for the {{.Name}} API.
 	func (c *c{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.APIPkg}}.{{.ReqName}}) (res *{{$.APIPkg}}.{{.ResName}}, err error) {
-		// TODO: Implement the business logic here.
-		panic("implement me")
+		// TODO: Replace the zero-value response with business logic.
+		return new({{$.APIPkg}}.{{.ResName}}), nil
 	}
 	{{end}}
 `
@@ -59,8 +59,8 @@ const (
 	{{range .Functions}}
 	// {{.Name}} is the handler for the {{.Name}} API.
 	func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.APIPkg}}.{{.ReqName}}) (res *{{$.APIPkg}}.{{.ResName}}, err error) {
-		// TODO: Implement the business logic here.
-		panic("implement me")
+		// TODO: Replace the zero-value response with business logic.
+		return new({{$.APIPkg}}.{{.ResName}}), nil
 	}
 	{{end}}
 `
@@ -70,8 +70,8 @@ const (
 {{range .Functions}}
 // {{.Name}} is the handler for the {{.Name}} API.
 func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.APIPkg}}.{{.ReqName}}) (res *{{$.APIPkg}}.{{.ResName}}, err error) {
-	// TODO: Implement the business logic here.
-	panic("implement me")
+	// TODO: Replace the zero-value response with business logic.
+	return new({{$.APIPkg}}.{{.ResName}}), nil
 }
 {{end}}
 `
@@ -102,8 +102,8 @@ func (c *{{$.Controller}}) {{.Name}}(ctx context.Context, req *{{$.APIPkg}}.{{.R
 {{range .Functions}}
 // {{.Name}} is the handler for the {{.Name}} API.
 func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.APIPkg}}.{{.ReqName}}) (res *{{$.APIPkg}}.{{.ResName}}, err error) {
-	// TODO: Implement the business logic here.
-	panic("implement me")
+	// TODO: Replace the zero-value response with business logic.
+	return new({{$.APIPkg}}.{{.ResName}}), nil
 }
 {{end}}
 `

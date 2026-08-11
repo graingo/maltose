@@ -116,20 +116,9 @@ func configureConnectionPool(db *gorm.DB, cfg *Config) error {
 		return err
 	}
 
-	// Set maximum number of idle connections
 	sqlDB.SetMaxIdleConns(cfg.MaxIdleConnection)
-
-	// Set maximum number of open connections
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConnection)
-
-	// Set maximum idle time for connections
-	maxIdleTime := cfg.MaxIdleTime
-	if maxIdleTime <= 0 {
-		maxIdleTime = time.Hour // Default 1 hour
-	}
-	sqlDB.SetConnMaxIdleTime(maxIdleTime)
-
-	// Set maximum lifetime for connections. A zero value disables lifetime-based closing.
+	sqlDB.SetConnMaxIdleTime(cfg.MaxIdleTime)
 	sqlDB.SetConnMaxLifetime(cfg.MaxLifetime)
 
 	return nil
@@ -143,10 +132,10 @@ func configureReplicas(db *gorm.DB, cfg *Config) error {
 
 	replicas := make([]gorm.Dialector, len(cfg.Replicas))
 	for i, replicaCfg := range cfg.Replicas {
-		// Note: we need to pass the address of the replica config
+		replicaCfg = mergeReplicaConfig(cfg, replicaCfg)
 		driver, err := createDriver(&replicaCfg)
 		if err != nil {
-			return err
+			return merror.Wrapf(err, "invalid database replica configuration at index %d", i)
 		}
 		replicas[i] = driver
 	}
@@ -164,4 +153,24 @@ func configureReplicas(db *gorm.DB, cfg *Config) error {
 	}
 
 	return nil
+}
+
+// mergeReplicaConfig inherits connection fields omitted by a replica.
+func mergeReplicaConfig(primary *Config, replica Config) Config {
+	if replica.Type == "" {
+		replica.Type = primary.Type
+	}
+	if replica.Port == "" {
+		replica.Port = primary.Port
+	}
+	if replica.User == "" {
+		replica.User = primary.User
+	}
+	if replica.Password == "" {
+		replica.Password = primary.Password
+	}
+	if replica.DBName == "" {
+		replica.DBName = primary.DBName
+	}
+	return replica
 }

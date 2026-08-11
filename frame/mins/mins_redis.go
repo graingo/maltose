@@ -108,3 +108,10 @@ func Redis(name ...string) *mredis.Redis {
 	}
 	return instance.(*mredis.Redis)
 }
+
+// TryRedis returns a Redis instance or an initialization error.
+// Unlike Redis, it does not panic when configuration or client setup fails.
+func TryRedis(name ...string) (client *mredis.Redis, err error) {
+	defer recoverAsError(&err)
+	return Redis(name...), nil
+}

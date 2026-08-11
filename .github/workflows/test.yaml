@@ -4,7 +4,7 @@ on:
   pull_request:
     branches: [master]
   push:
-    branches: [master]
+    branches: [master, dev]
 
 jobs:
   test:
@@ -70,7 +70,7 @@ jobs:
             sleep 2
           done
 
-      - name: Run tests
+      - name: Run unit tests
         env:
           APOLLO_IP: http://localhost:8080
           APOLLO_APP_ID: SampleApp
@@ -85,6 +85,10 @@ jobs:
           DB_NAME: testdb
         run: |
           go test -v -race -coverprofile=coverage.out ./...
+
+      - name: Run integration tests
+        run: |
+          go test -v -race -tags=integration ./database/mredis ./contrib/cache/redis
 
       - name: Run nested module tests
         env:

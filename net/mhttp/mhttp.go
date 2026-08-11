@@ -34,6 +34,8 @@ type Server struct {
 	uni          *ut.UniversalTranslator
 	translator   ut.Translator
 	srv          *http.Server
+	prepareOnce  sync.Once
+	serverMu     sync.RWMutex
 	panicHandler func(r *Request, err error)
 }
 
@@ -66,7 +68,7 @@ func New(config ...*Config) *Server {
 		},
 	}
 
-	// initialize root RouterGroup
+	// Initialize the root router group.
 	s.RouterGroup = RouterGroup{
 		server:      s,
 		path:        "/",
@@ -74,7 +76,7 @@ func New(config ...*Config) *Server {
 		middlewares: make([]MiddlewareFunc, 0),
 		parent:      nil,
 	}
-	// add default middlewares
+	// Register framework middleware before user routes are bound.
 	s.Use(
 		internalMiddlewareTrace(),
 		internalMiddlewareRecovery(),
@@ -83,14 +85,13 @@ func New(config ...*Config) *Server {
 	)
 
 	if s.config.ServerLocale != "" {
-		// register translator
 		s.registerValidateTranslator(s.config.ServerLocale)
 	}
 
 	return s
 }
 
-// WithPanicHandler sets a custom panic handler for the server
+// WithPanicHandler sets the handler used to convert recovered panics into responses.
 func (s *Server) WithPanicHandler(handler func(r *Request, err error)) *Server {
 	s.panicHandler = handler
 	return s

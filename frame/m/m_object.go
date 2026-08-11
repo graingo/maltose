@@ -31,12 +31,27 @@ func DB(name ...string) *mdb.DB {
 	return mins.DB(name...)
 }
 
+// TryDB returns a database instance or an initialization error.
+func TryDB(name ...string) (*mdb.DB, error) {
+	return mins.TryDB(name...)
+}
+
 // DBContext returns the instance of the database with the specified name and context.
 func DBContext(ctx context.Context, name ...string) *mdb.DB {
 	return mins.DB(name...).WithContext(ctx)
 }
 
+// TryDBContext returns a context-bound database instance or an initialization error.
+func TryDBContext(ctx context.Context, name ...string) (*mdb.DB, error) {
+	return mins.TryDBContext(ctx, name...)
+}
+
 // Redis returns the instance of the redis with the specified name.
 func Redis(name ...string) *mredis.Redis {
 	return mins.Redis(name...)
+}
+
+// TryRedis returns a Redis instance or an initialization error.
+func TryRedis(name ...string) (*mredis.Redis, error) {
+	return mins.TryRedis(name...)
 }

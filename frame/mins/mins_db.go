@@ -98,3 +98,19 @@ func DB(name ...string) *mdb.DB {
 
 	return instance.(*mdb.DB)
 }
+
+// TryDB returns a database instance or an initialization error.
+// Unlike DB, it does not panic when configuration or connection setup fails.
+func TryDB(name ...string) (database *mdb.DB, err error) {
+	defer recoverAsError(&err)
+	return DB(name...), nil
+}
+
+// TryDBContext returns a context-bound database instance or an initialization error.
+func TryDBContext(ctx context.Context, name ...string) (*mdb.DB, error) {
+	database, err := TryDB(name...)
+	if err != nil {
+		return nil, err
+	}
+	return database.WithContext(ctx), nil
+}

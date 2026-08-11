@@ -18,6 +18,7 @@ func TestRunReturnsAfterProgrammaticStop(t *testing.T) {
 	require.NoError(t, listener.Close())
 
 	server := mhttp.New()
+	require.NoError(t, server.SetConfigWithMap(map[string]any{"graceful_wait_time": 0}))
 	server.SetAddress(address)
 	server.GET("/run-stop", func(request *mhttp.Request) {
 		request.String(http.StatusOK, "ok")

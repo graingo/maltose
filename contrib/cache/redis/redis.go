@@ -2,6 +2,8 @@ package redis
 
 import (
 	"context"
+	"crypto/rand"
+	"encoding/hex"
 	"time"
 
 	"github.com/graingo/maltose/container/mvar"
@@ -10,16 +12,73 @@ import (
 	"github.com/redis/go-redis/v9"
 )
 
+const (
+	defaultLockTTL           = 10 * time.Second
+	defaultLockRetryInterval = 50 * time.Millisecond
+	defaultLockWaitTimeout   = 10 * time.Second
+	lockReleaseTimeout       = time.Second
+	lockKeySuffix            = ":maltose:lock"
+)
+
+const releaseLockScript = `
+if redis.call("GET", KEYS[1]) == ARGV[1] then
+	return redis.call("DEL", KEYS[1])
+end
+return 0
+`
+
 // AdapterRedis is the mcache adapter implements using Redis server.
 type AdapterRedis struct {
-	redis *mredis.Redis
+	redis             *mredis.Redis
+	lockTTL           time.Duration
+	lockRetryInterval time.Duration
+	lockWaitTimeout   time.Duration
+}
+
+// Option configures a Redis cache adapter.
+type Option func(*AdapterRedis)
+
+// WithLockTTL sets how long a distributed cache lock remains valid.
+func WithLockTTL(ttl time.Duration) Option {
+	return func(adapter *AdapterRedis) {
+		if ttl > 0 {
+			adapter.lockTTL = ttl
+		}
+	}
+}
+
+// WithLockRetryInterval sets how often a waiter retries an occupied lock.
+func WithLockRetryInterval(interval time.Duration) Option {
+	return func(adapter *AdapterRedis) {
+		if interval > 0 {
+			adapter.lockRetryInterval = interval
+		}
+	}
+}
+
+// WithLockWaitTimeout limits how long GetOrSetFuncLock waits for a value or lock.
+func WithLockWaitTimeout(timeout time.Duration) Option {
+	return func(adapter *AdapterRedis) {
+		if timeout > 0 {
+			adapter.lockWaitTimeout = timeout
+		}
+	}
 }
 
 // NewAdapterRedis creates and returns a new redis adapter for mcache.
-func NewAdapterRedis(redis *mredis.Redis) mcache.Adapter {
-	return &AdapterRedis{
-		redis: redis,
+func NewAdapterRedis(redisClient *mredis.Redis, options ...Option) mcache.Adapter {
+	adapter := &AdapterRedis{
+		redis:             redisClient,
+		lockTTL:           defaultLockTTL,
+		lockRetryInterval: defaultLockRetryInterval,
+		lockWaitTimeout:   defaultLockWaitTimeout,
 	}
+	for _, option := range options {
+		if option != nil {
+			option(adapter)
+		}
+	}
+	return adapter
 }
 
 // Set sets cache with `key`-`value` pair, which is expired after `duration`.
@@ -110,20 +169,20 @@ func (c *AdapterRedis) SetIfNotExistFunc(ctx context.Context, key string, f mcac
 // SetIfNotExistFuncLock sets `key` with result of function `f` if `key` does not exist in the cache.
 // Note that the function `f` is executed within redis lock.
 func (c *AdapterRedis) SetIfNotExistFuncLock(ctx context.Context, key string, f mcache.Func, duration time.Duration) (ok bool, err error) {
-	// Use redis lock to ensure atomicity.
-	// This is a simplified lock, a more robust implementation should use a distributed lock library.
-	lockKey := key + "_lock"
-	// The lock TTL is 10 seconds.
-	locked, err := c.redis.SetNX(ctx, lockKey, 1, 10*time.Second)
+	lockKey := cacheLockKey(key)
+	token, locked, err := c.acquireLock(ctx, lockKey)
 	if err != nil {
 		return false, err
 	}
 	if !locked {
-		return false, nil // Another process is setting the value.
+		return false, nil
 	}
-	defer c.redis.Del(ctx, lockKey)
+	defer func() {
+		if releaseErr := c.releaseLock(ctx, lockKey, token); releaseErr != nil && err == nil {
+			err = releaseErr
+		}
+	}()
 
-	// Double check inside the lock.
 	v, err := c.redis.Exists(ctx, key)
 	if err != nil {
 		return false, err
@@ -177,25 +236,12 @@ func (c *AdapterRedis) GetOrSetFunc(ctx context.Context, key string, f mcache.Fu
 
 // GetOrSetFuncLock retrieves and returns the value of `key`, or sets `key` with result of function `f` and returns its result if `key` does not exist.
 func (c *AdapterRedis) GetOrSetFuncLock(ctx context.Context, key string, f mcache.Func, duration time.Duration) (result *mvar.Var, err error) {
-	result, err = c.Get(ctx, key)
-	if err != nil {
-		return nil, err
-	}
-	if result != nil {
-		return result, nil
-	}
+	waitCtx, cancel := context.WithTimeout(ctx, c.lockWaitTimeout)
+	defer cancel()
+	lockKey := cacheLockKey(key)
 
-	// Use redis lock to ensure atomicity.
-	lockKey := key + "_lock"
-	// The lock TTL is 10 seconds.
-	locked, err := c.redis.SetNX(ctx, lockKey, 1, 10*time.Second)
-	if err != nil {
-		return nil, err
-	}
-	if locked {
-		defer c.redis.Del(ctx, lockKey)
-		// Double check inside the lock.
-		result, err = c.Get(ctx, key)
+	for {
+		result, err = c.Get(waitCtx, key)
 		if err != nil {
 			return nil, err
 		}
@@ -203,21 +249,81 @@ func (c *AdapterRedis) GetOrSetFuncLock(ctx context.Context, key string, f mcach
 			return result, nil
 		}
 
-		var value interface{}
-		value, err = f(ctx)
+		token, locked, lockErr := c.acquireLock(waitCtx, lockKey)
+		if lockErr != nil {
+			return nil, lockErr
+		}
+		if !locked {
+			if waitErr := waitForLockRetry(waitCtx, c.lockRetryInterval); waitErr != nil {
+				return nil, waitErr
+			}
+			continue
+		}
+
+		result, err = c.getOrSetUnderLock(waitCtx, key, f, duration)
+		releaseErr := c.releaseLock(waitCtx, lockKey, token)
 		if err != nil {
 			return nil, err
 		}
-		err = c.Set(ctx, key, value, duration)
-		if err != nil {
-			return nil, err
+		if releaseErr != nil {
+			return nil, releaseErr
 		}
-		return mvar.New(value), nil
+		return result, nil
+	}
+}
+
+func (c *AdapterRedis) getOrSetUnderLock(ctx context.Context, key string, f mcache.Func, duration time.Duration) (*mvar.Var, error) {
+	result, err := c.Get(ctx, key)
+	if err != nil || result != nil {
+		return result, err
 	}
 
-	// Wait and retry getting the value. A better solution is to use a more sophisticated distributed lock.
-	time.Sleep(50 * time.Millisecond)
-	return c.GetOrSetFuncLock(ctx, key, f, duration)
+	value, err := f(ctx)
+	if err != nil {
+		return nil, err
+	}
+	if err := c.Set(ctx, key, value, duration); err != nil {
+		return nil, err
+	}
+	return mvar.New(value), nil
+}
+
+func (c *AdapterRedis) acquireLock(ctx context.Context, lockKey string) (token string, locked bool, err error) {
+	token, err = newLockToken()
+	if err != nil {
+		return "", false, err
+	}
+	locked, err = c.redis.SetNX(ctx, lockKey, token, c.lockTTL)
+	return token, locked, err
+}
+
+func (c *AdapterRedis) releaseLock(ctx context.Context, lockKey, token string) error {
+	releaseCtx, cancel := context.WithTimeout(context.WithoutCancel(ctx), lockReleaseTimeout)
+	defer cancel()
+	return c.redis.Client().Eval(releaseCtx, releaseLockScript, []string{lockKey}, token).Err()
+}
+
+func newLockToken() (string, error) {
+	var token [16]byte
+	if _, err := rand.Read(token[:]); err != nil {
+		return "", err
+	}
+	return hex.EncodeToString(token[:]), nil
+}
+
+func cacheLockKey(key string) string {
+	return key + lockKeySuffix
+}
+
+func waitForLockRetry(ctx context.Context, interval time.Duration) error {
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // Contains checks and returns true if `key` exists in the cache, or else returns false.
@@ -236,11 +342,10 @@ func (c *AdapterRedis) Size(ctx context.Context) (size int, err error) {
 	return int(n), err
 }
 
-// Data returns a copy of all key-value pairs in the cache as map type.
-// Note that this method may be slow and memory-consuming if the cache size is large,
-// as it uses `KEYS *` to retrieve all keys. It is not recommended to use this method in production.
+// Data returns a copy of all key-value pairs in the selected Redis database.
+// It incrementally scans keys, but may still be expensive for a large database.
 func (c *AdapterRedis) Data(ctx context.Context) (data map[string]interface{}, err error) {
-	keys, err := c.redis.Keys(ctx, "*")
+	keys, err := c.scanKeys(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -260,18 +365,15 @@ func (c *AdapterRedis) Data(ctx context.Context) (data map[string]interface{}, e
 	return data, nil
 }
 
-// Keys returns all keys in the cache as slice.
-// Note that this method may be slow if the cache size is large,
-// as it uses `KEYS *` to retrieve all keys. It is not recommended to use this method in production.
+// Keys returns all keys in the selected Redis database using incremental SCAN calls.
 func (c *AdapterRedis) Keys(ctx context.Context) (keys []string, err error) {
-	return c.redis.Keys(ctx, "*")
+	return c.scanKeys(ctx)
 }
 
-// Values returns all values in the cache as slice.
-// Note that this method may be slow and memory-consuming if the cache size is large,
-// as it uses `KEYS *` to retrieve all keys. It is not recommended to use this method in production.
+// Values returns all values in the selected Redis database.
+// It incrementally scans keys, but may still be expensive for a large database.
 func (c *AdapterRedis) Values(ctx context.Context) (values []interface{}, err error) {
-	keys, err := c.redis.Keys(ctx, "*")
+	keys, err := c.scanKeys(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -287,6 +389,18 @@ func (c *AdapterRedis) Values(ctx context.Context) (values []interface{}, err er
 		values[i] = v.Val()
 	}
 	return values, nil
+}
+
+func (c *AdapterRedis) scanKeys(ctx context.Context) ([]string, error) {
+	iterator := c.redis.Client().Scan(ctx, 0, "*", 100).Iterator()
+	keys := make([]string, 0)
+	for iterator.Next(ctx) {
+		keys = append(keys, iterator.Val())
+	}
+	if err := iterator.Err(); err != nil {
+		return nil, err
+	}
+	return keys, nil
 }
 
 // Update updates the value of `key` without changing its expiration and returns the old value.

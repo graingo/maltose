@@ -10,6 +10,8 @@ import (
 	"gorm.io/gorm"
 )
 
+// Config defines a database connection, its pool, replicas, and plugins.
+// Zero-value fields inherit the framework defaults when passed to New.
 type Config struct {
 	// Type is the type of the database.
 	Type string `mconv:"type"`
@@ -70,14 +72,68 @@ func cloneConfig(config *Config) *Config {
 	return &cloned
 }
 
+// mergeConfig overlays non-zero user values on the database defaults.
+func mergeConfig(config *Config) *Config {
+	merged := defaultConfig()
+	if config == nil {
+		return merged
+	}
+
+	if config.Type != "" {
+		merged.Type = config.Type
+	}
+	if config.DSN != "" {
+		merged.DSN = config.DSN
+	}
+	if config.Host != "" {
+		merged.Host = config.Host
+	}
+	if config.Port != "" {
+		merged.Port = config.Port
+	}
+	if config.User != "" {
+		merged.User = config.User
+	}
+	if config.Password != "" {
+		merged.Password = config.Password
+	}
+	if config.DBName != "" {
+		merged.DBName = config.DBName
+	}
+	if config.MaxIdleTime != 0 {
+		merged.MaxIdleTime = config.MaxIdleTime
+	}
+	if config.MaxIdleConnection != 0 {
+		merged.MaxIdleConnection = config.MaxIdleConnection
+	}
+	if config.MaxOpenConnection != 0 {
+		merged.MaxOpenConnection = config.MaxOpenConnection
+	}
+	if config.MaxLifetime != 0 {
+		merged.MaxLifetime = config.MaxLifetime
+	}
+	if config.SlowThreshold != 0 {
+		merged.SlowThreshold = config.SlowThreshold
+	}
+	if config.Logger != nil {
+		merged.Logger = config.Logger
+	}
+	if config.Replicas != nil {
+		merged.Replicas = append([]Config(nil), config.Replicas...)
+	}
+	if config.Plugins != nil {
+		merged.Plugins = append([]gorm.Plugin(nil), config.Plugins...)
+	}
+
+	return merged
+}
+
 func (c *Config) SetConfigWithMap(config map[string]any) error {
 	return mconv.ToStructE(config, c)
 }
 
 func (c *Config) SetLogger(logger *mlog.Logger) {
 	if logger == nil {
-		// If no logger is provided, create a default one.
-		// The component field will be added by the GormLogger wrapper.
 		logger = mlog.New()
 	}
 	c.Logger = logger.With(mlog.String(maltose.COMPONENT, "mdb"))

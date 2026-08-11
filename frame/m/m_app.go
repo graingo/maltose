@@ -3,6 +3,7 @@ package m
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/signal"
 	"sync"
@@ -35,9 +36,26 @@ func WithServer(servers ...AppServer) Option {
 }
 
 // WithShutdownHook adds functions to be called during graceful shutdown.
+// Hooks run in reverse registration order and each receives its own timeout.
 func WithShutdownHook(hooks ...func(ctx context.Context) error) Option {
 	return func(a *App) {
 		a.shutdownHooks = append(a.shutdownHooks, hooks...)
+	}
+}
+
+// WithCloser registers resources that should be closed during application shutdown.
+// Closers run in reverse registration order after all managed servers have stopped.
+func WithCloser(closers ...io.Closer) Option {
+	return func(a *App) {
+		for _, closer := range closers {
+			if closer == nil {
+				continue
+			}
+			resource := closer
+			a.shutdownHooks = append(a.shutdownHooks, func(context.Context) error {
+				return resource.Close()
+			})
+		}
 	}
 }
 
@@ -50,7 +68,7 @@ func WithLogger(logger *mlog.Logger) Option {
 	}
 }
 
-// WithShutdownTimeout sets the maximum duration for each server stop and for shutdown hooks.
+// WithShutdownTimeout sets the maximum duration of each server stop, hook, and closer.
 func WithShutdownTimeout(timeout time.Duration) Option {
 	return func(a *App) {
 		if timeout > 0 {
@@ -140,15 +158,11 @@ func (a *App) Run() error {
 		a.logger.Warnf(context.Background(), "Shutdown initiated due to a service startup failure. You can see the error from return value.")
 	}
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), a.shutdownTimeout)
-	defer shutdownCancel()
-
 	var shutdownErr error
 	a.shutdownOnce.Do(func() {
-		// Execute shutdown hooks in reverse order.
 		for i := len(a.shutdownHooks) - 1; i >= 0; i-- {
-			if err := a.shutdownHooks[i](shutdownCtx); err != nil {
-				a.logger.Errorf(shutdownCtx, err, "Shutdown hook failed")
+			if err := runShutdownHook(a.shutdownHooks[i], a.shutdownTimeout); err != nil {
+				a.logger.Errorf(context.Background(), err, "Shutdown hook failed")
 				shutdownErr = errors.Join(shutdownErr, err)
 			}
 		}
@@ -158,10 +172,26 @@ func (a *App) Run() error {
 	// A `context.Canceled` error from `startErr` is expected on a clean shutdown,
 	// so we don't treat it as a true error.
 	if startErr != nil && !errors.Is(startErr, context.Canceled) {
-		return startErr
+		return errors.Join(startErr, shutdownErr)
 	}
 
 	return shutdownErr
+}
+
+func runShutdownHook(hook func(context.Context) error, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- hook(ctx)
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 func stopServer(server AppServer, timeout time.Duration) error {
