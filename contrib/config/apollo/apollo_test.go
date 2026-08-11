@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/graingo/maltose/contrib/config/apollo"
-	"github.com/graingo/maltose/frame/m"
+	"github.com/graingo/maltose/os/mcfg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -41,9 +41,8 @@ func TestApollo(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, adapter)
 
-	// Set configuration
-	config := m.Config("apollo")
-	config.SetAdapter(adapter)
+	// Create an isolated configuration instance backed by Apollo.
+	config := mcfg.NewWithAdapter(adapter)
 
 	// Test availability
 	// With MustStart: true, it should be available immediately.
