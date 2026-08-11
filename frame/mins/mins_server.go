@@ -14,7 +14,13 @@ const (
 	configNodeNameServer = "server" // config node name for server
 )
 
+// Server returns an HTTP server instance from the default scope.
 func Server(name ...string) *mhttp.Server {
+	return defaultScope.Server(name...)
+}
+
+// Server returns an HTTP server instance owned by the scope.
+func (s *Scope) Server(name ...string) *mhttp.Server {
 	var (
 		ctx          = context.Background()
 		instanceName = mhttp.DefaultServerName
@@ -24,12 +30,12 @@ func Server(name ...string) *mhttp.Server {
 	}
 	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameServer, instanceName)
 
-	instance := serverInstances.GetOrSetFunc(instanceKey, func() any {
+	instance := s.serverInstances.GetOrSetFunc(instanceKey, func() any {
 		server := mhttp.New()
 
-		// if config is available, read server config from config
-		if Config().Available(ctx) {
-			configMap, err := Config().Data(ctx)
+		// Apply server settings when the scope configuration is available.
+		if s.Config().Available(ctx) {
+			configMap, err := s.Config().Data(ctx)
 			if err != nil {
 				panic(merror.NewCodef(mcode.CodeMissingConfiguration, `retrieve config data map failed: %v`, err))
 			}
@@ -54,16 +60,15 @@ func Server(name ...string) *mhttp.Server {
 						panic(merror.NewCodef(mcode.CodeInvalidConfiguration, "set server config failed: %v", err))
 					}
 
-					// check current config for logger node
+					// Prefer the server logger configuration, then the scope logger.
 					var loggerConfigMap map[string]any
 					if cfg, ok := serverConfigMap[configNodeNameLogger].(map[string]any); ok {
 						loggerConfigMap = cfg
 					} else if globalLoggerConfig, ok := configMap[configNodeNameLogger]; ok {
-						// try to get global logger config
 						loggerConfigMap = mustConfigMap(globalLoggerConfig, configNodeNameLogger)
 					}
 
-					// apply logger config
+					// Attach a dedicated logger when configured.
 					if len(loggerConfigMap) > 0 {
 						serverLogger := mlog.New()
 						if err := serverLogger.SetConfigWithMap(loggerConfigMap); err != nil {
@@ -71,13 +76,13 @@ func Server(name ...string) *mhttp.Server {
 						}
 						server.SetLogger(serverLogger)
 					} else {
-						// if no logger config, use global logger
-						server.SetLogger(Log())
+						// Otherwise, share the scope's default logger.
+						server.SetLogger(s.Log())
 					}
 				}
 			}
 		}
-		// set server name
+		// Preserve the requested name when no explicit name is configured.
 		if instanceName != mhttp.DefaultServerName {
 			server.SetServerName(instanceName)
 		}

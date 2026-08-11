@@ -13,9 +13,13 @@ const (
 	configNodeNameLogger = "logger" // config node name for logger
 )
 
-// Log returns a glog.Logger instance
-// The parameter name is the instance name
+// Log returns a logger instance from the default scope.
 func Log(name ...string) *mlog.Logger {
+	return defaultScope.Log(name...)
+}
+
+// Log returns a logger instance owned by the scope.
+func (s *Scope) Log(name ...string) *mlog.Logger {
 	var (
 		ctx          = context.Background()
 		instanceName = mlog.DefaultName
@@ -25,12 +29,12 @@ func Log(name ...string) *mlog.Logger {
 	}
 	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameLogger, instanceName)
 
-	instance := loggerInstances.GetOrSetFunc(instanceKey, func() any {
-		logger := mlog.Instance(instanceName)
+	instance := s.loggerInstances.GetOrSetFunc(instanceKey, func() any {
+		logger := s.newLogger(instanceName)
 
 		// It firstly searches configuration of the instance name.
 		certainLoggerNodeName := fmt.Sprintf(`%s.%s`, configNodeNameLogger, instanceName)
-		if v, err := Config().Get(ctx, certainLoggerNodeName); err != nil {
+		if v, err := s.Config().Get(ctx, certainLoggerNodeName); err != nil {
 			panic(merror.NewCodef(mcode.CodeInvalidConfiguration, `get logger config for instance "%s" failed: %v`, instanceName, err))
 		} else if !v.IsNil() {
 			if err := logger.SetConfigWithMap(v.Map()); err != nil {
@@ -41,7 +45,7 @@ func Log(name ...string) *mlog.Logger {
 
 		// If the configuration for the instance name is not found,
 		// it then searches the default configuration.
-		if v, err := Config().Get(ctx, configNodeNameLogger); err != nil {
+		if v, err := s.Config().Get(ctx, configNodeNameLogger); err != nil {
 			panic(merror.NewCodef(mcode.CodeInvalidConfiguration, `get default logger config failed: %v`, err))
 		} else if !v.IsNil() {
 			if err := logger.SetConfigWithMap(v.Map()); err != nil {

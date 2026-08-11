@@ -11,6 +11,16 @@ import (
 	"github.com/graingo/maltose/os/mlog"
 )
 
+// NewScope creates an isolated framework instance scope backed by config.
+func NewScope(config *mcfg.Config) *Scope {
+	return mins.NewScope(config)
+}
+
+// DefaultScope returns the scope used by package-level helpers.
+func DefaultScope() *Scope {
+	return mins.DefaultScope()
+}
+
 // Server returns the instance of the HTTP server with the specified name.
 func Server(name ...string) *mhttp.Server {
 	return mins.Server(name...)

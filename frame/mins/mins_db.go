@@ -14,7 +14,13 @@ const (
 	configNodeNameDB = "database" // config node name for database
 )
 
+// DB returns a database instance from the default scope.
 func DB(name ...string) *mdb.DB {
+	return defaultScope.DB(name...)
+}
+
+// DB returns a database instance owned by the scope.
+func (s *Scope) DB(name ...string) *mdb.DB {
 	var (
 		ctx          = context.Background()
 		instanceName = mdb.DefaultName
@@ -24,20 +30,20 @@ func DB(name ...string) *mdb.DB {
 	}
 	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameDB, instanceName)
 
-	// get or create db instance
-	instance := dbInstances.GetOrSetFunc(instanceKey, func() any {
-		// If config is not available, it panics.
-		if !Config().Available(ctx) {
+	// Create each named instance at most once within the scope.
+	instance := s.dbInstances.GetOrSetFunc(instanceKey, func() any {
+		// Database initialization requires an available configuration source.
+		if !s.Config().Available(ctx) {
 			panic(merror.NewCodef(mcode.CodeMissingConfiguration, `configuration not found for DB instance "%s"`, instanceName))
 		}
 
-		// Get global config.
-		configMap, err := Config().Data(ctx)
+		// Read the complete scope configuration once for component fallbacks.
+		configMap, err := s.Config().Data(ctx)
 		if err != nil {
 			panic(merror.NewCodef(mcode.CodeMissingConfiguration, `retrieve config data map failed: %v`, err))
 		}
 
-		// Try to get db config node.
+		// Locate the database configuration node.
 		dbConfigNode, ok := configMap[configNodeNameDB]
 		if !ok {
 			panic(merror.NewCodef(mcode.CodeMissingConfiguration, `configuration node "%s" not found`, configNodeNameDB))
@@ -66,17 +72,15 @@ func DB(name ...string) *mdb.DB {
 			panic(merror.NewCodef(mcode.CodeInvalidConfiguration, `create database config from map failed for instance "%s": %v`, instanceName, err))
 		}
 
-		// check current config for logger node
+		// Prefer the instance logger configuration, then the scope logger.
 		var loggerConfigMap map[string]any
 		if loggerConfig, ok := databaseConfigMap[configNodeNameLogger]; ok {
-			// specific instance logger config
 			loggerConfigMap = mustConfigMap(loggerConfig, fmt.Sprintf("%s.%s.%s", configNodeNameDB, instanceName, configNodeNameLogger))
 		} else if globalLoggerConfig, ok := configMap[configNodeNameLogger]; ok {
-			// global logger config
 			loggerConfigMap = mustConfigMap(globalLoggerConfig, configNodeNameLogger)
 		}
 
-		// apply logger config
+		// Attach a dedicated logger when configured.
 		if len(loggerConfigMap) > 0 {
 			dbLogger := mlog.New()
 			if err := dbLogger.SetConfigWithMap(loggerConfigMap); err != nil {
@@ -84,11 +88,11 @@ func DB(name ...string) *mdb.DB {
 			}
 			dbConfig.SetLogger(dbLogger)
 		} else {
-			// if no logger config, use global logger
-			dbConfig.SetLogger(Log())
+			// Otherwise, share the scope's default logger.
+			dbConfig.SetLogger(s.Log())
 		}
 
-		// create db instance with config
+		// Create the connection pool only after configuration is complete.
 		db, err := mdb.New(dbConfig)
 		if err != nil {
 			panic(err)
@@ -102,13 +106,23 @@ func DB(name ...string) *mdb.DB {
 // TryDB returns a database instance or an initialization error.
 // Unlike DB, it does not panic when configuration or connection setup fails.
 func TryDB(name ...string) (database *mdb.DB, err error) {
+	return defaultScope.TryDB(name...)
+}
+
+// TryDB returns a scoped database instance or an initialization error.
+func (s *Scope) TryDB(name ...string) (database *mdb.DB, err error) {
 	defer recoverAsError(&err)
-	return DB(name...), nil
+	return s.DB(name...), nil
 }
 
 // TryDBContext returns a context-bound database instance or an initialization error.
 func TryDBContext(ctx context.Context, name ...string) (*mdb.DB, error) {
-	database, err := TryDB(name...)
+	return defaultScope.TryDBContext(ctx, name...)
+}
+
+// TryDBContext returns a context-bound database instance owned by the scope.
+func (s *Scope) TryDBContext(ctx context.Context, name ...string) (*mdb.DB, error) {
+	database, err := s.TryDB(name...)
 	if err != nil {
 		return nil, err
 	}
