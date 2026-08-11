@@ -9,7 +9,7 @@ import (
 	"time"
 
 	"github.com/graingo/maltose/contrib/config/nacos"
-	"github.com/graingo/maltose/frame/m"
+	"github.com/graingo/maltose/os/mcfg"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
@@ -114,9 +114,8 @@ address = ":8080"
 	require.NoError(t, err)
 	require.NotNil(t, adapter)
 
-	// Use adapter in config instance
-	cfg := m.Config("nacos")
-	cfg.SetAdapter(adapter)
+	// Create an isolated configuration instance backed by Nacos.
+	cfg := mcfg.NewWithAdapter(adapter)
 
 	// 1. Test initial configuration
 	assert.True(t, cfg.Available(ctx))
