@@ -3,7 +3,7 @@ package mhttp_test
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -91,14 +91,16 @@ func TestRouter(t *testing.T) {
 		respV1, errV1 := http.Get(baseURL + "/v1/ping")
 		require.NoError(t, errV1)
 		defer respV1.Body.Close()
-		bodyV1, _ := ioutil.ReadAll(respV1.Body)
+		bodyV1, err := io.ReadAll(respV1.Body)
+		require.NoError(t, err)
 		assert.Equal(t, "v1 pong", string(bodyV1))
 
 		// Test V2
 		respV2, errV2 := http.Get(baseURL + "/v2/ping")
 		require.NoError(t, errV2)
 		defer respV2.Body.Close()
-		bodyV2, _ := ioutil.ReadAll(respV2.Body)
+		bodyV2, err := io.ReadAll(respV2.Body)
+		require.NoError(t, err)
 		assert.Equal(t, "v2 pong", string(bodyV2))
 	})
 
@@ -113,7 +115,8 @@ func TestRouter(t *testing.T) {
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
 		assert.JSONEq(t, `{"message":"Hello, Maltose"}`, string(body))
 	})
 
@@ -129,7 +132,8 @@ func TestRouter(t *testing.T) {
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
 		assert.JSONEq(t, `{"id":123, "content":"new content"}`, string(body))
 	})
 
@@ -146,7 +150,8 @@ func TestRouter(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
 		assert.Equal(t, "world", string(body))
 	})
 }

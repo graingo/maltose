@@ -13,7 +13,7 @@ func (v *Var) IsNil() bool {
 	}
 	rv := reflect.ValueOf(value)
 	switch rv.Kind() {
-	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Ptr, reflect.Slice:
+	case reflect.Chan, reflect.Func, reflect.Interface, reflect.Map, reflect.Pointer, reflect.Slice:
 		return rv.IsNil()
 	default:
 		return false
@@ -71,7 +71,7 @@ func (v *Var) IsEmpty() bool {
 		switch rv.Kind() {
 		case reflect.Array, reflect.Map, reflect.Slice, reflect.String:
 			return rv.Len() == 0
-		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Ptr:
+		case reflect.Chan, reflect.Func, reflect.Interface, reflect.Pointer:
 			return rv.IsNil()
 		default:
 			return false

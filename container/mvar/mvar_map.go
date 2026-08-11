@@ -61,7 +61,7 @@ func (v *Var) Map() map[string]any {
 		}
 		rv := reflect.ValueOf(value)
 		kind := rv.Kind()
-		for kind == reflect.Ptr {
+		for kind == reflect.Pointer {
 			if rv.IsNil() {
 				return nil
 			}

@@ -3,7 +3,7 @@ package mhttp_test
 import (
 	"context"
 	"encoding/json"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"sync"
 	"testing"
@@ -140,7 +140,7 @@ func TestMiddleware(t *testing.T) {
 			require.NoError(t, err)
 			defer resp.Body.Close()
 
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 
 			var respMap map[string]interface{}
@@ -157,7 +157,7 @@ func TestMiddleware(t *testing.T) {
 			defer resp.Body.Close()
 
 			assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err)
 			var respMap map[string]interface{}
 			err = json.Unmarshal(body, &respMap)
@@ -186,7 +186,8 @@ func TestMiddleware(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
 		assert.Equal(t, http.StatusUnauthorized, resp.StatusCode)
 		assert.Equal(t, "aborted", string(body))
 		assert.False(t, handlerCalled, "Handler should not be called after abort")
@@ -271,7 +272,8 @@ func TestMiddleware(t *testing.T) {
 		// The default recovery middleware writes a plain text response.
 		// The MiddlewareResponse would format it as JSON.
 		assert.Equal(t, http.StatusInternalServerError, resp.StatusCode)
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
 		assert.Contains(t, string(body), "Internal Panic")
 	})
 
@@ -308,7 +310,7 @@ func TestMiddleware(t *testing.T) {
 		// Verify custom response
 		assert.Equal(t, http.StatusTeapot, resp.StatusCode)
 
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 
 		var respMap map[string]interface{}

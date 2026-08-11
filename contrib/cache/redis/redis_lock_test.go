@@ -11,14 +11,23 @@ import (
 func TestLockOptions(t *testing.T) {
 	adapter := NewAdapterRedis(
 		nil,
+		WithKeyPrefix("app:cache:"),
 		WithLockTTL(3*time.Second),
 		WithLockRetryInterval(20*time.Millisecond),
 		WithLockWaitTimeout(5*time.Second),
 	).(*AdapterRedis)
 
+	assert.Equal(t, "app:cache:", adapter.keyPrefix)
 	assert.Equal(t, 3*time.Second, adapter.lockTTL)
 	assert.Equal(t, 20*time.Millisecond, adapter.lockRetryInterval)
 	assert.Equal(t, 5*time.Second, adapter.lockWaitTimeout)
+}
+
+func TestCacheKeyMapping(t *testing.T) {
+	adapter := NewAdapterRedis(nil, WithKeyPrefix("app:cache:")).(*AdapterRedis)
+
+	assert.Equal(t, "app:cache:user:1", adapter.cacheKey("user:1"))
+	assert.Equal(t, "user:1", adapter.logicalKey("app:cache:user:1"))
 }
 
 func TestNewLockTokenReturnsUniqueTokens(t *testing.T) {

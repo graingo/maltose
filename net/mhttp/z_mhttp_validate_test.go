@@ -2,7 +2,7 @@ package mhttp_test
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"net/http"
 	"strings"
 	"testing"
@@ -100,7 +100,8 @@ func TestValidation(t *testing.T) {
 				require.NoError(t, err)
 				defer resp.Body.Close()
 
-				body, _ := ioutil.ReadAll(resp.Body)
+				body, err := io.ReadAll(resp.Body)
+				require.NoError(t, err)
 				assert.Equal(t, tc.expectedCode, resp.StatusCode)
 
 				if tc.expectedCode == 200 {
@@ -135,7 +136,8 @@ func TestValidation(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		body, _ := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
+		require.NoError(t, err)
 		assert.Equal(t, http.StatusBadRequest, resp.StatusCode)
 		assert.Contains(t, string(body), "framework必须是maltose")
 
@@ -145,7 +147,8 @@ func TestValidation(t *testing.T) {
 		require.NoError(t, err)
 		defer resp.Body.Close()
 
-		body, _ = ioutil.ReadAll(resp.Body)
+		body, err = io.ReadAll(resp.Body)
+		require.NoError(t, err)
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
 		assert.JSONEq(t, `{"code":0, "message":"OK", "data":{"message":"valid"}}`, string(body))
 	})

@@ -50,6 +50,34 @@ func TestGetOrSetFuncLockHonorsContext(t *testing.T) {
 	assert.True(t, errors.Is(err, context.DeadlineExceeded))
 }
 
+func TestKeyPrefixScopesGlobalOperations(t *testing.T) {
+	client := integrationRedisClient(t)
+	adapter := NewAdapterRedis(client, WithKeyPrefix("app:cache:")).(*AdapterRedis)
+	ctx := context.Background()
+
+	require.NoError(t, client.Set(ctx, "outside", "preserved"))
+	require.NoError(t, adapter.Set(ctx, "first", "one", 0))
+	require.NoError(t, adapter.SetMap(ctx, map[string]interface{}{"second": "two", "third": "three"}, 0))
+
+	keys, err := adapter.Keys(ctx)
+	require.NoError(t, err)
+	assert.ElementsMatch(t, []string{"first", "second", "third"}, keys)
+	size, err := adapter.Size(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, 3, size)
+	data, err := adapter.Data(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, map[string]interface{}{"first": "one", "second": "two", "third": "three"}, data)
+
+	require.NoError(t, adapter.Clear(ctx))
+	exists, err := client.Exists(ctx, "outside")
+	require.NoError(t, err)
+	assert.Equal(t, int64(1), exists)
+	size, err = adapter.Size(ctx)
+	require.NoError(t, err)
+	assert.Zero(t, size)
+}
+
 func integrationRedisClient(t *testing.T) *mredis.Redis {
 	t.Helper()
 	client, err := mredis.New(&mredis.Config{Address: "localhost:6379", DB: 10})

@@ -59,13 +59,13 @@ func StructType(object any) (reflect.Type, error) {
 		reflectType = rt
 	} else {
 		v := reflect.ValueOf(object)
-		if v.Kind() == reflect.Ptr && v.IsNil() {
+		if v.Kind() == reflect.Pointer && v.IsNil() {
 			return nil, merror.New("invalid object: nil pointer")
 		}
 		reflectType = v.Type()
 	}
 
-	if reflectType.Kind() == reflect.Ptr {
+	if reflectType.Kind() == reflect.Pointer {
 		reflectType = reflectType.Elem()
 	}
 	if reflectType.Kind() != reflect.Struct {
