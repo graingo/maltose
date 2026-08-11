@@ -95,6 +95,7 @@ address = ":8080"
 	configParam := vo.ConfigParam{
 		DataId: dataID,
 		Group:  group,
+		Type:   "toml",
 	}
 
 	// Create adapter with watch enabled
