@@ -169,7 +169,7 @@ new-key = "new-value"
 	assert.NoError(t, err)
 	assert.Equal(t, ":9090", newAddress.String())
 
-	newValue, err := cfg.Get(ctx, "new-key")
+	newValue, err := cfg.Get(ctx, "server.new-key")
 	assert.NoError(t, err)
 	assert.Equal(t, "new-value", newValue.String())
 }
