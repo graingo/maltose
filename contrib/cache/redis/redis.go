@@ -75,8 +75,13 @@ func WithLockWaitTimeout(timeout time.Duration) Option {
 	}
 }
 
-// NewAdapterRedis creates and returns a new redis adapter for mcache.
-func NewAdapterRedis(redisClient *mredis.Redis, options ...Option) mcache.Adapter {
+// NewAdapterRedis creates a Redis adapter with default options.
+func NewAdapterRedis(redisClient *mredis.Redis) mcache.Adapter {
+	return NewAdapterRedisWithOptions(redisClient)
+}
+
+// NewAdapterRedisWithOptions creates a Redis adapter with explicit options.
+func NewAdapterRedisWithOptions(redisClient *mredis.Redis, options ...Option) mcache.Adapter {
 	adapter := &AdapterRedis{
 		redis:             redisClient,
 		lockTTL:           defaultLockTTL,

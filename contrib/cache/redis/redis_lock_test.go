@@ -9,7 +9,7 @@ import (
 )
 
 func TestLockOptions(t *testing.T) {
-	adapter := NewAdapterRedis(
+	adapter := NewAdapterRedisWithOptions(
 		nil,
 		WithKeyPrefix("app:cache:"),
 		WithLockTTL(3*time.Second),
@@ -24,7 +24,7 @@ func TestLockOptions(t *testing.T) {
 }
 
 func TestCacheKeyMapping(t *testing.T) {
-	adapter := NewAdapterRedis(nil, WithKeyPrefix("app:cache:")).(*AdapterRedis)
+	adapter := NewAdapterRedisWithOptions(nil, WithKeyPrefix("app:cache:")).(*AdapterRedis)
 
 	assert.Equal(t, "app:cache:user:1", adapter.cacheKey("user:1"))
 	assert.Equal(t, "user:1", adapter.logicalKey("app:cache:user:1"))

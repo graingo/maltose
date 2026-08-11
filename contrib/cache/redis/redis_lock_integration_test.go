@@ -33,7 +33,7 @@ func TestReleaseLockChecksOwnership(t *testing.T) {
 
 func TestGetOrSetFuncLockHonorsContext(t *testing.T) {
 	client := integrationRedisClient(t)
-	adapter := NewAdapterRedis(
+	adapter := NewAdapterRedisWithOptions(
 		client,
 		WithLockRetryInterval(5*time.Millisecond),
 		WithLockWaitTimeout(time.Second),
@@ -52,7 +52,7 @@ func TestGetOrSetFuncLockHonorsContext(t *testing.T) {
 
 func TestKeyPrefixScopesGlobalOperations(t *testing.T) {
 	client := integrationRedisClient(t)
-	adapter := NewAdapterRedis(client, WithKeyPrefix("app:cache:")).(*AdapterRedis)
+	adapter := NewAdapterRedisWithOptions(client, WithKeyPrefix("app:cache:")).(*AdapterRedis)
 	ctx := context.Background()
 
 	require.NoError(t, client.Set(ctx, "outside", "preserved"))
