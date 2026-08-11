@@ -4,7 +4,7 @@ import (
 	"context"
 	"os"
 	"strconv"
-	"sync"
+	"strings"
 	"testing"
 	"time"
 
@@ -89,8 +89,13 @@ address = ":8080"
 	client := setup(t, dataID, group, initialContent)
 	defer teardown(t, client, dataID, group)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+	type configChange struct {
+		namespace string
+		group     string
+		dataID    string
+		data      string
+	}
+	changeChan := make(chan configChange, 1)
 
 	configParam := vo.ConfigParam{
 		DataId: dataID,
@@ -105,11 +110,18 @@ address = ":8080"
 		ConfigParam:   configParam,
 		Watch:         true,
 		OnConfigChange: func(namespace, changedGroup, changedDataID, data string) {
-			defer wg.Done()
-			assert.Equal(t, "public", namespace)
-			assert.Equal(t, group, changedGroup)
-			assert.Equal(t, dataID, changedDataID)
-			assert.Contains(t, data, "new-value")
+			if !strings.Contains(data, "new-value") {
+				return
+			}
+			select {
+			case changeChan <- configChange{
+				namespace: namespace,
+				group:     changedGroup,
+				dataID:    changedDataID,
+				data:      data,
+			}:
+			default:
+			}
 		},
 	})
 	require.NoError(t, err)
@@ -142,16 +154,12 @@ new-key = "new-value"
 	})
 	require.NoError(t, err)
 
-	// Wait for the configuration change to be processed
-	waitChan := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(waitChan)
-	}()
-
 	select {
-	case <-waitChan:
-		// success
+	case change := <-changeChan:
+		assert.Equal(t, clientConfig.NamespaceId, change.namespace)
+		assert.Equal(t, group, change.group)
+		assert.Equal(t, dataID, change.dataID)
+		assert.Contains(t, change.data, "new-value")
 	case <-time.After(10 * time.Second):
 		t.Fatal("timeout waiting for configuration change")
 	}
