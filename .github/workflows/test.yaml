@@ -185,4 +185,4 @@ jobs:
             echo "No release tag found; skipping API compatibility check"
             exit 0
           fi
-          go run golang.org/x/exp/cmd/gorelease@v0.0.0-20230725093048-515e97ebf090 -base="$base_version"
+          go run golang.org/x/exp/cmd/gorelease@v0.0.0-20260810151157-a8b543ca52da -base="$base_version"
