@@ -61,13 +61,13 @@ jobs:
       DB_NAME: testdb
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           fetch-depth: 0
           token: ${{ secrets.PAT_TOKEN || github.token }}
 
       - name: Set up Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
           go-version: "1.25.12"
 
@@ -77,6 +77,7 @@ jobs:
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
       - name: Validate release context
+        id: release-context
         shell: bash
         run: |
           set -euo pipefail
@@ -104,30 +105,70 @@ jobs:
           fi
 
           readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
+          tags=("${VERSION}")
+          for dir in "${modules[@]}"; do
+            module_path="${dir#./}"
+            tags+=("${module_path}/${VERSION}")
+          done
 
-          if git ls-remote --exit-code --tags origin "refs/tags/${VERSION}" >/dev/null 2>&1; then
-            echo "::error::根标签 ${VERSION} 已存在。"
+          existing_tags=()
+          missing_tags=()
+          for tag_name in "${tags[@]}"; do
+            if git show-ref --verify --quiet "refs/tags/${tag_name}"; then
+              existing_tags+=("${tag_name}")
+            else
+              missing_tags+=("${tag_name}")
+            fi
+          done
+
+          if ((${#existing_tags[@]} == 0)); then
+            echo "mode=publish" >> "${GITHUB_OUTPUT}"
+            echo "-> 所有目标标签均不存在，执行完整发布。"
+            exit 0
+          fi
+
+          if ((${#missing_tags[@]} > 0)); then
+            echo "::error::检测到部分发布状态，拒绝继续以免扩大版本不一致。"
+            printf '::error::已存在标签: %s\n' "${existing_tags[*]}"
+            printf '::error::缺失标签: %s\n' "${missing_tags[*]}"
             exit 1
           fi
 
-          for dir in "${modules[@]}"; do
-            module_path="${dir#./}"
-            tag_name="${module_path}/${VERSION}"
-            if git ls-remote --exit-code --tags origin "refs/tags/${tag_name}" >/dev/null 2>&1; then
-              echo "::error::子模块标签 ${tag_name} 已存在。"
+          release_sha="$(git rev-list -n 1 "${VERSION}")"
+          for tag_name in "${tags[@]}"; do
+            tag_sha="$(git rev-list -n 1 "${tag_name}")"
+            if [[ "${tag_sha}" != "${release_sha}" ]]; then
+              echo "::error::标签 ${tag_name} 指向 ${tag_sha}，与根标签 ${release_sha} 不一致。"
               exit 1
             fi
           done
 
+          if ! git merge-base --is-ancestor "${release_sha}" "origin/${RELEASE_BRANCH}"; then
+            echo "::error::发布提交 ${release_sha} 不属于 origin/${RELEASE_BRANCH}。"
+            exit 1
+          fi
+
+          if ! git show "${VERSION}:version.go" | grep -q "VERSION = \"${VERSION}\""; then
+            echo "::error::标签 ${VERSION} 中的 version.go 与发布版本不一致。"
+            exit 1
+          fi
+
+          echo "mode=recover" >> "${GITHUB_OUTPUT}"
+          echo "release_sha=${release_sha}" >> "${GITHUB_OUTPUT}"
+          echo "-> 所有标签均有效，进入 GitHub Release 恢复模式。"
+
       - name: Start Apollo Containers
+        if: steps.release-context.outputs.mode == 'publish'
         run: |
           docker compose -f ".github/workflows/apollo/docker-compose.yml" up -d --build
 
       - name: Start Nacos Containers
+        if: steps.release-context.outputs.mode == 'publish'
         run: |
           docker compose -f ".github/workflows/nacos/docker-compose.yml" up -d --build
 
       - name: Wait for Apollo to be ready
+        if: steps.release-context.outputs.mode == 'publish'
         shell: bash
         run: |
           set -euo pipefail
@@ -142,6 +183,7 @@ jobs:
           exit 1
 
       - name: Wait for Nacos to be ready
+        if: steps.release-context.outputs.mode == 'publish'
         shell: bash
         run: |
           set -euo pipefail
@@ -156,6 +198,7 @@ jobs:
           exit 1
 
       - name: Prepare release changes
+        if: steps.release-context.outputs.mode == 'publish'
         shell: bash
         run: |
           set -euo pipefail
@@ -190,6 +233,7 @@ jobs:
           done
 
       - name: Validate release workspace
+        if: steps.release-context.outputs.mode == 'publish'
         shell: bash
         run: |
           set -euo pipefail
@@ -214,6 +258,7 @@ jobs:
           done
 
       - name: Commit release changes
+        if: steps.release-context.outputs.mode == 'publish'
         shell: bash
         run: |
           set -euo pipefail
@@ -237,6 +282,7 @@ jobs:
           git commit -m "chore(release): prepare ${VERSION}"
 
       - name: Create release tags
+        if: steps.release-context.outputs.mode == 'publish'
         shell: bash
         run: |
           set -euo pipefail
@@ -251,6 +297,7 @@ jobs:
           done
 
       - name: Push release commit and tags
+        if: steps.release-context.outputs.mode == 'publish'
         shell: bash
         run: |
           set -euo pipefail
@@ -266,8 +313,25 @@ jobs:
           # 原子性推送：要么分支和所有 tags 一起成功，要么全部失败，避免不一致状态
           git push --atomic origin "HEAD:${RELEASE_BRANCH}" "${tags[@]}"
 
+      - name: Check GitHub Release
+        id: github-release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          VERSION: ${{ github.event.inputs.version }}
+        shell: bash
+        run: |
+          set -euo pipefail
+          if gh release view "${VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
+            echo "exists=true" >> "${GITHUB_OUTPUT}"
+            echo "-> GitHub Release ${VERSION} 已存在，无需重复创建。"
+          else
+            echo "exists=false" >> "${GITHUB_OUTPUT}"
+            echo "-> GitHub Release ${VERSION} 不存在，准备创建。"
+          fi
+
       - name: Create GitHub Release
-        uses: softprops/action-gh-release@v2
+        if: steps.github-release.outputs.exists == 'false'
+        uses: softprops/action-gh-release@v3
         with:
           tag_name: ${{ github.event.inputs.version }}
           name: ${{ github.event.inputs.version }}
@@ -276,11 +340,11 @@ jobs:
           prerelease: false
 
       - name: Stop Nacos Containers
-        if: always()
+        if: always() && steps.release-context.outputs.mode == 'publish'
         run: |
           docker compose -f ".github/workflows/nacos/docker-compose.yml" down || true
 
       - name: Stop Apollo Containers
-        if: always()
+        if: always() && steps.release-context.outputs.mode == 'publish'
         run: |
           docker compose -f ".github/workflows/apollo/docker-compose.yml" down || true
