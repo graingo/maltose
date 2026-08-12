@@ -118,7 +118,7 @@ func handleMetricsAfterRequestDone(req *http.Request, resp *http.Response, err e
 	}
 
 	metricManager.HTTPClientRequestTotal.Inc(ctx, mmetric.WithAttributes(attributes...))
-	metricManager.HTTPClientRequestDuration.Record(durationMilli, mmetric.WithAttributes(attributes...))
+	mmetric.RecordHistogram(ctx, metricManager.HTTPClientRequestDuration, durationMilli, mmetric.WithAttributes(attributes...))
 	metricManager.HTTPClientRequestDurationTotal.Add(ctx, durationMilli, mmetric.WithAttributes(attributes...))
 
 	if resp != nil {

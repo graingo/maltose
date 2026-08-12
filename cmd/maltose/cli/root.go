@@ -18,7 +18,7 @@ var rootCmd = &cobra.Command{
 	Long: `Maltose provides an elegant and concise way to build web services, 
 with a focus on high performance, scalability, and developer experience.
 It includes features like routing, middleware, configuration management, and more.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		if versionFlag {
 			fmt.Printf("Maltose CLI version: %s\n", maltose.VERSION)
 			return nil

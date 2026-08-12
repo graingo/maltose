@@ -135,6 +135,20 @@ type Histogram interface {
 	Record(value float64, opts ...Option)
 }
 
+type contextHistogram interface {
+	RecordContext(ctx context.Context, value float64, opts ...Option)
+}
+
+// RecordHistogram records a histogram value with the caller's context when the
+// implementation supports it, while remaining compatible with custom Histogram implementations.
+func RecordHistogram(ctx context.Context, histogram Histogram, value float64, opts ...Option) {
+	if recorder, ok := histogram.(contextHistogram); ok {
+		recorder.RecordContext(ctx, value, opts...)
+		return
+	}
+	histogram.Record(value, opts...)
+}
+
 // GetProvider returns the global metric provider, which is a wrapper around
 // the default OpenTelemetry MeterProvider.
 func GetProvider() Provider {

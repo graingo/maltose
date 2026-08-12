@@ -45,8 +45,8 @@ type serviceTplData struct {
 	Service      string
 	Controller   string
 	SvcName      string
-	ApiModule    string
-	ApiPkg       string
+	APIModule    string
+	APIPkg       string
 	FileName     string
 	Version      string
 	VersionLower string
@@ -132,7 +132,7 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 		moduleRoot: g.ModuleRoot,
 	}
 
-	info, err := parser.Parse()
+	info, err := parser.parse()
 	if err != nil {
 		return merror.Wrapf(err, "failed to parse file %s", file)
 	}
@@ -252,9 +252,7 @@ func appendToFile(filePath, tplContent string, data *serviceTplData) error {
 	// Format the generated code before appending.
 	formatted, err := format.Source(buffer.Bytes())
 	if err != nil {
-		// This is unlikely to happen with well-formed templates, but handle it.
-		utils.PrintWarn("⚠️ failed to format source for {{.Path}}, writing unformatted code. Error: {{.Error}}", utils.TplData{"Path": filePath, "Error": err})
-		formatted = buffer.Bytes() // Append unformatted code on error
+		return merror.Wrapf(err, "failed to format generated service code for %s", filePath)
 	}
 
 	f, err := os.OpenFile(filePath, os.O_APPEND|os.O_WRONLY, 0644)
@@ -294,7 +292,7 @@ type Parser struct {
 	moduleRoot string
 }
 
-func (p *Parser) Parse() (*serviceTplData, error) {
+func (p *Parser) parse() (*serviceTplData, error) {
 	var functions []serviceFunction
 	var moduleName, versionName, structBaseName, fileName string
 
@@ -354,8 +352,8 @@ func (p *Parser) Parse() (*serviceTplData, error) {
 		Service:      strcase.ToCamel(structBaseName),
 		Controller:   strcase.ToCamel(moduleName) + strcase.ToCamel(versionName),
 		SvcName:      strcase.ToCamel(structBaseName),
-		ApiModule:    "", // Will be calculated below
-		ApiPkg:       p.file.Name.Name,
+		APIModule:    "", // Will be calculated below
+		APIPkg:       p.file.Name.Name,
 		FileName:     fileName,
 		Version:      strcase.ToCamel(versionName),
 		VersionLower: strings.ToLower(versionName),
@@ -372,13 +370,13 @@ func (p *Parser) Parse() (*serviceTplData, error) {
 		if err != nil {
 			return nil, merror.Wrapf(err, "could not get relative path for %s", absPath)
 		}
-		info.ApiModule = filepath.ToSlash(filepath.Join(p.module, relDir))
+		info.APIModule = filepath.ToSlash(filepath.Join(p.module, relDir))
 	} else {
 		// Fallback for when module root is not found
 		apiModuleDir := filepath.ToSlash(filepath.Dir(fullPath))
 		if p.module != "" {
 			if i := strings.Index(apiModuleDir, p.module); i != -1 {
-				info.ApiModule = apiModuleDir[i:]
+				info.APIModule = apiModuleDir[i:]
 			}
 		}
 	}

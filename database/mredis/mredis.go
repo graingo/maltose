@@ -24,16 +24,12 @@ type Hook redis.Hook
 func New(config ...*Config) (*Redis, error) {
 	cfg := defaultConfig()
 	if len(config) > 0 && config[0] != nil {
-		cfg = config[0]
+		cfg = mergeConfig(config[0])
 	}
-	if cfg == nil {
-		return nil, merror.NewCode(
-			mcode.CodeInvalidConfiguration,
-			`no configuration found for creating Redis client`,
-		)
+	if cfg.Address == "" {
+		return nil, merror.NewCode(mcode.CodeInvalidConfiguration, "redis address is required")
 	}
 
-	// more options can be added here
 	opts := &redis.UniversalOptions{
 		Addrs:           []string{cfg.Address},
 		DB:              cfg.DB,
@@ -55,20 +51,17 @@ func New(config ...*Config) (*Redis, error) {
 
 	client := redis.NewUniversalClient(opts)
 
-	// Add logger hook if logger is configured.
 	if cfg.Logger != nil {
 		hook := newLoggerHook(cfg)
 		client.AddHook(hook)
-		// Store the hook in the config so it can be managed later.
 		cfg.loggerHook = hook
 	}
 
-	// Enable tracing.
 	if err := redisotel.InstrumentTracing(client); err != nil {
-		panic(err)
+		_ = client.Close()
+		return nil, merror.Wrap(err, "failed to instrument Redis tracing")
 	}
 
-	// Add hooks from config
 	for _, hook := range cfg.Hooks {
 		client.AddHook(hook)
 	}
@@ -86,6 +79,8 @@ func (r *Redis) Client() redis.UniversalClient {
 
 // AddHook adds a hook to the client.
 func (r *Redis) AddHook(hook Hook) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
 	r.config.Hooks = append(r.config.Hooks, hook)
 	r.client.AddHook(hook)
 }
@@ -107,7 +102,6 @@ func (r *Redis) SetSlowThreshold(d time.Duration) {
 
 	r.config.SlowThreshold = d
 
-	// If a logger hook exists, we need to update its threshold.
 	if r.config.loggerHook != nil {
 		if hook, ok := r.config.loggerHook.(*loggerHook); ok {
 			hook.setSlowThreshold(d)

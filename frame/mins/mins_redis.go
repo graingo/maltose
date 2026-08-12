@@ -14,7 +14,13 @@ const (
 	configNodeNameRedis = "redis" // config node name for redis
 )
 
+// Redis returns a Redis instance from the default scope.
 func Redis(name ...string) *mredis.Redis {
+	return defaultScope.Redis(name...)
+}
+
+// Redis returns a Redis instance owned by the scope.
+func (s *Scope) Redis(name ...string) *mredis.Redis {
 	var (
 		ctx          = context.Background()
 		instanceName = mredis.DefaultName
@@ -24,46 +30,46 @@ func Redis(name ...string) *mredis.Redis {
 	}
 	instanceKey := fmt.Sprintf("%s.%s", frameCoreNameRedis, instanceName)
 
-	// get or create db instance
-	instance := redisInstances.GetOrSetFunc(instanceKey, func() any {
-		// If already configured, it returns the redis instance.
-		if _, ok := mredis.GetConfig(instanceName); ok {
+	// Create each named instance at most once within the scope.
+	instance := s.redisInstances.GetOrSetFunc(instanceKey, func() any {
+		// Preserve package-global Redis instances for the default scope only.
+		if _, ok := mredis.GetConfig(instanceName); s.useGlobalComponents && ok {
 			return mredis.Instance(instanceName)
 		}
 
-		// if config is not available, it panics.
-		if !Config().Available(ctx) {
+		// Redis initialization requires an available configuration source.
+		if !s.Config().Available(ctx) {
 			panic(merror.NewCodef(mcode.CodeMissingConfiguration, `configuration not found for redis instance "%s"`, instanceName))
 		}
 
 		var (
 			redisConfigMap map[string]any
 		)
-		// get global config
-		configMap, err := Config().Data(ctx)
+		// Read the complete scope configuration once for component fallbacks.
+		configMap, err := s.Config().Data(ctx)
 		if err != nil {
 			panic(merror.NewCodef(mcode.CodeMissingConfiguration, `retrieve config data map failed: %+v`, err))
 		}
 
-		// try to get redis config node.
+		// Locate the Redis configuration node.
 		redisConfigNode, ok := configMap[configNodeNameRedis]
 		if !ok {
 			panic(merror.NewCode(mcode.CodeMissingConfiguration, `no configuration found for creating redis client`))
 		}
 
-		globalConfigMap := redisConfigNode.(map[string]any)
+		globalConfigMap := mustConfigMap(redisConfigNode, configNodeNameRedis)
 		// try to get specific instance config.
 		if instanceConfig, ok := globalConfigMap[instanceName]; ok {
-			redisConfigMap = instanceConfig.(map[string]any)
+			redisConfigMap = mustConfigMap(instanceConfig, fmt.Sprintf("%s.%s", configNodeNameRedis, instanceName))
 		} else if defaultConfig, ok := globalConfigMap["default"]; ok {
 			// try to get default instance config
-			redisConfigMap = defaultConfig.(map[string]any)
+			redisConfigMap = mustConfigMap(defaultConfig, configNodeNameRedis+".default")
 		} else if len(globalConfigMap) > 0 {
 			// use flat structure config
 			redisConfigMap = globalConfigMap
 		}
 
-		// parse redis config map.
+		// Convert the selected node into a Redis configuration.
 		if len(redisConfigMap) == 0 {
 			panic(merror.NewCodef(mcode.CodeMissingConfiguration, `no configuration found for creating redis client for instance "%s"`, instanceName))
 		}
@@ -73,17 +79,15 @@ func Redis(name ...string) *mredis.Redis {
 			panic(merror.NewCodef(mcode.CodeInvalidConfiguration, `create redis config from map failed for instance "%s": %v`, instanceName, err))
 		}
 
-		// check current config for logger node
+		// Prefer the instance logger configuration, then the scope logger.
 		var loggerConfigMap map[string]any
 		if loggerConfig, ok := redisConfigMap[configNodeNameLogger]; ok {
-			// specific instance logger config
-			loggerConfigMap = loggerConfig.(map[string]any)
+			loggerConfigMap = mustConfigMap(loggerConfig, fmt.Sprintf("%s.%s.%s", configNodeNameRedis, instanceName, configNodeNameLogger))
 		} else if globalLoggerConfig, ok := configMap[configNodeNameLogger]; ok {
-			// global logger config
-			loggerConfigMap = globalLoggerConfig.(map[string]any)
+			loggerConfigMap = mustConfigMap(globalLoggerConfig, configNodeNameLogger)
 		}
 
-		// apply logger config
+		// Attach a dedicated logger when configured.
 		if len(loggerConfigMap) > 0 {
 			redisLogger := mlog.New()
 			if err := redisLogger.SetConfigWithMap(loggerConfigMap); err != nil {
@@ -91,11 +95,11 @@ func Redis(name ...string) *mredis.Redis {
 			}
 			redisConfig.SetLogger(redisLogger)
 		} else {
-			// if no logger config, use global logger
-			redisConfig.SetLogger(Log())
+			// Otherwise, share the scope's default logger.
+			redisConfig.SetLogger(s.Log())
 		}
 
-		// create redis instance with config.
+		// Create the client only after configuration is complete.
 		redisClient, err := mredis.New(redisConfig)
 		if err != nil {
 			panic(err)
@@ -107,4 +111,16 @@ func Redis(name ...string) *mredis.Redis {
 		return nil
 	}
 	return instance.(*mredis.Redis)
+}
+
+// TryRedis returns a Redis instance or an initialization error.
+// Unlike Redis, it does not panic when configuration or client setup fails.
+func TryRedis(name ...string) (client *mredis.Redis, err error) {
+	return defaultScope.TryRedis(name...)
+}
+
+// TryRedis returns a scoped Redis instance or an initialization error.
+func (s *Scope) TryRedis(name ...string) (client *mredis.Redis, err error) {
+	defer recoverAsError(&err)
+	return s.Redis(name...), nil
 }

@@ -327,6 +327,48 @@ func TestAdapterMemory_LRU(t *testing.T) {
 	assert.Nil(t, v1)
 }
 
+func TestAdapterMemory_LRUGetOrSetPathsRespectCapacity(t *testing.T) {
+	ctx := context.Background()
+	tests := []struct {
+		name string
+		set  func(mcache.Adapter) error
+	}{
+		{"GetOrSet", func(cache mcache.Adapter) error {
+			_, err := cache.GetOrSet(ctx, "key", "value", 0)
+			return err
+		}},
+		{"GetOrSetFunc", func(cache mcache.Adapter) error {
+			_, err := cache.GetOrSetFunc(ctx, "key", func(context.Context) (interface{}, error) { return "value", nil }, 0)
+			return err
+		}},
+		{"GetOrSetFuncLock", func(cache mcache.Adapter) error {
+			_, err := cache.GetOrSetFuncLock(ctx, "key", func(context.Context) (interface{}, error) { return "value", nil }, 0)
+			return err
+		}},
+	}
+	for _, tc := range tests {
+		t.Run(tc.name, func(t *testing.T) {
+			cache := mcache.NewAdapterMemory(1)
+			assert.NoError(t, tc.set(cache))
+			value, err := cache.Get(ctx, "key")
+			assert.NoError(t, err)
+			assert.Equal(t, "value", value.String())
+		})
+	}
+}
+
+func TestAdapterMemory_UpdateExpireZeroPersists(t *testing.T) {
+	cache := mcache.NewAdapterMemory()
+	ctx := context.Background()
+	assert.NoError(t, cache.Set(ctx, "key", "value", time.Millisecond))
+	_, err := cache.UpdateExpire(ctx, "key", 0)
+	assert.NoError(t, err)
+	time.Sleep(2 * time.Millisecond)
+	value, err := cache.Get(ctx, "key")
+	assert.NoError(t, err)
+	assert.Equal(t, "value", value.String())
+}
+
 // TestAdapterMemory_EdgeCases covers various edge cases.
 func TestAdapterMemory_EdgeCases(t *testing.T) {
 	t.Run("Close", func(t *testing.T) {

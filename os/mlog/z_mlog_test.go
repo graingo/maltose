@@ -369,7 +369,7 @@ func TestLogger_FileRotation(t *testing.T) {
 		for i := 0; i < 1025; i++ {
 			line := longLogLine + "\n"
 			totalSize += len(line)
-			logger.Infof(context.Background(), line)
+			logger.Infof(context.Background(), "%s", line)
 		}
 
 		// Closing the logger ensures all buffered writes are flushed.
@@ -405,7 +405,7 @@ func TestLogger_FileRotation(t *testing.T) {
 		// Write enough data to trigger multiple rotations.
 		longLogLine := strings.Repeat("a", 1024*512) // 0.5MB
 		for i := 0; i < 5; i++ {                     // Write ~2.5MB to trigger 2 rotations
-			logger.Infof(context.Background(), longLogLine)
+			logger.Infof(context.Background(), "%s", longLogLine)
 		}
 
 		require.NoError(t, logger.Close())

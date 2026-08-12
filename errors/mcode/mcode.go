@@ -45,6 +45,9 @@ func New(code int, message string, detail any) Code {
 
 // WithCode creates a new error code, using the given error code and detail.
 func WithCode(code Code, detail any) Code {
+	if code == nil {
+		code = CodeNil
+	}
 	return localCode{
 		code:    code.Code(),
 		message: code.Message(),

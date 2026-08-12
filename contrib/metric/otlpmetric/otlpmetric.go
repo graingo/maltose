@@ -6,6 +6,7 @@ import (
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/net/mipv4"
 	"github.com/graingo/maltose/os/mmetric"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetricgrpc"
 	"go.opentelemetry.io/otel/exporters/otlp/otlpmetric/otlpmetrichttp"
 	sdkmetric "go.opentelemetry.io/otel/sdk/metric"
@@ -24,7 +25,7 @@ func Init(endpoint string, opts ...Option) (func(context.Context) error, error) 
 		opt(&o)
 	}
 
-	// Create a resource with service and host information.
+	// Create the resource shared by all metrics from this provider.
 	res, err := createResource(o)
 	if err != nil {
 		return nil, merror.Wrap(err, "failed to create resource")
@@ -99,7 +100,16 @@ func createResource(opts options) (*resource.Resource, error) {
 
 	ctx := context.Background()
 
-	// Create a new resource.
+	attributes := []attribute.KeyValue{
+		semconv.ServiceNameKey.String(opts.serviceName),
+		semconv.ServiceVersionKey.String(opts.serviceVersion),
+		semconv.DeploymentEnvironmentKey.String(opts.environment),
+		semconv.HostNameKey.String(hostIP),
+	}
+	for key, value := range opts.resourceAttributes {
+		attributes = append(attributes, attribute.String(key, value))
+	}
+
 	return resource.New(ctx,
 		// Get resource information from environment variables.
 		resource.WithFromEnv(),
@@ -109,11 +119,8 @@ func createResource(opts options) (*resource.Resource, error) {
 		resource.WithTelemetrySDK(),
 		// Add host information.
 		resource.WithHost(),
-		// Add custom attributes.
-		resource.WithAttributes(
-			semconv.ServiceNameKey.String(opts.serviceName),
-			semconv.HostNameKey.String(hostIP),
-		),
+		// Add service metadata and caller-defined attributes.
+		resource.WithAttributes(attributes...),
 	)
 }
 

@@ -39,7 +39,7 @@ type Client struct {
 }
 
 // New creates and returns mcfg.Adapter implementing using apollo service.
-func New(ctx context.Context, config Config) (adapter mcfg.Adapter, err error) {
+func New(_ context.Context, config Config) (adapter mcfg.Adapter, err error) {
 	// Data validation.
 	err = validator.New().Struct(config)
 	if err != nil {
@@ -69,7 +69,7 @@ func New(ctx context.Context, config Config) (adapter mcfg.Adapter, err error) {
 		}, nil
 	})
 	if err != nil {
-		return nil, merror.Wrapf(err, `create apollo client failed with config: %+v`, config)
+		return nil, merror.Wrap(err, `create apollo client failed`)
 	}
 	if config.Watch {
 		client.client.AddChangeListener(client)
@@ -82,7 +82,7 @@ func New(ctx context.Context, config Config) (adapter mcfg.Adapter, err error) {
 //
 // Note that this function does not return error as it just does simply check for
 // backend configuration service.
-func (c *Client) Available(ctx context.Context, resource ...string) (ok bool) {
+func (c *Client) Available(_ context.Context, resource ...string) (ok bool) {
 	if len(resource) == 0 && !c.value.IsNil() {
 		return true
 	}
@@ -116,18 +116,22 @@ func (c *Client) Data(ctx context.Context) (data map[string]any, err error) {
 		}
 	}
 	if v := gjson.Parse(c.value.String()).Value(); v != nil {
-		return v.(map[string]any), nil
+		data, ok := v.(map[string]any)
+		if !ok {
+			return nil, merror.New("apollo configuration root must be an object")
+		}
+		return data, nil
 	}
 	return nil, nil
 }
 
 // OnChange is called when config changes.
-func (c *Client) OnChange(event *storage.ChangeEvent) {
+func (c *Client) OnChange(_ *storage.ChangeEvent) {
 	_ = c.updateLocalValue(context.Background())
 }
 
 // OnNewestChange is called when any config changes.
-func (c *Client) OnNewestChange(event *storage.FullChangeEvent) {
+func (c *Client) OnNewestChange(_ *storage.FullChangeEvent) {
 	// Nothing to do.
 }
 

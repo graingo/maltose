@@ -163,7 +163,7 @@ func (b *schemaBuilder) typeToSchema(p reflect.Type) *openapi3.SchemaRef {
 		return &openapi3.SchemaRef{Value: openapi3.NewObjectSchema()}
 	}
 	// Handle pointers
-	if p.Kind() == reflect.Ptr {
+	if p.Kind() == reflect.Pointer {
 		ref := b.typeToSchema(p.Elem())
 		if ref.Value != nil {
 			ref.Value.Nullable = true

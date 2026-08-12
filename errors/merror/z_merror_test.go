@@ -127,6 +127,16 @@ func TestComparison(t *testing.T) {
 	assert.False(t, merror.Equal(err1, err4))
 	assert.False(t, merror.Equal(err4, err1))
 
+	// Code details may contain maps or slices, which are not comparable Go values.
+	// Equality is based on the stable numeric code and must never panic.
+	codeWithMap := mcode.New(9001, "custom", map[string]any{"field": "value"})
+	assert.NotPanics(t, func() {
+		assert.True(t, merror.Equal(
+			merror.NewCode(codeWithMap, "custom failure"),
+			merror.NewCode(codeWithMap, "custom failure"),
+		))
+	})
+
 	// Is
 	wrapped := merror.Wrap(err1, "wrapped")
 	assert.True(t, errors.Is(wrapped, err1))

@@ -70,6 +70,7 @@ type Adapter interface {
 	Update(ctx context.Context, key string, value interface{}) (oldValue *mvar.Var, exist bool, err error)
 
 	// UpdateExpire updates the expiration of `key` and returns the old expiration duration value.
+	// A zero duration removes expiration, while a negative duration deletes the key.
 	UpdateExpire(ctx context.Context, key string, duration time.Duration) (oldDuration time.Duration, err error)
 
 	// GetExpire retrieves and returns the expiration of `key` in the cache.

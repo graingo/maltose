@@ -73,7 +73,7 @@ func checkMethodSignature(typ reflect.Type) error {
 
 	// check if the third parameter is request parameter
 	reqType := typ.In(2)
-	if reqType.Kind() != reflect.Ptr {
+	if reqType.Kind() != reflect.Pointer {
 		return merror.New("request parameter should be pointer type")
 	}
 	if !strings.HasSuffix(reqType.Elem().Name(), "Req") {
@@ -82,7 +82,7 @@ func checkMethodSignature(typ reflect.Type) error {
 
 	// check if the first return value is response parameter
 	resType := typ.Out(0)
-	if resType.Kind() != reflect.Ptr {
+	if resType.Kind() != reflect.Pointer {
 		return merror.New("response parameter should be pointer type")
 	}
 	if !strings.HasSuffix(resType.Elem().Name(), "Res") {

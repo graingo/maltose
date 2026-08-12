@@ -61,6 +61,15 @@ func defaultConfig() *Config {
 	}
 }
 
+func cloneConfig(config *Config) *Config {
+	if config == nil {
+		return defaultConfig()
+	}
+	cloned := *config
+	cloned.CtxKeys = append([]string(nil), config.CtxKeys...)
+	return &cloned
+}
+
 // SetConfigWithMap sets the logger configuration using a map.
 func (c *Config) SetConfigWithMap(configMap map[string]any) error {
 	return mconv.ToStructE(configMap, c, stringToLevelHookFunc)

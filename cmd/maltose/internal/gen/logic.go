@@ -40,8 +40,8 @@ type logicFunction struct {
 type logicTplData struct {
 	Module     string
 	Service    string
-	ApiModule  string
-	ApiPkg     string
+	APIModule  string
+	APIPkg     string
 	FileName   string
 	Functions  []logicFunction
 	SvcPackage string
@@ -114,11 +114,9 @@ func (g *LogicGenerator) genFromFile(file string) (string, error) {
 		module: g.ModuleName,
 	}
 
-	genInfo, err := p.Parse(file)
+	genInfo, err := p.parse(file)
 	if err != nil {
-		// Log other errors for debugging, but don't fail the whole process.
-		// log.Printf("failed to parse file %s: %v", file, err)
-		return "", nil
+		return "", merror.Wrapf(err, "failed to parse service file %s", file)
 	}
 	if genInfo == nil || len(genInfo.Functions) == 0 {
 		// Not a valid service interface with methods, skip.
@@ -211,8 +209,7 @@ func (g *LogicGenerator) appendToFile(path string, genInfo *logicTplData) (bool,
 	// Format the generated code before appending.
 	formatted, err := format.Source(buffer.Bytes())
 	if err != nil {
-		utils.PrintWarn("failed to format source for {{.Path}}, writing unformatted code. Error: {{.Error}}", utils.TplData{"Path": path, "Error": err})
-		formatted = buffer.Bytes() // Append unformatted code on error
+		return false, merror.Wrapf(err, "failed to format generated logic for %s", path)
 	}
 
 	// Append to file
@@ -260,8 +257,8 @@ type LogicParser struct {
 	module string
 }
 
-// Parse parses the service interface file and extracts necessary data for the template.
-func (p *LogicParser) Parse(filePath string) (*logicTplData, error) {
+// parse parses the service interface file and extracts necessary data for the template.
+func (p *LogicParser) parse(filePath string) (*logicTplData, error) {
 	node, err := parser.ParseFile(p.fset, filePath, nil, parser.ParseComments)
 	if err != nil {
 		return nil, err
@@ -384,8 +381,8 @@ func (p *LogicParser) Parse(filePath string) (*logicTplData, error) {
 	info := &logicTplData{
 		Module:     cleanModuleName, // Use the sanitized name for package and directory
 		Service:    serviceName,
-		ApiModule:  apiModule,
-		ApiPkg:     apiPkg,
+		APIModule:  apiModule,
+		APIPkg:     apiPkg,
 		FileName:   fileName, // Keep the original filename with underscores for the output file
 		Functions:  functions,
 		SvcPackage: svcPackage,

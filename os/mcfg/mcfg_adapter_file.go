@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"maps"
 	"os"
 	"path/filepath"
 	"strings"
@@ -132,10 +131,7 @@ func (c *AdapterFile) Get(_ context.Context, pattern string) (any, error) {
 func (c *AdapterFile) Data(_ context.Context) (map[string]any, error) {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
-	// Return a copy to prevent external modification of the internal map.
-	copyData := make(map[string]any, len(c.data))
-	maps.Copy(copyData, c.data)
-	return copyData, nil
+	return deepCopyMap(c.data), nil
 }
 
 // Available checks and returns whether the configuration service is available.

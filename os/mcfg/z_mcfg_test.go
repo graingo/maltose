@@ -2,6 +2,7 @@ package mcfg_test
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"os"
 	"path/filepath"
@@ -17,6 +18,22 @@ import (
 var (
 	ctx = context.Background()
 )
+
+type errorAdapter struct {
+	err error
+}
+
+func (a *errorAdapter) Get(context.Context, string) (any, error) {
+	return nil, a.err
+}
+
+func (a *errorAdapter) Data(context.Context) (map[string]any, error) {
+	return nil, a.err
+}
+
+func (a *errorAdapter) Available(context.Context, ...string) bool {
+	return true
+}
 
 // setupTestConfigFile creates a temporary config file for testing.
 func setupTestConfigFile(t *testing.T, dir, filename, content string) (string, func()) {
@@ -286,18 +303,30 @@ mapKey:
 	})
 
 	t.Run("get_string", func(t *testing.T) {
+		value, err := c.String(ctx, "stringKey")
+		require.NoError(t, err)
+		assert.Equal(t, "stringValue", value)
+		assert.Equal(t, "stringValue", c.MustGetString(ctx, "stringKey"))
 		assert.Equal(t, "stringValue", c.GetString(ctx, "stringKey"))
 		assert.Equal(t, "default", c.GetString(ctx, "nonexistent", "default"))
 		assert.Equal(t, "", c.GetString(ctx, "nonexistent"))
 	})
 
 	t.Run("get_int", func(t *testing.T) {
+		value, err := c.Int(ctx, "intKey")
+		require.NoError(t, err)
+		assert.Equal(t, 123, value)
+		assert.Equal(t, 123, c.MustGetInt(ctx, "intKey"))
 		assert.Equal(t, 123, c.GetInt(ctx, "intKey"))
 		assert.Equal(t, 999, c.GetInt(ctx, "nonexistent", 999))
 		assert.Equal(t, 0, c.GetInt(ctx, "nonexistent"))
 	})
 
 	t.Run("get_bool", func(t *testing.T) {
+		value, err := c.Bool(ctx, "boolKey")
+		require.NoError(t, err)
+		assert.True(t, value)
+		assert.True(t, c.MustGetBool(ctx, "boolKey"))
 		assert.Equal(t, true, c.GetBool(ctx, "boolKey"))
 		assert.Equal(t, false, c.GetBool(ctx, "nonexistent", false))
 		assert.Equal(t, false, c.GetBool(ctx, "nonexistent"))
@@ -305,12 +334,31 @@ mapKey:
 
 	t.Run("get_slice", func(t *testing.T) {
 		expected := []any{1, 2, 3}
+		value, err := c.Slice(ctx, "sliceKey")
+		require.NoError(t, err)
+		assert.Equal(t, expected, value)
+		assert.Equal(t, expected, c.MustGetSlice(ctx, "sliceKey"))
 		assert.Equal(t, expected, c.GetSlice(ctx, "sliceKey"))
 	})
 
 	t.Run("get_map", func(t *testing.T) {
 		expected := map[string]any{"nested": "value"}
+		value, err := c.Map(ctx, "mapKey")
+		require.NoError(t, err)
+		assert.Equal(t, expected, value)
+		assert.Equal(t, expected, c.MustGetMap(ctx, "mapKey"))
 		assert.Equal(t, expected, c.GetMap(ctx, "mapKey"))
+	})
+}
+
+func TestConfig_TypedGettersExposeAdapterErrors(t *testing.T) {
+	adapterErr := errors.New("adapter unavailable")
+	config := mcfg.NewWithAdapter(&errorAdapter{err: adapterErr})
+
+	_, err := config.String(ctx, "key")
+	require.ErrorIs(t, err, adapterErr)
+	assert.PanicsWithError(t, adapterErr.Error(), func() {
+		config.MustGetString(ctx, "key")
 	})
 }
 
@@ -378,6 +426,58 @@ func TestConfig_Hooks(t *testing.T) {
 		assert.Equal(t, "hooked", data["key"])
 		assert.Equal(t, "fromHook", data["newKey"])
 	})
+}
+
+func TestConfig_HooksRunInRegistrationOrder(t *testing.T) {
+	t.Cleanup(mcfg.ClearHooks)
+	mcfg.ClearHooks()
+
+	adapter, err := mcfg.NewAdapterContent(`steps: []`, "yaml")
+	require.NoError(t, err)
+	mcfg.RegisterAfterLoadHook(func(_ context.Context, data map[string]any) (map[string]any, error) {
+		data["steps"] = append(data["steps"].([]any), "first")
+		return data, nil
+	})
+	mcfg.RegisterAfterLoadHook(func(_ context.Context, data map[string]any) (map[string]any, error) {
+		data["steps"] = append(data["steps"].([]any), "second")
+		return data, nil
+	})
+
+	data, err := mcfg.NewWithAdapter(adapter).Data(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, []any{"first", "second"}, data["steps"])
+}
+
+func TestConfig_SeesAdapterUpdatesWithoutManualCacheClear(t *testing.T) {
+	t.Cleanup(mcfg.ClearHooks)
+	mcfg.ClearHooks()
+
+	adapter, err := mcfg.NewAdapterContent(`key: initial`, "yaml")
+	require.NoError(t, err)
+	config := mcfg.NewWithAdapter(adapter)
+	assert.Equal(t, "initial", config.GetString(ctx, "key"))
+
+	require.NoError(t, adapter.SetContent(`key: updated`, "yaml"))
+	assert.Equal(t, "updated", config.GetString(ctx, "key"))
+}
+
+func TestConfig_DataReturnsDeepCopy(t *testing.T) {
+	t.Cleanup(mcfg.ClearHooks)
+	mcfg.ClearHooks()
+
+	adapter, err := mcfg.NewAdapterContent("nested:\n  value: original\nitems:\n  - name: first", "yaml")
+	require.NoError(t, err)
+	config := mcfg.NewWithAdapter(adapter)
+
+	data, err := config.Data(ctx)
+	require.NoError(t, err)
+	data["nested"].(map[string]any)["value"] = "mutated"
+	data["items"].([]any)[0].(map[string]any)["name"] = "mutated"
+
+	fresh, err := config.Data(ctx)
+	require.NoError(t, err)
+	assert.Equal(t, "original", fresh["nested"].(map[string]any)["value"])
+	assert.Equal(t, "first", fresh["items"].([]any)[0].(map[string]any)["name"])
 }
 
 // --- Concurrency ---

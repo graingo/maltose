@@ -61,7 +61,10 @@ func (v *Var) Map() map[string]any {
 		}
 		rv := reflect.ValueOf(value)
 		kind := rv.Kind()
-		if kind == reflect.Ptr {
+		for kind == reflect.Pointer {
+			if rv.IsNil() {
+				return nil
+			}
 			rv = rv.Elem()
 			kind = rv.Kind()
 		}
@@ -77,7 +80,7 @@ func (v *Var) Map() map[string]any {
 			rt := rv.Type()
 			for i := 0; i < rv.NumField(); i++ {
 				field := rt.Field(i)
-				if field.Anonymous {
+				if field.Anonymous || !field.IsExported() {
 					continue
 				}
 				m[field.Name] = rv.Field(i).Interface()

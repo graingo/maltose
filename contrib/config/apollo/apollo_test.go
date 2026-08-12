@@ -6,7 +6,7 @@ import (
 	"testing"
 
 	"github.com/graingo/maltose/contrib/config/apollo"
-	"github.com/graingo/maltose/frame/m"
+	"github.com/graingo/maltose/os/mcfg"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -14,7 +14,7 @@ import (
 var (
 	ctx     = context.Background()
 	ip      = os.Getenv("APOLLO_IP")
-	appId   = os.Getenv("APOLLO_APP_ID")
+	appID   = os.Getenv("APOLLO_APP_ID")
 	cluster = os.Getenv("APOLLO_CLUSTER")
 )
 
@@ -22,8 +22,8 @@ func init() {
 	if ip == "" {
 		ip = "http://localhost:8080"
 	}
-	if appId == "" {
-		appId = "SampleApp"
+	if appID == "" {
+		appID = "SampleApp"
 	}
 	if cluster == "" {
 		cluster = "default"
@@ -33,7 +33,7 @@ func init() {
 func TestApollo(t *testing.T) {
 	// Create adapter
 	adapter, err := apollo.New(ctx, apollo.Config{
-		AppID:     appId,
+		AppID:     appID,
 		IP:        ip,
 		Cluster:   cluster,
 		MustStart: true, // In test, we want to fail fast if connection fails.
@@ -41,9 +41,8 @@ func TestApollo(t *testing.T) {
 	require.NoError(t, err)
 	require.NotNil(t, adapter)
 
-	// Set configuration
-	config := m.Config("apollo")
-	config.SetAdapter(adapter)
+	// Create an isolated configuration instance backed by Apollo.
+	config := mcfg.NewWithAdapter(adapter)
 
 	// Test availability
 	// With MustStart: true, it should be available immediately.

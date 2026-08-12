@@ -46,6 +46,7 @@ jobs:
         ./contrib/config/apollo
         ./contrib/config/nacos
         ./contrib/metric/otlpmetric
+        ./contrib/observability
         ./contrib/trace/otlptrace
       APOLLO_IP: http://localhost:8080
       APOLLO_APP_ID: SampleApp
@@ -68,7 +69,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v5
         with:
-          go-version: "1.23"
+          go-version: "1.25.12"
 
       - name: Configure Git
         run: |
@@ -181,6 +182,10 @@ jobs:
                 go mod edit -dropreplace=github.com/graingo/maltose
               fi
               go mod edit -require="github.com/graingo/maltose@${VERSION}"
+              if [[ "${module_path}" == "contrib/observability" ]]; then
+                go mod edit -require="github.com/graingo/maltose/contrib/metric/otlpmetric@${VERSION}"
+                go mod edit -require="github.com/graingo/maltose/contrib/trace/otlptrace@${VERSION}"
+              fi
             )
           done
 

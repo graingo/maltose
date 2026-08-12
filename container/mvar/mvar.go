@@ -35,6 +35,10 @@ func (v *Var) Val() any {
 	if v == nil {
 		return nil
 	}
+	if v.safe {
+		v.mu.RLock()
+		defer v.mu.RUnlock()
+	}
 	return v.value
 }
 
@@ -119,6 +123,6 @@ func (v *Var) UnmarshalJSON(b []byte) error {
 	if err != nil {
 		return err
 	}
-	v.value = i
+	v.Set(i)
 	return nil
 }

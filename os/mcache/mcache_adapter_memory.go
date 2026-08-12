@@ -179,9 +179,9 @@ func (c *AdapterMemory) SetIfNotExistFunc(ctx context.Context, key string, f Fun
 	if duration > 0 {
 		expire = time.Now().Add(duration)
 	}
+	c.evict()
 	elem := c.lru.NewElement(key)
 	c.data.Set(key, &memoryDataItem{v: value, e: expire, elem: elem})
-	c.evict()
 	return true, nil
 }
 
@@ -205,9 +205,9 @@ func (c *AdapterMemory) SetIfNotExistFuncLock(ctx context.Context, key string, f
 	if duration > 0 {
 		expire = time.Now().Add(duration)
 	}
+	c.evict()
 	elem := c.lru.NewElement(key)
 	c.data.Set(key, &memoryDataItem{v: value, e: expire, elem: elem})
-	c.evict()
 	return true, nil
 }
 
@@ -246,9 +246,9 @@ func (c *AdapterMemory) GetOrSet(_ context.Context, key string, value interface{
 	if duration > 0 {
 		expire = time.Now().Add(duration)
 	}
+	c.evict()
 	elem := c.lru.NewElement(key)
 	c.data.Set(key, &memoryDataItem{v: value, e: expire, elem: elem})
-	c.evict()
 	return mvar.New(value), nil
 }
 
@@ -291,9 +291,9 @@ func (c *AdapterMemory) GetOrSetFunc(ctx context.Context, key string, f Func, du
 	if duration > 0 {
 		expire = time.Now().Add(duration)
 	}
+	c.evict()
 	elem := c.lru.NewElement(key)
 	c.data.Set(key, &memoryDataItem{v: value, e: expire, elem: elem})
-	c.evict()
 	return mvar.New(value), nil
 }
 
@@ -320,9 +320,9 @@ func (c *AdapterMemory) GetOrSetFuncLock(ctx context.Context, key string, f Func
 	if duration > 0 {
 		expire = time.Now().Add(duration)
 	}
+	c.evict()
 	elem := c.lru.NewElement(key)
 	c.data.Set(key, &memoryDataItem{v: value, e: expire, elem: elem})
-	c.evict()
 	return mvar.New(value), nil
 }
 
@@ -425,7 +425,15 @@ func (c *AdapterMemory) UpdateExpire(_ context.Context, key string, duration tim
 		if !item.e.IsZero() {
 			oldDuration = time.Until(item.e)
 		}
-		item.e = time.Now().Add(duration)
+		if duration < 0 {
+			c.remove(key, item)
+			return oldDuration, nil
+		}
+		if duration == 0 {
+			item.e = time.Time{}
+		} else {
+			item.e = time.Now().Add(duration)
+		}
 		c.lru.Push(item.elem)
 		return oldDuration, nil
 	}

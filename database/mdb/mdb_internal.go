@@ -2,13 +2,15 @@ package mdb
 
 import (
 	"context"
-	"fmt"
+	"net"
+	"net/url"
 	"time"
 
+	driverMySQL "github.com/go-sql-driver/mysql"
 	"github.com/graingo/maltose"
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/graingo/maltose/os/mlog"
-	"gorm.io/driver/mysql"
+	gormMySQL "gorm.io/driver/mysql"
 	"gorm.io/driver/postgres"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
@@ -25,11 +27,25 @@ func createDriver(cfg *Config) (gorm.Dialector, error) {
 		// Build DSN from connection parameters if DSN is not provided
 		switch cfg.Type {
 		case "mysql":
-			dsn = fmt.Sprintf("%s:%s@tcp(%s:%s)/%s?charset=utf8mb4&parseTime=True&loc=Local",
-				cfg.User, cfg.Password, cfg.Host, cfg.Port, cfg.DBName)
+			mysqlConfig := driverMySQL.NewConfig()
+			mysqlConfig.User = cfg.User
+			mysqlConfig.Passwd = cfg.Password
+			mysqlConfig.Net = "tcp"
+			mysqlConfig.Addr = net.JoinHostPort(cfg.Host, cfg.Port)
+			mysqlConfig.DBName = cfg.DBName
+			mysqlConfig.Params = map[string]string{"charset": "utf8mb4"}
+			mysqlConfig.ParseTime = true
+			mysqlConfig.Loc = time.Local
+			dsn = mysqlConfig.FormatDSN()
 		case "postgres":
-			dsn = fmt.Sprintf("host=%s port=%s user=%s password=%s dbname=%s sslmode=disable",
-				cfg.Host, cfg.Port, cfg.User, cfg.Password, cfg.DBName)
+			postgresURL := &url.URL{
+				Scheme:   "postgres",
+				User:     url.UserPassword(cfg.User, cfg.Password),
+				Host:     net.JoinHostPort(cfg.Host, cfg.Port),
+				Path:     cfg.DBName,
+				RawQuery: "sslmode=disable",
+			}
+			dsn = postgresURL.String()
 		}
 	}
 
@@ -41,7 +57,7 @@ func createDriver(cfg *Config) (gorm.Dialector, error) {
 	var driver gorm.Dialector
 	switch cfg.Type {
 	case "mysql":
-		driver = mysql.Open(dsn)
+		driver = gormMySQL.Open(dsn)
 	case "postgres":
 		driver = postgres.Open(dsn)
 	case "sqlite":
@@ -100,18 +116,10 @@ func configureConnectionPool(db *gorm.DB, cfg *Config) error {
 		return err
 	}
 
-	// Set maximum number of idle connections
 	sqlDB.SetMaxIdleConns(cfg.MaxIdleConnection)
-
-	// Set maximum number of open connections
 	sqlDB.SetMaxOpenConns(cfg.MaxOpenConnection)
-
-	// Set maximum idle time for connections
-	maxIdleTime := cfg.MaxIdleTime
-	if maxIdleTime <= 0 {
-		maxIdleTime = time.Hour // Default 1 hour
-	}
-	sqlDB.SetConnMaxIdleTime(maxIdleTime)
+	sqlDB.SetConnMaxIdleTime(cfg.MaxIdleTime)
+	sqlDB.SetConnMaxLifetime(cfg.MaxLifetime)
 
 	return nil
 }
@@ -124,10 +132,10 @@ func configureReplicas(db *gorm.DB, cfg *Config) error {
 
 	replicas := make([]gorm.Dialector, len(cfg.Replicas))
 	for i, replicaCfg := range cfg.Replicas {
-		// Note: we need to pass the address of the replica config
+		replicaCfg = mergeReplicaConfig(cfg, replicaCfg)
 		driver, err := createDriver(&replicaCfg)
 		if err != nil {
-			return err
+			return merror.Wrapf(err, "invalid database replica configuration at index %d", i)
 		}
 		replicas[i] = driver
 	}
@@ -145,4 +153,24 @@ func configureReplicas(db *gorm.DB, cfg *Config) error {
 	}
 
 	return nil
+}
+
+// mergeReplicaConfig inherits connection fields omitted by a replica.
+func mergeReplicaConfig(primary *Config, replica Config) Config {
+	if replica.Type == "" {
+		replica.Type = primary.Type
+	}
+	if replica.Port == "" {
+		replica.Port = primary.Port
+	}
+	if replica.User == "" {
+		replica.User = primary.User
+	}
+	if replica.Password == "" {
+		replica.Password = primary.Password
+	}
+	if replica.DBName == "" {
+		replica.DBName = primary.DBName
+	}
+	return replica
 }

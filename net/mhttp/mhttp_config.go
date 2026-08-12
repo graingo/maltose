@@ -84,6 +84,17 @@ func defaultConfig() *Config {
 	}
 }
 
+func cloneConfig(config *Config) *Config {
+	if config == nil {
+		return defaultConfig()
+	}
+	cloned := *config
+	if cloned.Logger == nil {
+		cloned.Logger = mlog.New()
+	}
+	return &cloned
+}
+
 // SetConfigWithMap sets the server config.
 func (c *Config) SetConfigWithMap(configMap map[string]any) error {
 	return mconv.ToStructE(configMap, c)
@@ -118,7 +129,7 @@ func (s *Server) SetConfigWithMap(configMap map[string]any) error {
 }
 
 func (s *Server) SetConfig(config *Config) {
-	s.config = config
+	s.config = cloneConfig(config)
 }
 
 // ConfigFromMap creates a new server config from a map.

@@ -3,6 +3,7 @@ package m
 import (
 	"context"
 	"errors"
+	"io"
 	"os"
 	"os/signal"
 	"sync"
@@ -15,12 +16,13 @@ import (
 
 // App is the core application structure that manages the lifecycle of services and hooks.
 type App struct {
-	servers       []AppServer
-	shutdownHooks []func(ctx context.Context) error
-	shutdownOnce  sync.Once
-	logger        *mlog.Logger
-	ctx           context.Context
-	cancel        context.CancelFunc
+	servers         []AppServer
+	shutdownHooks   []func(ctx context.Context) error
+	shutdownOnce    sync.Once
+	shutdownTimeout time.Duration
+	logger          *mlog.Logger
+	ctx             context.Context
+	cancel          context.CancelFunc
 }
 
 // An Option configures an App.
@@ -34,16 +36,44 @@ func WithServer(servers ...AppServer) Option {
 }
 
 // WithShutdownHook adds functions to be called during graceful shutdown.
+// Hooks run in reverse registration order and each receives its own timeout.
 func WithShutdownHook(hooks ...func(ctx context.Context) error) Option {
 	return func(a *App) {
 		a.shutdownHooks = append(a.shutdownHooks, hooks...)
 	}
 }
 
+// WithCloser registers resources that should be closed during application shutdown.
+// Closers run in reverse registration order after all managed servers have stopped.
+func WithCloser(closers ...io.Closer) Option {
+	return func(a *App) {
+		for _, closer := range closers {
+			if closer == nil {
+				continue
+			}
+			resource := closer
+			a.shutdownHooks = append(a.shutdownHooks, func(context.Context) error {
+				return resource.Close()
+			})
+		}
+	}
+}
+
 // WithLogger sets the logger for the application.
 func WithLogger(logger *mlog.Logger) Option {
 	return func(a *App) {
-		a.logger = logger
+		if logger != nil {
+			a.logger = logger
+		}
+	}
+}
+
+// WithShutdownTimeout sets the maximum duration of each server stop, hook, and closer.
+func WithShutdownTimeout(timeout time.Duration) Option {
+	return func(a *App) {
+		if timeout > 0 {
+			a.shutdownTimeout = timeout
+		}
 	}
 }
 
@@ -62,11 +92,12 @@ type AppServer interface {
 func NewApp(opts ...Option) *App {
 	ctx, cancel := context.WithCancel(context.Background())
 	app := &App{
-		servers:       make([]AppServer, 0),
-		shutdownHooks: make([]func(ctx context.Context) error, 0),
-		logger:        mlog.New(),
-		ctx:           ctx,
-		cancel:        cancel,
+		servers:         make([]AppServer, 0),
+		shutdownHooks:   make([]func(ctx context.Context) error, 0),
+		logger:          mlog.New(),
+		shutdownTimeout: 10 * time.Second,
+		ctx:             ctx,
+		cancel:          cancel,
 	}
 	for _, opt := range opts {
 		opt(app)
@@ -76,28 +107,34 @@ func NewApp(opts ...Option) *App {
 
 // Run starts the application and waits for a signal to gracefully shutdown.
 func (a *App) Run() error {
+	defer a.cancel()
 	eg, ctx := errgroup.WithContext(a.ctx)
 
 	// Start all servers and their corresponding stop listeners.
 	for _, s := range a.servers {
 		srv := s
+		if srv == nil {
+			continue
+		}
 		// Start the server in a goroutine.
 		eg.Go(func() error {
-			return srv.Start(ctx)
+			err := srv.Start(ctx)
+			// A server returning, with or without an error, ends the application lifecycle.
+			a.cancel()
+			return err
 		})
 		// Start a corresponding stop listener for the server.
 		eg.Go(func() error {
 			// Wait for the context to be canceled.
 			<-ctx.Done()
-			// Call the server's Stop method.
-			// We use a background context because the parent `ctx` is already canceled.
-			return srv.Stop(context.Background())
+			return stopServer(srv, a.shutdownTimeout)
 		})
 	}
 
 	// Start a goroutine to listen for OS signals.
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
 	eg.Go(func() error {
 		select {
 		case <-ctx.Done():
@@ -121,15 +158,11 @@ func (a *App) Run() error {
 		a.logger.Warnf(context.Background(), "Shutdown initiated due to a service startup failure. You can see the error from return value.")
 	}
 
-	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 10*time.Second)
-	defer shutdownCancel()
-
 	var shutdownErr error
 	a.shutdownOnce.Do(func() {
-		// Execute shutdown hooks in reverse order.
 		for i := len(a.shutdownHooks) - 1; i >= 0; i-- {
-			if err := a.shutdownHooks[i](shutdownCtx); err != nil {
-				a.logger.Errorf(shutdownCtx, err, "Shutdown hook failed")
+			if err := runShutdownHook(a.shutdownHooks[i], a.shutdownTimeout); err != nil {
+				a.logger.Errorf(context.Background(), err, "Shutdown hook failed")
 				shutdownErr = errors.Join(shutdownErr, err)
 			}
 		}
@@ -139,8 +172,39 @@ func (a *App) Run() error {
 	// A `context.Canceled` error from `startErr` is expected on a clean shutdown,
 	// so we don't treat it as a true error.
 	if startErr != nil && !errors.Is(startErr, context.Canceled) {
-		return startErr
+		return errors.Join(startErr, shutdownErr)
 	}
 
 	return shutdownErr
+}
+
+func runShutdownHook(hook func(context.Context) error, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+
+	done := make(chan error, 1)
+	go func() {
+		done <- hook(ctx)
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
+}
+
+func stopServer(server AppServer, timeout time.Duration) error {
+	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	defer cancel()
+	done := make(chan error, 1)
+	go func() {
+		done <- server.Stop(ctx)
+	}()
+	select {
+	case err := <-done:
+		return err
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }

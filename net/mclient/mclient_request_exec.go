@@ -41,6 +41,9 @@ func (r *Request) doRequest(ctx context.Context, method string, urlPath string) 
 
 		// Create a new request for each attempt
 		resp, err = r.attemptRequest(ctx, method, urlPath)
+		if err == nil && (resp == nil || resp.Response == nil) {
+			err = merror.New("mclient: middleware returned a nil response without an error")
+		}
 
 		// If an error occurred (like a timeout from a panic), resp might be nil.
 		// We must handle the error case first before accessing resp.
@@ -69,11 +72,19 @@ func (r *Request) doRequest(ctx context.Context, method string, urlPath string) 
 		}
 
 		// Wait before retry if interval is set
-		if r.retryInterval > 0 {
+		delay := r.calculateRetryDelay(attempts)
+		if delay > 0 {
+			timer := time.NewTimer(delay)
 			select {
-			case <-time.After(r.retryInterval):
+			case <-timer.C:
 				// Continue after waiting
 			case <-ctx.Done():
+				if !timer.Stop() {
+					select {
+					case <-timer.C:
+					default:
+					}
+				}
 				// Context cancelled during wait
 				return nil, ctx.Err()
 			}
@@ -82,6 +93,9 @@ func (r *Request) doRequest(ctx context.Context, method string, urlPath string) 
 
 	if err != nil {
 		return nil, err
+	}
+	if resp == nil || resp.Response == nil {
+		return nil, merror.New("mclient: middleware returned a nil response without an error")
 	}
 
 	// Parse response if needed
@@ -175,7 +189,9 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 	var response *Response
 
 	// Prepare the middleware chain
-	middlewares := append(r.client.middlewares, r.middlewares...)
+	middlewares := make([]MiddlewareFunc, 0, len(r.client.middlewares)+len(r.middlewares))
+	middlewares = append(middlewares, r.client.middlewares...)
+	middlewares = append(middlewares, r.middlewares...)
 	// The base handler is the actual HTTP call. Middlewares wrap around this handler.
 	handler := func(req *Request) (*Response, error) {
 		// At this point, use the underlying http.Request

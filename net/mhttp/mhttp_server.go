@@ -2,6 +2,8 @@ package mhttp
 
 import (
 	"context"
+	"errors"
+	"net"
 	"net/http"
 	"os"
 	"os/signal"
@@ -12,104 +14,66 @@ import (
 	"github.com/graingo/maltose/errors/merror"
 )
 
-// SetStaticPath enhances the static file service.
+// SetStaticPath serves files from directory under the supplied URL prefix.
 func (s *Server) SetStaticPath(prefix string, directory string) {
-	// implement static file service
 	s.engine.StaticFS(prefix, http.Dir(directory))
 }
 
-// Run starts the HTTP server.
+// Handler returns the prepared HTTP handler.
+// Route registration must be complete before the first call to Handler, ServeHTTP, Start, or Run.
+func (s *Server) Handler() http.Handler {
+	s.prepare(context.Background())
+	return s
+}
+
+// ServeHTTP implements http.Handler and allows Server to be used with httptest.
+func (s *Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
+	s.prepare(request.Context())
+	s.engine.ServeHTTP(writer, request)
+}
+
+// Run starts the HTTP server and waits for either shutdown or a process signal.
 func (s *Server) Run() {
 	ctx := context.Background()
-
-	// register health check endpoint
-	s.registerHealthCheck(ctx)
-
-	// register OpenAPI and Swagger
-	s.registerDoc(ctx)
-
-	// register all routes before starting
-	s.bindRoutes(ctx)
-
-	// print route information
-	s.printRoute(ctx)
-
-	s.srv = &http.Server{
-		Addr:           s.normalizeAddress(),
-		Handler:        s.engine,
-		ReadTimeout:    s.config.ReadTimeout,
-		WriteTimeout:   s.config.WriteTimeout,
-		IdleTimeout:    s.config.IdleTimeout,
-		MaxHeaderBytes: s.config.MaxHeaderBytes,
-	}
-
-	// create error channel
 	errChan := make(chan error, 1)
 	go func() {
-		var err error
-		if s.config.TLSEnable {
-			if s.config.TLSCertFile == "" || s.config.TLSKeyFile == "" {
-				errChan <- merror.New("tls certificate and key files are required")
-				return
-			}
-			err = s.srv.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
-		} else {
-			err = s.srv.ListenAndServe()
-		}
-		if err != nil && err != http.ErrServerClosed {
-			errChan <- err
-		}
+		errChan <- s.Start(ctx)
 	}()
 
-	// listen system signal
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
+	defer signal.Stop(quit)
 
 	select {
 	case err := <-errChan:
-		s.logger().Errorf(ctx, err, "HTTP server %s start failed", s.config.ServerName)
+		if err != nil {
+			s.logger().Errorf(ctx, err, "HTTP server %s start failed", s.config.ServerName)
+		}
 	case <-quit:
 		s.logger().Infof(ctx, "Shutting down server...")
-
-		timeout := 5 * time.Second
-		if s.config.GracefulEnable {
-			timeout = s.config.GracefulTimeout
-		}
-
-		ctx, cancel := context.WithTimeout(ctx, timeout)
-		defer cancel()
-
-		if s.config.GracefulEnable {
-			// wait for active connections to complete
-			time.Sleep(s.config.GracefulWaitTime)
-		}
-
-		if err := s.srv.Shutdown(ctx); err != nil {
+		if err := s.Stop(ctx); err != nil {
 			s.logger().Errorf(ctx, err, "HTTP server %s forced to shutdown", s.config.ServerName)
 		}
 	}
 }
 
+// Start starts the server on its configured address and blocks until it stops.
 func (s *Server) Start(ctx context.Context) error {
-	// register health check endpoint
-	s.registerHealthCheck(ctx)
-
-	// register OpenAPI and Swagger
-	s.registerDoc(ctx)
-
-	// register all routes before starting
-	s.bindRoutes(ctx)
-
-	// print route information
-	s.printRoute(ctx)
-
-	s.srv = &http.Server{
+	s.prepare(ctx)
+	server := &http.Server{
 		Addr:           s.normalizeAddress(),
-		Handler:        s.engine,
+		Handler:        s,
 		ReadTimeout:    s.config.ReadTimeout,
 		WriteTimeout:   s.config.WriteTimeout,
 		IdleTimeout:    s.config.IdleTimeout,
 		MaxHeaderBytes: s.config.MaxHeaderBytes,
+	}
+	s.setHTTPServer(server)
+	defer s.clearHTTPServer(server)
+	// Register the server before checking cancellation so a concurrent Stop
+	// either closes this server or the canceled context prevents it from listening.
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 
 	var err error
@@ -117,25 +81,128 @@ func (s *Server) Start(ctx context.Context) error {
 		if s.config.TLSCertFile == "" || s.config.TLSKeyFile == "" {
 			return merror.New("tls certificate and key files are required")
 		}
-		err = s.srv.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
+		err = server.ListenAndServeTLS(s.config.TLSCertFile, s.config.TLSKeyFile)
 	} else {
-		err = s.srv.ListenAndServe()
+		err = server.ListenAndServe()
 	}
+	return s.handleServeError(ctx, err)
+}
 
-	if err != nil && err != http.ErrServerClosed {
-		s.logger().Errorf(ctx, err, "HTTP server %s start failed", s.config.ServerName)
+// StartListener serves HTTP on listener and blocks until the server stops.
+// It is useful when callers need control over port allocation, including in tests.
+func (s *Server) StartListener(ctx context.Context, listener net.Listener) error {
+	if listener == nil {
+		return merror.New("HTTP listener is required")
+	}
+	s.prepare(ctx)
+	server := &http.Server{
+		Handler:        s,
+		ReadTimeout:    s.config.ReadTimeout,
+		WriteTimeout:   s.config.WriteTimeout,
+		IdleTimeout:    s.config.IdleTimeout,
+		MaxHeaderBytes: s.config.MaxHeaderBytes,
+	}
+	s.setHTTPServer(server)
+	defer s.clearHTTPServer(server)
+	if err := ctx.Err(); err != nil {
 		return err
 	}
 
-	return nil
+	var err error
+	if s.config.TLSEnable {
+		if s.config.TLSCertFile == "" || s.config.TLSKeyFile == "" {
+			return merror.New("tls certificate and key files are required")
+		}
+		err = server.ServeTLS(listener, s.config.TLSCertFile, s.config.TLSKeyFile)
+	} else {
+		err = server.Serve(listener)
+	}
+	return s.handleServeError(ctx, err)
 }
 
+// Stop gracefully stops the active HTTP server.
 func (s *Server) Stop(ctx context.Context) error {
 	s.logger().Infof(ctx, "HTTP server %s is stopping", s.config.ServerName)
-	if s.srv == nil {
+	server := s.currentHTTPServer()
+	if server == nil {
 		return nil
 	}
-	return s.srv.Shutdown(ctx)
+	if !s.config.GracefulEnable {
+		return server.Close()
+	}
+
+	shutdownCtx, cancel := gracefulShutdownContext(ctx, s.config.GracefulTimeout)
+	defer cancel()
+	if waitErr := waitForGracefulShutdown(shutdownCtx, s.config.GracefulWaitTime); waitErr != nil {
+		// Shutdown marks the server as stopping even if the context has already
+		// expired. Close then forcefully releases active connections so Start
+		// cannot remain blocked after the application shutdown deadline.
+		shutdownErr := server.Shutdown(shutdownCtx)
+		closeErr := server.Close()
+		return errors.Join(waitErr, shutdownErr, closeErr)
+	}
+	return server.Shutdown(shutdownCtx)
+}
+
+func (s *Server) prepare(ctx context.Context) {
+	s.prepareOnce.Do(func() {
+		s.registerHealthCheck(ctx)
+		s.registerDoc(ctx)
+		s.bindRoutes(ctx)
+		s.printRoute(ctx)
+	})
+}
+
+func (s *Server) handleServeError(ctx context.Context, err error) error {
+	if err == nil || err == http.ErrServerClosed {
+		return nil
+	}
+	s.logger().Errorf(ctx, err, "HTTP server %s start failed", s.config.ServerName)
+	return err
+}
+
+func (s *Server) setHTTPServer(server *http.Server) {
+	s.serverMu.Lock()
+	s.srv = server
+	s.serverMu.Unlock()
+}
+
+func (s *Server) currentHTTPServer() *http.Server {
+	s.serverMu.RLock()
+	defer s.serverMu.RUnlock()
+	return s.srv
+}
+
+func (s *Server) clearHTTPServer(server *http.Server) {
+	s.serverMu.Lock()
+	if s.srv == server {
+		s.srv = nil
+	}
+	s.serverMu.Unlock()
+}
+
+func gracefulShutdownContext(ctx context.Context, timeout time.Duration) (context.Context, context.CancelFunc) {
+	if timeout <= 0 {
+		return context.WithCancel(ctx)
+	}
+	if deadline, ok := ctx.Deadline(); ok && time.Until(deadline) <= timeout {
+		return context.WithCancel(ctx)
+	}
+	return context.WithTimeout(ctx, timeout)
+}
+
+func waitForGracefulShutdown(ctx context.Context, wait time.Duration) error {
+	if wait <= 0 {
+		return nil
+	}
+	timer := time.NewTimer(wait)
+	defer timer.Stop()
+	select {
+	case <-timer.C:
+		return nil
+	case <-ctx.Done():
+		return ctx.Err()
+	}
 }
 
 // normalizeAddress checks and formats the server address.

@@ -23,7 +23,7 @@ func (p *otelProvider) Meter(option MeterOption) Meter {
 	)
 	return &meterWrapper{
 		meter:      meter,
-		attributes: option.Attributes,
+		attributes: append(Attributes(nil), option.Attributes...),
 	}
 }
 
@@ -57,7 +57,7 @@ func (m *meterWrapper) Counter(name string, option MetricOption) (Counter, error
 	}
 	return &counterWrapper{
 		counter:    counter,
-		attributes: append(m.attributes, option.Attributes...),
+		attributes: combineAttributes(m.attributes, option.Attributes),
 	}, nil
 }
 
@@ -82,7 +82,7 @@ func (m *meterWrapper) UpDownCounter(name string, option MetricOption) (UpDownCo
 	}
 	return &upDownCounterWrapper{
 		counter:    counter,
-		attributes: append(m.attributes, option.Attributes...),
+		attributes: combineAttributes(m.attributes, option.Attributes),
 	}, nil
 }
 
@@ -108,7 +108,7 @@ func (m *meterWrapper) Histogram(name string, option MetricOption) (Histogram, e
 	}
 	return &histogramWrapper{
 		histogram:  histogram,
-		attributes: append(m.attributes, option.Attributes...),
+		attributes: combineAttributes(m.attributes, option.Attributes),
 	}, nil
 }
 
@@ -130,14 +130,14 @@ type counterWrapper struct {
 // Add adds a value to the counter.
 func (c *counterWrapper) Add(ctx context.Context, value float64, opts ...Option) {
 	c.counter.Add(ctx, value, metric.WithAttributes(
-		append(c.attributes, optionsToAttributes(opts)...)...,
+		combineAttributes(c.attributes, optionsToAttributes(opts))...,
 	))
 }
 
 // Inc increments the counter by 1.
 func (c *counterWrapper) Inc(ctx context.Context, opts ...Option) {
 	c.counter.Add(ctx, 1, metric.WithAttributes(
-		append(c.attributes, optionsToAttributes(opts)...)...,
+		combineAttributes(c.attributes, optionsToAttributes(opts))...,
 	))
 }
 
@@ -150,21 +150,21 @@ type upDownCounterWrapper struct {
 // Add adds a value to the counter.
 func (c *upDownCounterWrapper) Add(ctx context.Context, value float64, opts ...Option) {
 	c.counter.Add(ctx, value, metric.WithAttributes(
-		append(c.attributes, optionsToAttributes(opts)...)...,
+		combineAttributes(c.attributes, optionsToAttributes(opts))...,
 	))
 }
 
 // Inc increments the counter by 1.
 func (c *upDownCounterWrapper) Inc(ctx context.Context, opts ...Option) {
 	c.counter.Add(ctx, 1, metric.WithAttributes(
-		append(c.attributes, optionsToAttributes(opts)...)...,
+		combineAttributes(c.attributes, optionsToAttributes(opts))...,
 	))
 }
 
 // Dec decrements the counter by 1.
 func (c *upDownCounterWrapper) Dec(ctx context.Context, opts ...Option) {
 	c.counter.Add(ctx, -1, metric.WithAttributes(
-		append(c.attributes, optionsToAttributes(opts)...)...,
+		combineAttributes(c.attributes, optionsToAttributes(opts))...,
 	))
 }
 
@@ -176,9 +176,20 @@ type histogramWrapper struct {
 
 // Record records a value in the histogram.
 func (h *histogramWrapper) Record(value float64, opts ...Option) {
-	h.histogram.Record(context.Background(), value, metric.WithAttributes(
-		append(h.attributes, optionsToAttributes(opts)...)...,
+	h.RecordContext(context.Background(), value, opts...)
+}
+
+func (h *histogramWrapper) RecordContext(ctx context.Context, value float64, opts ...Option) {
+	h.histogram.Record(ctx, value, metric.WithAttributes(
+		combineAttributes(h.attributes, optionsToAttributes(opts))...,
 	))
+}
+
+func combineAttributes(base, extra Attributes) Attributes {
+	attributes := make(Attributes, 0, len(base)+len(extra))
+	attributes = append(attributes, base...)
+	attributes = append(attributes, extra...)
+	return attributes
 }
 
 // optionsToAttributes converts a slice of Option into a slice of attribute.KeyValue.

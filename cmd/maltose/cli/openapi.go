@@ -14,7 +14,7 @@ var openapiCmd = &cobra.Command{
 	Short: "Generate OpenAPI v3 specification.",
 	Long: `This command generates an OpenAPI v3 specification file by parsing Go source files.
 It helps in documenting your API in a standard format.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		utils.PrintInfo("✍️  Generating OpenAPI specification...", nil)
 
 		src, _ := cmd.Flags().GetString("src")

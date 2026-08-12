@@ -4,12 +4,12 @@ import (
 	"context"
 	"os"
 	"strconv"
-	"sync"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/graingo/maltose/contrib/config/nacos"
-	"github.com/graingo/maltose/frame/m"
+	"github.com/graingo/maltose/os/mcfg"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients"
 	"github.com/nacos-group/nacos-sdk-go/v2/clients/config_client"
 	"github.com/nacos-group/nacos-sdk-go/v2/common/constant"
@@ -20,7 +20,7 @@ import (
 
 var (
 	ctx          = context.Background()
-	nacosIpAddr  = "localhost"
+	nacosIPAddr  = "localhost"
 	nacosPort    = uint64(8848)
 	serverConfig constant.ServerConfig
 	clientConfig constant.ClientConfig
@@ -28,7 +28,7 @@ var (
 
 func init() {
 	if ip := os.Getenv("NACOS_IP_ADDR"); ip != "" {
-		nacosIpAddr = ip
+		nacosIPAddr = ip
 	}
 	if portStr := os.Getenv("NACOS_PORT"); portStr != "" {
 		if port, err := strconv.ParseUint(portStr, 10, 64); err == nil {
@@ -37,7 +37,7 @@ func init() {
 	}
 
 	serverConfig = constant.ServerConfig{
-		IpAddr: nacosIpAddr,
+		IpAddr: nacosIPAddr,
 		Port:   nacosPort,
 	}
 	clientConfig = constant.ClientConfig{
@@ -48,7 +48,7 @@ func init() {
 	}
 }
 
-func setup(t *testing.T, dataId, group, content string) config_client.IConfigClient {
+func setup(t *testing.T, dataID, group, content string) config_client.IConfigClient {
 	configClient, err := clients.NewConfigClient(
 		vo.NacosClientParam{
 			ClientConfig:  &clientConfig,
@@ -58,7 +58,7 @@ func setup(t *testing.T, dataId, group, content string) config_client.IConfigCli
 	require.NoError(t, err)
 
 	_, err = configClient.PublishConfig(vo.ConfigParam{
-		DataId:  dataId,
+		DataId:  dataID,
 		Group:   group,
 		Content: content,
 		Type:    "toml",
@@ -71,30 +71,36 @@ func setup(t *testing.T, dataId, group, content string) config_client.IConfigCli
 	return configClient
 }
 
-func teardown(t *testing.T, client config_client.IConfigClient, dataId, group string) {
+func teardown(t *testing.T, client config_client.IConfigClient, dataID, group string) {
 	_, err := client.DeleteConfig(vo.ConfigParam{
-		DataId: dataId,
+		DataId: dataID,
 		Group:  group,
 	})
 	require.NoError(t, err)
 }
 
 func TestNacos(t *testing.T) {
-	dataId := "test-config-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	dataID := "test-config-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 	group := "test-group"
 	initialContent := `
 [server]
 address = ":8080"
 `
-	client := setup(t, dataId, group, initialContent)
-	defer teardown(t, client, dataId, group)
+	client := setup(t, dataID, group, initialContent)
+	defer teardown(t, client, dataID, group)
 
-	var wg sync.WaitGroup
-	wg.Add(1)
+	type configChange struct {
+		namespace string
+		group     string
+		dataID    string
+		data      string
+	}
+	changeChan := make(chan configChange, 1)
 
 	configParam := vo.ConfigParam{
-		DataId: dataId,
+		DataId: dataID,
 		Group:  group,
+		Type:   "toml",
 	}
 
 	// Create adapter with watch enabled
@@ -103,20 +109,26 @@ address = ":8080"
 		ClientConfig:  clientConfig,
 		ConfigParam:   configParam,
 		Watch:         true,
-		OnConfigChange: func(namespace, group, dataId, data string) {
-			defer wg.Done()
-			assert.Equal(t, "public", namespace)
-			assert.Equal(t, group, group)
-			assert.Equal(t, dataId, dataId)
-			assert.Contains(t, data, "new-value")
+		OnConfigChange: func(namespace, changedGroup, changedDataID, data string) {
+			if !strings.Contains(data, "new-value") {
+				return
+			}
+			select {
+			case changeChan <- configChange{
+				namespace: namespace,
+				group:     changedGroup,
+				dataID:    changedDataID,
+				data:      data,
+			}:
+			default:
+			}
 		},
 	})
 	require.NoError(t, err)
 	require.NotNil(t, adapter)
 
-	// Use adapter in config instance
-	cfg := m.Config("nacos")
-	cfg.SetAdapter(adapter)
+	// Create an isolated configuration instance backed by Nacos.
+	cfg := mcfg.NewWithAdapter(adapter)
 
 	// 1. Test initial configuration
 	assert.True(t, cfg.Available(ctx))
@@ -135,23 +147,19 @@ address = ":9090"
 new-key = "new-value"
 `
 	_, err = client.PublishConfig(vo.ConfigParam{
-		DataId:  dataId,
+		DataId:  dataID,
 		Group:   group,
 		Content: newContent,
 		Type:    "toml",
 	})
 	require.NoError(t, err)
 
-	// Wait for the configuration change to be processed
-	waitChan := make(chan struct{})
-	go func() {
-		wg.Wait()
-		close(waitChan)
-	}()
-
 	select {
-	case <-waitChan:
-		// success
+	case change := <-changeChan:
+		assert.Equal(t, clientConfig.NamespaceId, change.namespace)
+		assert.Equal(t, group, change.group)
+		assert.Equal(t, dataID, change.dataID)
+		assert.Contains(t, change.data, "new-value")
 	case <-time.After(10 * time.Second):
 		t.Fatal("timeout waiting for configuration change")
 	}
@@ -161,7 +169,7 @@ new-key = "new-value"
 	assert.NoError(t, err)
 	assert.Equal(t, ":9090", newAddress.String())
 
-	newValue, err := cfg.Get(ctx, "new-key")
+	newValue, err := cfg.Get(ctx, "server.new-key")
 	assert.NoError(t, err)
 	assert.Equal(t, "new-value", newValue.String())
 }

@@ -29,6 +29,8 @@ func (c *Client) SetBrowserMode(enabled bool) *Client {
 	if enabled {
 		jar, _ := cookiejar.New(nil)
 		c.client.Jar = jar
+	} else {
+		c.client.Jar = nil
 	}
 	return c
 }
@@ -68,9 +70,11 @@ func (c *Client) SetCookie(key, value string) *Client {
 	if c.client.Jar == nil {
 		c.SetBrowserMode(true)
 	}
-	// Set cookie through header for now
-	// In a real implementation, you would use the jar properly
-	return c.SetHeader("Cookie", key+"="+value)
+	cookie := (&http.Cookie{Name: key, Value: value}).String()
+	if current := c.config.Header.Get("Cookie"); current != "" {
+		cookie = current + "; " + cookie
+	}
+	return c.SetHeader("Cookie", cookie)
 }
 
 // SetCookieMap sets cookie items with map.
@@ -119,11 +123,14 @@ func (c *Client) SetTLSKeyCrt(crtFile, keyFile string) error {
 	}
 
 	if transport, ok := c.client.Transport.(*http.Transport); ok {
-		tlsConfig := &tls.Config{
-			Certificates:       []tls.Certificate{cert},
-			InsecureSkipVerify: true,
+		transport = transport.Clone()
+		tlsConfig := &tls.Config{}
+		if transport.TLSClientConfig != nil {
+			tlsConfig = transport.TLSClientConfig.Clone()
 		}
+		tlsConfig.Certificates = append(tlsConfig.Certificates, cert)
 		transport.TLSClientConfig = tlsConfig
+		c.SetTransport(transport)
 		return nil
 	}
 	return merror.New("cannot set TLSClientConfig for custom Transport of the client")
@@ -132,7 +139,12 @@ func (c *Client) SetTLSKeyCrt(crtFile, keyFile string) error {
 // SetTLSConfig sets the client's TLS configuration.
 func (c *Client) SetTLSConfig(tlsConfig *tls.Config) error {
 	if transport, ok := c.client.Transport.(*http.Transport); ok {
+		transport = transport.Clone()
+		if tlsConfig != nil {
+			tlsConfig = tlsConfig.Clone()
+		}
 		transport.TLSClientConfig = tlsConfig
+		c.SetTransport(transport)
 		return nil
 	}
 	return merror.New("cannot set TLSClientConfig for custom Transport of the client")

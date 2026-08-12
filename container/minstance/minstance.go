@@ -49,7 +49,9 @@ func (c *Container) GetOrSetFunc(name string, fn func() any) any {
 
 	// create new instance
 	instance := fn()
-	c.instances[name] = instance
+	if instance != nil {
+		c.instances[name] = instance
+	}
 	return instance
 }
 
@@ -58,6 +60,15 @@ func (c *Container) Remove(name string) {
 	c.mu.Lock()
 	defer c.mu.Unlock()
 	delete(c.instances, name)
+}
+
+// Pop removes and returns an instance atomically.
+func (c *Container) Pop(name string) any {
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	instance := c.instances[name]
+	delete(c.instances, name)
+	return instance
 }
 
 // All returns all instances.

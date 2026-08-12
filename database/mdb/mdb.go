@@ -16,23 +16,19 @@ type DB struct {
 
 func New(config ...*Config) (*DB, error) {
 	cfg := defaultConfig()
-	// Validate config
 	if len(config) > 0 && config[0] != nil {
-		cfg = config[0]
+		cfg = mergeConfig(config[0])
 	}
 
 	ctx := context.Background()
 
-	// Create GORM config
 	gormConfig := createGormConfig(cfg)
 
-	// Create database driver
 	driver, err := createDriver(cfg)
 	if err != nil {
 		return nil, err
 	}
 
-	// Open database connection
 	db, err := gorm.Open(driver, gormConfig)
 	if err != nil {
 		if cfg.Logger != nil {
@@ -41,30 +37,51 @@ func New(config ...*Config) (*DB, error) {
 		return nil, merror.Wrap(err, "failed to open database connection")
 	}
 
-	// Configure connection pool
 	if err := configureConnectionPool(db, cfg); err != nil {
 		if cfg.Logger != nil {
 			cfg.Logger.Errorf(ctx, err, "failed to configure database connection pool")
 		}
+		closeGormDB(db)
 		return nil, merror.Wrap(err, "failed to configure database connection pool")
 	}
 
-	// Configure replicas
 	if err := configureReplicas(db, cfg); err != nil {
 		if cfg.Logger != nil {
 			cfg.Logger.Errorf(ctx, err, "failed to configure database replicas")
 		}
+		closeGormDB(db)
 		return nil, merror.Wrap(err, "failed to configure database replicas")
 	}
 
-	// Load plugins
 	for _, plugin := range cfg.Plugins {
 		if err := db.Use(plugin); err != nil {
+			closeGormDB(db)
 			return nil, merror.Wrap(err, "failed to load database plugin")
 		}
 	}
 
 	return &DB{DB: db, config: cfg}, nil
+}
+
+func closeGormDB(db *gorm.DB) {
+	if db == nil {
+		return
+	}
+	if sqlDB, err := db.DB(); err == nil {
+		_ = sqlDB.Close()
+	}
+}
+
+// Close closes the underlying connection pool.
+func (db *DB) Close() error {
+	if db == nil || db.DB == nil {
+		return nil
+	}
+	sqlDB, err := db.DB.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
 }
 
 // WithContext returns a new DB with the given context.

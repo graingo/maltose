@@ -12,7 +12,7 @@ var logicCmd = &cobra.Command{
 	Use:   "logic [path]",
 	Short: "Generate logic file from service definitions",
 	Long:  "Generate logic file based on Go files containing service interface definitions.",
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		utils.PrintInfo("✍️  Generating logic files...", nil)
 
 		srcPath, _ := cmd.Flags().GetString("src")

@@ -17,7 +17,7 @@ definitions (structs for request and response).
 The command defaults to using 'api' as input and 'internal' as output.
 You can provide a single file or a directory as input. When a directory is provided,
 it will recursively find all .go files.`,
-	RunE: func(cmd *cobra.Command, args []string) error {
+	RunE: func(cmd *cobra.Command, _ []string) error {
 		name, _ := cmd.Flags().GetString("name")
 		src, _ := cmd.Flags().GetString("src")
 		dst, _ := cmd.Flags().GetString("dst")

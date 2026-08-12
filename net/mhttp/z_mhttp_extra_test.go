@@ -1,8 +1,9 @@
 package mhttp_test
 
 import (
-	"io/ioutil"
+	"io"
 	"net/http"
+	"os"
 	"testing"
 
 	"github.com/graingo/maltose/net/mhttp"
@@ -57,7 +58,7 @@ func TestExtraFeatures(t *testing.T) {
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Contains(t, string(body), `"status":"ok"`)
 	})
@@ -67,7 +68,7 @@ func TestExtraFeatures(t *testing.T) {
 		tmpDir := t.TempDir()
 		filePath := tmpDir + "/test.txt"
 		fileContent := "hello world from static file"
-		err := ioutil.WriteFile(filePath, []byte(fileContent), 0644)
+		err := os.WriteFile(filePath, []byte(fileContent), 0644)
 		require.NoError(t, err)
 
 		teardown := setupServer(t, func(s *mhttp.Server) {
@@ -80,7 +81,7 @@ func TestExtraFeatures(t *testing.T) {
 		defer resp.Body.Close()
 
 		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		body, err := ioutil.ReadAll(resp.Body)
+		body, err := io.ReadAll(resp.Body)
 		require.NoError(t, err)
 		assert.Equal(t, fileContent, string(body))
 	})

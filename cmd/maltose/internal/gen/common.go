@@ -10,7 +10,6 @@ import (
 	"strings"
 	"text/template"
 
-	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/iancoleman/strcase"
 	"github.com/jinzhu/inflection"
@@ -42,8 +41,7 @@ func generateFile(path, tplName, tplContent string, data interface{}) error {
 	// Format the generated code
 	formatted, err := format.Source(buf.Bytes())
 	if err != nil {
-		utils.PrintWarn("⚠️  failed to format source for {{.Path}}, writing unformatted code. Error: {{.Error}}", utils.TplData{"Path": path, "Error": err})
-		formatted = buf.Bytes() // Write unformatted code on error
+		return merror.Wrapf(err, "failed to format generated source for %s", path)
 	}
 
 	// Write the file
