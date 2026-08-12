@@ -100,23 +100,17 @@ jobs:
         run: |
           go test -v -race -tags=integration ./database/mredis ./contrib/cache/redis
 
-      - name: Run workspace module tests
+      # Test each nested module as a consumer of the current checkout. A single
+      # go.work would activate every module graph at once, which differs from
+      # normal module resolution and can introduce artificial package conflicts.
+      - name: Test nested modules against local source
         env:
           APOLLO_IP: http://localhost:8080
           APOLLO_APP_ID: SampleApp
           APOLLO_CLUSTER: default
           NACOS_IP_ADDR: localhost
           NACOS_PORT: 8848
-        run: |
-          go work init .
-          while IFS= read -r mod_file; do
-            module_dir=$(dirname "$mod_file")
-            go work use "$module_dir"
-          done < <(find cmd contrib -name go.mod -print | sort)
-          while IFS= read -r mod_file; do
-            module_dir=$(dirname "$mod_file")
-            (cd "$module_dir" && go test -v -race ./...)
-          done < <(find cmd contrib -name go.mod -print | sort)
+        run: .github/scripts/test-local-modules.sh
 
       - name: Validate standalone modules
         env:
