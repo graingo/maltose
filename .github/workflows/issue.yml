@@ -28,7 +28,7 @@ jobs:
         uses: actions/checkout@v7
 
       - name: Analyze issue with AI
-        uses: mingzaily/issue-ai-analyze@master
+        uses: mingzaily/issue-ai-analyze@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
           label-map-file: ./.github/issue-ai-label-map.yml
