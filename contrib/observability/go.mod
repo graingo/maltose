@@ -97,9 +97,3 @@ require (
 	gorm.io/gorm v1.30.0 // indirect
 	gorm.io/plugin/dbresolver v1.6.0 // indirect
 )
-
-replace github.com/graingo/maltose => ../..
-
-replace github.com/graingo/maltose/contrib/metric/otlpmetric => ../metric/otlpmetric
-
-replace github.com/graingo/maltose/contrib/trace/otlptrace => ../trace/otlptrace

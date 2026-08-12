@@ -12,6 +12,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
+env:
+  # Fall back to the source repository for transient proxy errors, not only 404/410.
+  GOPROXY: "https://proxy.golang.org|direct"
+
 jobs:
   test:
     runs-on: ubuntu-latest
@@ -96,7 +100,7 @@ jobs:
         run: |
           go test -v -race -tags=integration ./database/mredis ./contrib/cache/redis
 
-      - name: Run nested module tests
+      - name: Run workspace module tests
         env:
           APOLLO_IP: http://localhost:8080
           APOLLO_APP_ID: SampleApp
@@ -112,6 +116,30 @@ jobs:
           while IFS= read -r mod_file; do
             module_dir=$(dirname "$mod_file")
             (cd "$module_dir" && go test -v -race ./...)
+          done < <(find cmd contrib -name go.mod -print | sort)
+
+      - name: Validate standalone modules
+        env:
+          APOLLO_IP: http://localhost:8080
+          APOLLO_APP_ID: SampleApp
+          APOLLO_CLUSTER: default
+          NACOS_IP_ADDR: localhost
+          NACOS_PORT: 8848
+        run: |
+          set -euo pipefail
+          GOWORK=off go mod tidy -diff
+          while IFS= read -r mod_file; do
+            module_dir=$(dirname "$mod_file")
+            echo "Validating standalone module: ${module_dir}"
+            (
+              cd "$module_dir"
+              if go mod edit -json | jq -e 'any(.Replace[]?; .New.Path | startswith("."))' >/dev/null; then
+                echo "::error::${module_dir}/go.mod contains a repository-local replace directive; use go.work for local composition."
+                exit 1
+              fi
+              GOWORK=off go mod tidy -diff
+              GOWORK=off go test -v -race -mod=readonly ./...
+            )
           done < <(find cmd contrib -name go.mod -print | sort)
 
       - name: Display and enforce coverage
@@ -134,12 +162,14 @@ jobs:
           token: ${{ secrets.CODECOV_TOKEN }}
 
       - name: Stop Nacos Containers
+        if: always()
         run: |
-          docker compose -f ".github/workflows/nacos/docker-compose.yml" down
+          docker compose -f ".github/workflows/nacos/docker-compose.yml" down || true
 
       - name: Stop Apollo Containers
+        if: always()
         run: |
-          docker compose -f ".github/workflows/apollo/docker-compose.yml" down
+          docker compose -f ".github/workflows/apollo/docker-compose.yml" down || true
 
   lint:
     runs-on: ubuntu-latest
@@ -174,10 +204,16 @@ jobs:
 
       - name: Scan Go modules
         run: |
+          set -euo pipefail
+          GOWORK=off go mod tidy -diff
           govulncheck ./...
           while IFS= read -r mod_file; do
             module_dir=$(dirname "$mod_file")
-            (cd "$module_dir" && govulncheck ./...)
+            (
+              cd "$module_dir"
+              GOWORK=off go mod tidy -diff
+              GOWORK=off govulncheck ./...
+            )
           done < <(find cmd contrib -name go.mod -print | sort)
 
   api-compatibility:

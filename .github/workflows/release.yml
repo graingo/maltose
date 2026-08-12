@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: "要发布的版本，例如 v0.1.0"
+        description: "要发布的版本，例如 v0.3.1"
         required: true
         type: string
 
@@ -40,14 +40,16 @@ jobs:
           --health-timeout 1s
           --health-retries 10
     env:
+      VERSION: ${{ github.event.inputs.version }}
       RELEASE_BRANCH: master
-      MODULES: |
+      GOPROXY: "https://proxy.golang.org|direct"
+      LEAF_MODULES: |
         ./cmd/maltose
         ./contrib/config/apollo
         ./contrib/config/nacos
         ./contrib/metric/otlpmetric
-        ./contrib/observability
         ./contrib/trace/otlptrace
+      OBSERVABILITY_MODULE: ./contrib/observability
       APOLLO_IP: http://localhost:8080
       APOLLO_APP_ID: SampleApp
       APOLLO_CLUSTER: default
@@ -76,257 +78,83 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+      - name: Install govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
+
       - name: Validate release context
         id: release-context
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          VERSION="${{ github.event.inputs.version }}"
-
-          if [[ ! "$VERSION" =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-            echo "::error::版本格式不正确，必须为 vX.Y.Z 格式。"
-            exit 1
-          fi
-
-          if [[ "${GITHUB_REF_NAME}" != "${RELEASE_BRANCH}" ]]; then
-            echo "::error::只能从 ${RELEASE_BRANCH} 分支发版，当前分支为 ${GITHUB_REF_NAME}。"
-            exit 1
-          fi
-
-          git fetch origin "${RELEASE_BRANCH}" --tags
-
-          LOCAL_SHA="$(git rev-parse HEAD)"
-          REMOTE_SHA="$(git rev-parse "origin/${RELEASE_BRANCH}")"
-          if [[ "${LOCAL_SHA}" != "${REMOTE_SHA}" ]]; then
-            echo "::error::当前工作流不是基于最新的 ${RELEASE_BRANCH} HEAD 运行。"
-            echo "::error::local=${LOCAL_SHA} remote=${REMOTE_SHA}"
-            exit 1
-          fi
-
-          readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
-          tags=("${VERSION}")
-          for dir in "${modules[@]}"; do
-            module_path="${dir#./}"
-            tags+=("${module_path}/${VERSION}")
-          done
-
-          existing_tags=()
-          missing_tags=()
-          for tag_name in "${tags[@]}"; do
-            if git show-ref --verify --quiet "refs/tags/${tag_name}"; then
-              existing_tags+=("${tag_name}")
-            else
-              missing_tags+=("${tag_name}")
-            fi
-          done
-
-          if ((${#existing_tags[@]} == 0)); then
-            echo "mode=publish" >> "${GITHUB_OUTPUT}"
-            echo "-> 所有目标标签均不存在，执行完整发布。"
-            exit 0
-          fi
-
-          if ((${#missing_tags[@]} > 0)); then
-            echo "::error::检测到部分发布状态，拒绝继续以免扩大版本不一致。"
-            printf '::error::已存在标签: %s\n' "${existing_tags[*]}"
-            printf '::error::缺失标签: %s\n' "${missing_tags[*]}"
-            exit 1
-          fi
-
-          release_sha="$(git rev-list -n 1 "${VERSION}")"
-          for tag_name in "${tags[@]}"; do
-            tag_sha="$(git rev-list -n 1 "${tag_name}")"
-            if [[ "${tag_sha}" != "${release_sha}" ]]; then
-              echo "::error::标签 ${tag_name} 指向 ${tag_sha}，与根标签 ${release_sha} 不一致。"
-              exit 1
-            fi
-          done
-
-          if ! git merge-base --is-ancestor "${release_sha}" "origin/${RELEASE_BRANCH}"; then
-            echo "::error::发布提交 ${release_sha} 不属于 origin/${RELEASE_BRANCH}。"
-            exit 1
-          fi
-
-          if ! git show "${VERSION}:version.go" | grep -q "VERSION = \"${VERSION}\""; then
-            echo "::error::标签 ${VERSION} 中的 version.go 与发布版本不一致。"
-            exit 1
-          fi
-
-          echo "mode=recover" >> "${GITHUB_OUTPUT}"
-          echo "release_sha=${release_sha}" >> "${GITHUB_OUTPUT}"
-          echo "-> 所有标签均有效，进入 GitHub Release 恢复模式。"
+        run: bash .github/scripts/release.sh context
 
       - name: Start Apollo Containers
-        if: steps.release-context.outputs.mode == 'publish'
-        run: |
-          docker compose -f ".github/workflows/apollo/docker-compose.yml" up -d --build
+        if: steps.release-context.outputs.mode != 'complete'
+        run: docker compose -f ".github/workflows/apollo/docker-compose.yml" up -d --build
 
       - name: Start Nacos Containers
-        if: steps.release-context.outputs.mode == 'publish'
-        run: |
-          docker compose -f ".github/workflows/nacos/docker-compose.yml" up -d --build
+        if: steps.release-context.outputs.mode != 'complete'
+        run: docker compose -f ".github/workflows/nacos/docker-compose.yml" up -d --build
 
       - name: Wait for Apollo to be ready
-        if: steps.release-context.outputs.mode == 'publish'
-        shell: bash
+        if: steps.release-context.outputs.mode != 'complete'
         run: |
           set -euo pipefail
-          for i in {1..60}; do
+          for attempt in {1..60}; do
             if curl -sf http://localhost:8080 >/dev/null; then
               echo "Apollo is up"
               exit 0
             fi
             sleep 2
           done
-          echo "::error::Apollo 启动超时。"
+          echo "::error::Apollo did not become ready within 120 seconds."
           exit 1
 
       - name: Wait for Nacos to be ready
-        if: steps.release-context.outputs.mode == 'publish'
-        shell: bash
+        if: steps.release-context.outputs.mode != 'complete'
         run: |
           set -euo pipefail
-          for i in {1..60}; do
+          for attempt in {1..60}; do
             if curl -sf http://localhost:8848/nacos >/dev/null; then
               echo "Nacos is up"
               exit 0
             fi
             sleep 2
           done
-          echo "::error::Nacos 启动超时。"
+          echo "::error::Nacos did not become ready within 120 seconds."
           exit 1
 
-      - name: Prepare release changes
-        if: steps.release-context.outputs.mode == 'publish'
-        shell: bash
-        run: |
-          set -euo pipefail
+      - name: Validate source workspace
+        if: steps.release-context.outputs.mode != 'complete'
+        run: bash .github/scripts/release.sh workspace
 
-          VERSION="${{ github.event.inputs.version }}"
-          readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
+      # Publish dependencies before their consumers so every module can commit
+      # a complete go.sum generated without help from the local workspace.
+      - name: Publish root module
+        if: steps.release-context.outputs.root_exists != 'true'
+        run: bash .github/scripts/release.sh root
 
-          echo "===== [1/2] 更新版本号 ====="
-          sed -i "s/^[[:space:]]*VERSION = \".*\"/\tVERSION = \"${VERSION}\"/" version.go
-          if ! grep -q "VERSION = \"${VERSION}\"" version.go; then
-            echo "::error::未能在 version.go 中更新 VERSION 为 ${VERSION}，请检查 VERSION 定义行格式。"
-            exit 1
-          fi
-          echo "-> version.go 已更新为 ${VERSION}"
+      - name: Publish first-level modules
+        if: steps.release-context.outputs.leaves_exist != 'true'
+        run: bash .github/scripts/release.sh leaves
 
-          echo "===== [2/2] 更新子模块依赖 ====="
-          for dir in "${modules[@]}"; do
-            module_path="${dir#./}"
-            echo "-> 正在处理模块: ${module_path}"
-            (
-              cd "${dir}"
-              if [[ "${module_path}" != contrib* ]] && grep -q "github.com/graingo/maltose =>" go.mod; then
-                echo "--> 非 contrib 模块，移除 replace 指令"
-                go mod edit -dropreplace=github.com/graingo/maltose
-              fi
-              go mod edit -require="github.com/graingo/maltose@${VERSION}"
-              if [[ "${module_path}" == "contrib/observability" ]]; then
-                go mod edit -require="github.com/graingo/maltose/contrib/metric/otlpmetric@${VERSION}"
-                go mod edit -require="github.com/graingo/maltose/contrib/trace/otlptrace@${VERSION}"
-              fi
-            )
-          done
+      - name: Publish observability module
+        if: steps.release-context.outputs.observability_exists != 'true'
+        run: bash .github/scripts/release.sh observability
 
-      - name: Validate release workspace
-        if: steps.release-context.outputs.mode == 'publish'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
-          trap 'rm -f go.work go.work.sum' EXIT
-
-          go work init .
-          for dir in "${modules[@]}"; do
-            go work use "${dir}"
-          done
-
-          echo "-> 测试根模块"
-          go test -race ./...
-
-          for dir in "${modules[@]}"; do
-            echo "-> 测试子模块: ${dir#./}"
-            (
-              cd "${dir}"
-              go test -race ./...
-            )
-          done
-
-      - name: Commit release changes
-        if: steps.release-context.outputs.mode == 'publish'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          VERSION="${{ github.event.inputs.version }}"
-          readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
-
-          git add version.go
-          for dir in "${modules[@]}"; do
-            git add "${dir}/go.mod"
-            if [[ -f "${dir}/go.sum" ]]; then
-              git add "${dir}/go.sum"
-            fi
-          done
-
-          if git diff --cached --quiet; then
-            echo "::error::没有检测到可提交的发版变更。"
-            exit 1
-          fi
-
-          git commit -m "chore(release): prepare ${VERSION}"
-
-      - name: Create release tags
-        if: steps.release-context.outputs.mode == 'publish'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          VERSION="${{ github.event.inputs.version }}"
-          readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
-
-          git tag "${VERSION}"
-          for dir in "${modules[@]}"; do
-            module_path="${dir#./}"
-            git tag "${module_path}/${VERSION}"
-          done
-
-      - name: Push release commit and tags
-        if: steps.release-context.outputs.mode == 'publish'
-        shell: bash
-        run: |
-          set -euo pipefail
-
-          VERSION="${{ github.event.inputs.version }}"
-          readarray -t modules < <(printf '%s\n' "${MODULES}" | sed '/^$/d')
-
-          tags=("${VERSION}")
-          for dir in "${modules[@]}"; do
-            tags+=("${dir#./}/${VERSION}")
-          done
-
-          # 原子性推送：要么分支和所有 tags 一起成功，要么全部失败，避免不一致状态
-          git push --atomic origin "HEAD:${RELEASE_BRANCH}" "${tags[@]}"
+      - name: Validate standalone modules
+        if: steps.release-context.outputs.mode != 'complete'
+        run: bash .github/scripts/release.sh standalone
 
       - name: Check GitHub Release
         id: github-release
         env:
           GH_TOKEN: ${{ github.token }}
-          VERSION: ${{ github.event.inputs.version }}
-        shell: bash
         run: |
           set -euo pipefail
-          if gh release view "${VERSION}" --repo "${GITHUB_REPOSITORY}" >/dev/null 2>&1; then
-            echo "exists=true" >> "${GITHUB_OUTPUT}"
-            echo "-> GitHub Release ${VERSION} 已存在，无需重复创建。"
+          if gh release view "$VERSION" --repo "$GITHUB_REPOSITORY" >/dev/null 2>&1; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+            echo "-> GitHub Release ${VERSION} already exists."
           else
-            echo "exists=false" >> "${GITHUB_OUTPUT}"
-            echo "-> GitHub Release ${VERSION} 不存在，准备创建。"
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+            echo "-> GitHub Release ${VERSION} will be created."
           fi
 
       - name: Create GitHub Release
@@ -340,11 +168,9 @@ jobs:
           prerelease: false
 
       - name: Stop Nacos Containers
-        if: always() && steps.release-context.outputs.mode == 'publish'
-        run: |
-          docker compose -f ".github/workflows/nacos/docker-compose.yml" down || true
+        if: always() && steps.release-context.outputs.mode != 'complete'
+        run: docker compose -f ".github/workflows/nacos/docker-compose.yml" down || true
 
       - name: Stop Apollo Containers
-        if: always() && steps.release-context.outputs.mode == 'publish'
-        run: |
-          docker compose -f ".github/workflows/apollo/docker-compose.yml" down || true
+        if: always() && steps.release-context.outputs.mode != 'complete'
+        run: docker compose -f ".github/workflows/apollo/docker-compose.yml" down || true
