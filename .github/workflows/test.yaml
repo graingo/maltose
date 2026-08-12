@@ -4,7 +4,13 @@ on:
   pull_request:
     branches: [master]
   push:
-    branches: [master, dev]
+    branches: [master]
+
+# A pull request validates development branches before merge; the push event
+# validates the resulting master commit without running the same dev SHA twice.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   test:

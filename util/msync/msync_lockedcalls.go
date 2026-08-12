@@ -44,15 +44,14 @@ func (lc *LockedCalls) makeCall(key string, fn func() (any, error)) (any, error)
 	lc.m[key] = wg
 	lc.mu.Unlock()
 
-	// Execute the function
-	val, err := fn()
+	// Always remove the key before waking waiters, including when fn panics.
+	// The panic is then propagated naturally to the caller.
+	defer func() {
+		lc.mu.Lock()
+		delete(lc.m, key)
+		lc.mu.Unlock()
+		wg.Done()
+	}()
 
-	// Clean up: Remove key from map first, then signal completion
-	// This order is important to avoid race conditions
-	lc.mu.Lock()
-	delete(lc.m, key)
-	lc.mu.Unlock()
-	wg.Done()
-
-	return val, err
+	return fn()
 }

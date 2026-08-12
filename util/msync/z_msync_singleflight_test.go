@@ -141,6 +141,55 @@ func TestSingleFlight_Do(t *testing.T) {
 		assert.Equal(t, "second", result2)
 		assert.Equal(t, int32(2), callCount) // Should execute twice
 	})
+
+	t.Run("panic_is_shared_and_key_is_reusable", func(t *testing.T) {
+		const waiters = 10
+
+		sf := msync.NewSingleFlight()
+		started := make(chan struct{})
+		release := make(chan struct{})
+		panicValues := make(chan any, waiters+1)
+
+		go func() {
+			defer func() { panicValues <- recover() }()
+			_, _ = sf.Do("panic-key", func() (any, error) {
+				close(started)
+				<-release
+				panic("shared panic")
+			})
+		}()
+		<-started
+
+		var ready sync.WaitGroup
+		ready.Add(waiters)
+		for i := 0; i < waiters; i++ {
+			go func() {
+				defer func() { panicValues <- recover() }()
+				ready.Done()
+				_, _ = sf.Do("panic-key", func() (any, error) {
+					return "unexpected execution", nil
+				})
+			}()
+		}
+		ready.Wait()
+		time.Sleep(10 * time.Millisecond)
+		close(release)
+
+		for i := 0; i <= waiters; i++ {
+			select {
+			case panicValue := <-panicValues:
+				assert.Equal(t, "shared panic", panicValue)
+			case <-time.After(time.Second):
+				t.Fatal("timed out waiting for panic propagation")
+			}
+		}
+
+		result, err := sf.Do("panic-key", func() (any, error) {
+			return "recovered", nil
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, "recovered", result)
+	})
 }
 
 func TestSingleFlight_DoEx(t *testing.T) {
@@ -209,6 +258,23 @@ func TestSingleFlight_DoEx(t *testing.T) {
 
 		assert.Equal(t, 1, results[true], "Should have 1 fresh result")
 		assert.Equal(t, goroutines-1, results[false], "Should have 99 shared results")
+	})
+
+	t.Run("panic_releases_key", func(t *testing.T) {
+		sf := msync.NewSingleFlight()
+
+		assert.PanicsWithValue(t, "doex panic", func() {
+			_, _, _ = sf.DoEx("panic-key", func() (any, error) {
+				panic("doex panic")
+			})
+		})
+
+		result, fresh, err := sf.DoEx("panic-key", func() (any, error) {
+			return "recovered", nil
+		})
+		assert.NoError(t, err)
+		assert.True(t, fresh)
+		assert.Equal(t, "recovered", result)
 	})
 }
 

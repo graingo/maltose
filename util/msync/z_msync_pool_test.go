@@ -353,6 +353,72 @@ func TestPool_Clear(t *testing.T) {
 		pool.Put(obj3)
 		assert.Equal(t, 1, pool.Available())
 	})
+
+	t.Run("destroy_panic_keeps_pool_consistent", func(t *testing.T) {
+		var (
+			pool         *msync.Pool
+			destroyCount int32
+		)
+		pool = msync.NewPool(
+			2,
+			func() any { return new(int) },
+			func(any) {
+				// Re-entering the pool is safe because callbacks run outside its lock.
+				_ = pool.Size()
+				if atomic.AddInt32(&destroyCount, 1) == 1 {
+					panic("destroy panic")
+				}
+			},
+		)
+
+		first := pool.Get()
+		second := pool.Get()
+		pool.Put(first)
+		pool.Put(second)
+
+		assert.PanicsWithValue(t, "destroy panic", pool.Clear)
+		assert.Equal(t, int32(2), atomic.LoadInt32(&destroyCount))
+		assert.Equal(t, 0, pool.Size())
+		assert.Equal(t, 0, pool.Available())
+	})
+}
+
+func TestPool_CallbackPanics(t *testing.T) {
+	t.Run("create_panic_releases_reserved_capacity", func(t *testing.T) {
+		var createCount int32
+		pool := msync.NewPool(1, func() any {
+			if atomic.AddInt32(&createCount, 1) == 1 {
+				panic("create panic")
+			}
+			return "created"
+		}, nil)
+
+		assert.PanicsWithValue(t, "create panic", func() { pool.Get() })
+		assert.Equal(t, 0, pool.Size())
+		assert.Equal(t, "created", pool.Get())
+		assert.Equal(t, 1, pool.Size())
+	})
+
+	t.Run("expired_object_destroy_panic_releases_capacity", func(t *testing.T) {
+		var destroyCount int32
+		pool := msync.NewPool(
+			1,
+			func() any { return "created" },
+			func(any) {
+				if atomic.AddInt32(&destroyCount, 1) == 1 {
+					panic("destroy panic")
+				}
+			},
+			msync.WithMaxAge(time.Millisecond),
+		)
+
+		pool.Put(pool.Get())
+		time.Sleep(5 * time.Millisecond)
+
+		assert.PanicsWithValue(t, "destroy panic", func() { pool.Get() })
+		assert.Equal(t, 0, pool.Size())
+		assert.Equal(t, "created", pool.Get())
+	})
 }
 
 func TestPool_Concurrent(t *testing.T) {

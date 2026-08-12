@@ -74,10 +74,9 @@ func NewPool(limit int, create func() any, destroy func(any), opts ...PoolOption
 // If the pool is empty and the limit hasn't been reached, a new object is created.
 // If the pool is empty and the limit has been reached, Get blocks until an object is available.
 func (p *Pool) Get() any {
-	p.lock.Lock()
-	defer p.lock.Unlock()
-
 	for {
+		p.lock.Lock()
+
 		// Case 1: Try to get an idle object
 		if p.head != nil {
 			head := p.head
@@ -86,12 +85,13 @@ func (p *Pool) Get() any {
 			// Check if the object has expired
 			if p.maxAge > 0 && time.Since(head.lastUsed) > p.maxAge {
 				p.created--
+				p.cond.Signal()
 				p.lock.Unlock()
 				p.destroy(head.item)
-				p.lock.Lock()
 				continue // Try to get next object
 			}
 
+			p.lock.Unlock()
 			return head.item
 		}
 
@@ -99,14 +99,29 @@ func (p *Pool) Get() any {
 		if p.created < p.limit {
 			p.created++
 			p.lock.Unlock()
-			item := p.create()
-			p.lock.Lock()
-			return item
+			return p.createObject()
 		}
 
 		// Case 3: Pool is full, wait for an object to be returned
 		p.cond.Wait()
+		p.lock.Unlock()
 	}
+}
+
+// createObject creates an object outside the pool lock. If creation panics,
+// the reserved capacity is released before the panic reaches the caller.
+func (p *Pool) createObject() (item any) {
+	defer func() {
+		if panicValue := recover(); panicValue != nil {
+			p.lock.Lock()
+			p.created--
+			p.cond.Signal()
+			p.lock.Unlock()
+			panic(panicValue)
+		}
+	}()
+
+	return p.create()
 }
 
 // Put returns an object to the pool.
@@ -152,14 +167,39 @@ func (p *Pool) Available() int {
 // Clear removes all idle objects from the pool and destroys them.
 func (p *Pool) Clear() {
 	p.lock.Lock()
-	defer p.lock.Unlock()
+	head := p.head
+	p.head = nil
 
-	for p.head != nil {
-		head := p.head
-		p.head = head.next
+	for current := head; current != nil; current = current.next {
 		p.created--
-		p.lock.Unlock()
-		p.destroy(head.item)
-		p.lock.Lock()
+	}
+	p.cond.Broadcast()
+	p.lock.Unlock()
+
+	// User callbacks run outside the lock so they may safely re-enter the pool.
+	p.destroyObjects(head)
+}
+
+// destroyObjects attempts to destroy every object and then propagates the
+// first panic. This prevents one faulty callback from leaking the rest of a
+// detached idle list.
+func (p *Pool) destroyObjects(head *node) {
+	var panicValue any
+
+	for head != nil {
+		next := head.next
+		func(item any) {
+			defer func() {
+				if recovered := recover(); recovered != nil && panicValue == nil {
+					panicValue = recovered
+				}
+			}()
+			p.destroy(item)
+		}(head.item)
+		head = next
+	}
+
+	if panicValue != nil {
+		panic(panicValue)
 	}
 }

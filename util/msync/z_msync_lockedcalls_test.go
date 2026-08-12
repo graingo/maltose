@@ -232,6 +232,47 @@ func TestLockedCalls_Do(t *testing.T) {
 				"File %s should have %d writes", filename, writesPerFile)
 		}
 	})
+
+	t.Run("panic_releases_waiters_and_key", func(t *testing.T) {
+		lc := msync.NewLockedCalls()
+		started := make(chan struct{})
+		release := make(chan struct{})
+		panicValue := make(chan any, 1)
+		waiterResult := make(chan any, 1)
+
+		go func() {
+			defer func() { panicValue <- recover() }()
+			_, _ = lc.Do("panic-key", func() (any, error) {
+				close(started)
+				<-release
+				panic("locked call panic")
+			})
+		}()
+		<-started
+
+		go func() {
+			result, _ := lc.Do("panic-key", func() (any, error) {
+				return "waiter completed", nil
+			})
+			waiterResult <- result
+		}()
+		time.Sleep(10 * time.Millisecond)
+		close(release)
+
+		select {
+		case recovered := <-panicValue:
+			assert.Equal(t, "locked call panic", recovered)
+		case <-time.After(time.Second):
+			t.Fatal("timed out waiting for panic")
+		}
+
+		select {
+		case result := <-waiterResult:
+			assert.Equal(t, "waiter completed", result)
+		case <-time.After(time.Second):
+			t.Fatal("waiter remained blocked after panic")
+		}
+	})
 }
 
 func BenchmarkLockedCalls_Do(b *testing.B) {
