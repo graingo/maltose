@@ -526,7 +526,7 @@ func (c *AdapterRedis) GetExpire(ctx context.Context, key string) (time.Duration
 	if ttl == -1 { // Key has no expiration.
 		return 0, nil
 	}
-	return time.Duration(ttl) * time.Second, nil
+	return ttl, nil
 }
 
 // Remove deletes one or more keys from cache.

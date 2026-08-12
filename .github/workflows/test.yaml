@@ -108,9 +108,19 @@ jobs:
             (cd "$module_dir" && go test -v -race ./...)
           done < <(find cmd contrib -name go.mod -print | sort)
 
-      - name: Display coverage summary
+      - name: Display and enforce coverage
         run: |
           go tool cover -func=coverage.out
+          coverage=$(go tool cover -func=coverage.out | awk '/^total:/ {gsub(/%/, "", $3); print $3}')
+          if [ -z "$coverage" ]; then
+            echo "Unable to determine total test coverage"
+            exit 1
+          fi
+          awk -v coverage="$coverage" 'BEGIN {
+            minimum = 75.0
+            printf "Total coverage: %.1f%% (minimum: %.1f%%)\n", coverage, minimum
+            if (coverage < minimum) exit 1
+          }'
 
       - name: Upload coverage to Codecov
         uses: codecov/codecov-action@v5
