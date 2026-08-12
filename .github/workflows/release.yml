@@ -143,6 +143,11 @@ jobs:
         if: steps.release-context.outputs.mode != 'complete'
         run: bash .github/scripts/release.sh standalone
 
+      # Always validate the immutable tag contents. This also protects recovery
+      # runs where every tag exists but the previous run stopped before validation.
+      - name: Validate published modules
+        run: bash .github/scripts/release.sh published
+
       - name: Check GitHub Release
         id: github-release
         env:

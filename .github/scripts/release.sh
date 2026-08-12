@@ -108,6 +108,8 @@ validate_context() {
 	local leaves_exist=false
 	local observability_exists=false
 	local leaf_count=0
+	local root_release_sha=""
+	local leaf_release_sha=""
 	local module_dir tag_name
 
 	if tag_exists "$VERSION"; then
@@ -146,6 +148,7 @@ validate_context() {
 
 	if [[ "$root_exists" == true ]]; then
 		verify_tag_on_release_branch "$VERSION"
+		root_release_sha="$(git rev-list -n 1 "$VERSION")"
 		if ! git show "${VERSION}:version.go" | grep -q "VERSION = \"${VERSION}\""; then
 			echo "::error::Tag ${VERSION} does not contain the matching version.go value."
 			exit 1
@@ -153,7 +156,6 @@ validate_context() {
 	fi
 
 	if [[ "$leaves_exist" == true ]]; then
-		local leaf_release_sha=""
 		for module_dir in "${leaf_modules[@]}"; do
 			tag_name="$(module_tag "$module_dir")"
 			verify_tag_on_release_branch "$tag_name"
@@ -165,15 +167,25 @@ validate_context() {
 				exit 1
 			fi
 		done
+		if ! git merge-base --is-ancestor "$root_release_sha" "$leaf_release_sha"; then
+			echo "::error::First-level module tags precede the root ${VERSION} tag."
+			exit 1
+		fi
 	fi
 
 	if [[ "$observability_exists" == true ]]; then
+		local observability_release_sha
+		observability_release_sha="$(git rev-list -n 1 "$observability_tag")"
 		verify_tag_on_release_branch "$observability_tag"
 		verify_module_dependency "$observability_tag" "$OBSERVABILITY_MODULE" "$ROOT_MODULE" "$VERSION"
 		verify_module_dependency "$observability_tag" "$OBSERVABILITY_MODULE" \
 			"${ROOT_MODULE}/contrib/metric/otlpmetric" "$VERSION"
 		verify_module_dependency "$observability_tag" "$OBSERVABILITY_MODULE" \
 			"${ROOT_MODULE}/contrib/trace/otlptrace" "$VERSION"
+		if ! git merge-base --is-ancestor "$leaf_release_sha" "$observability_release_sha"; then
+			echo "::error::The observability tag precedes its first-level dependency tags."
+			exit 1
+		fi
 	fi
 
 	local mode=publish
@@ -182,8 +194,6 @@ validate_context() {
 	fi
 
 	if [[ "$root_exists" == true && "$leaves_exist" != true ]]; then
-		local root_release_sha
-		root_release_sha="$(git rev-list -n 1 "$VERSION")"
 		if [[ "$local_sha" != "$root_release_sha" ]]; then
 			echo "::error::master advanced after the root tag was published; refusing to mix unrelated commits into recovery."
 			exit 1
@@ -206,21 +216,14 @@ validate_context() {
 }
 
 validate_workspace() {
-	trap 'rm -f go.work go.work.sum' EXIT
-	go work init .
-	local module_dir
-	for module_dir in "${leaf_modules[@]}" "$OBSERVABILITY_MODULE"; do
-		go work use "$module_dir"
-	done
+	echo "-> Testing the root module against the current checkout."
+	GOWORK=off go test -race ./...
+	GOWORK=off govulncheck ./...
 
-	echo "-> Testing root module in the release workspace."
-	go test -race ./...
-	govulncheck ./...
-
-	for module_dir in "${leaf_modules[@]}" "$OBSERVABILITY_MODULE"; do
-		echo "-> Testing workspace module: ${module_dir#./}"
-		(cd "$module_dir" && go test -race ./...)
-	done
+	# Test one nested module graph at a time. Activating every module in one
+	# go.work merges unrelated transitive dependency graphs and can produce
+	# conflicts that downstream consumers never encounter.
+	.github/scripts/test-local-modules.sh
 }
 
 publish_root() {
@@ -309,6 +312,30 @@ validate_standalone_modules() {
 	done
 }
 
+validate_published_modules() {
+	local modules=("$ROOT_MODULE")
+	local module_dir module_path module_json module_source
+
+	for module_dir in "${leaf_modules[@]}" "$OBSERVABILITY_MODULE"; do
+		module_path="${ROOT_MODULE}/${module_dir#./}"
+		modules+=("$module_path")
+	done
+
+	for module_path in "${modules[@]}"; do
+		wait_for_module "$module_path" "$VERSION"
+		module_json="$(GOWORK=off go mod download -json "${module_path}@${VERSION}")"
+		module_source="$(jq -er '.Dir' <<<"$module_json")"
+		echo "-> Compile-checking published module: ${module_path}@${VERSION}"
+		(
+			cd "$module_source"
+			GOWORK=off go mod tidy -diff
+			# Compile every package and test without executing tests that require
+			# external services. Full tests ran before the tags were published.
+			GOWORK=off go test -race -run '^$' -mod=readonly ./...
+		)
+	done
+}
+
 case "$COMMAND" in
 context)
 	validate_context
@@ -327,6 +354,9 @@ observability)
 	;;
 standalone)
 	validate_standalone_modules
+	;;
+published)
+	validate_published_modules
 	;;
 *)
 	echo "::error::Unknown release command: ${COMMAND}"
