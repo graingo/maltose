@@ -2,6 +2,11 @@ name: Issue Analysis
 
 on:
   workflow_dispatch:
+    inputs:
+      issue-number:
+        description: Issue number to analyze
+        required: true
+        type: number
   issues:
     types:
       - opened
@@ -18,9 +23,18 @@ permissions:
 
 jobs:
   analyze:
+    if: >-
+      ${{
+        github.event_name == 'workflow_dispatch' ||
+        github.event_name == 'issue_comment' ||
+        github.event.action == 'opened' ||
+        github.event.action == 'reopened' ||
+        github.event.action == 'edited' ||
+        github.event.label.name == 'ai-rerun'
+      }}
     runs-on: ubuntu-latest
     concurrency:
-      group: issue-ai-analyze-${{ github.repository }}-${{ github.event.issue.number }}
+      group: issue-ai-analyze-${{ github.repository }}-${{ github.event.issue.number || inputs.issue-number || github.run_id }}
       cancel-in-progress: true
     steps:
       - name: Checkout repository
@@ -30,6 +44,7 @@ jobs:
         uses: mingzaily/issue-ai-analyze@v1
         with:
           github-token: ${{ secrets.GITHUB_TOKEN }}
+          issue-number: ${{ inputs.issue-number }}
           label-map-file: ./.github/issue-ai-label-map.yml
           openai-compatible-endpoint: ${{ secrets.DEEPSEEK_API_ENDPOINT }}
           openai-compatible-token: ${{ secrets.DEEPSEEK_API_KEY }}
