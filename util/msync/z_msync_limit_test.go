@@ -11,6 +11,15 @@ import (
 )
 
 func TestLimit_Borrow(t *testing.T) {
+	t.Run("rejects_non_positive_capacity", func(t *testing.T) {
+		assert.PanicsWithValue(t, "msync: limit capacity must be positive", func() {
+			msync.NewLimit(0)
+		})
+		assert.PanicsWithValue(t, "msync: limit capacity must be positive", func() {
+			msync.NewLimit(-1)
+		})
+	})
+
 	t.Run("basic_usage", func(t *testing.T) {
 		limit := msync.NewLimit(5)
 

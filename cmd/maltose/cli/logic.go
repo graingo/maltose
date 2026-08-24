@@ -9,9 +9,10 @@ import (
 
 // logicCmd represents the logic command
 var logicCmd = &cobra.Command{
-	Use:   "logic [path]",
+	Use:   "logic",
 	Short: "Generate logic file from service definitions",
 	Long:  "Generate logic file based on Go files containing service interface definitions.",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		utils.PrintInfo("✍️  Generating logic files...", nil)
 

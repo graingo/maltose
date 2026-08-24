@@ -45,10 +45,10 @@ type Config struct {
 	ConnMaxIdleTime time.Duration `mconv:"conn_max_idle_time"`
 	// SlowThreshold is the slow threshold for the Redis.
 	SlowThreshold time.Duration `mconv:"slow_threshold"`
-	// Logger is the logger for the Redis.
-	Logger *mlog.Logger
-	// Hooks is the hooks for the Redis. It will be used to add hooks to the Redis client.
-	Hooks []Hook
+	// Logger is configured through SetLogger or frame/mins component assembly.
+	Logger *mlog.Logger `mconv:"-"`
+	// Hooks is configured through AddHook.
+	Hooks []Hook `mconv:"-"`
 	// loggerHook is the internal logger hook instance.
 	loggerHook Hook `mconv:"-"`
 }

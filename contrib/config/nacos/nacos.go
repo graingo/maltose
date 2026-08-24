@@ -19,24 +19,24 @@ import (
 	"github.com/tidwall/gjson"
 )
 
-// Config is the configuration object for nacos client.
+// Config defines a Nacos Config client.
 type Config struct {
 	ServerConfigs  []constant.ServerConfig                     `binding:"required"` // See constant.ServerConfig
 	ClientConfig   constant.ClientConfig                       `binding:"required"` // See constant.ClientConfig
 	ConfigParam    vo.ConfigParam                              `binding:"required"` // See vo.ConfigParam
-	Watch          bool                                        // Watch watches remote configuration updates, which updates local configuration in memory immediately when remote configuration changes.
-	OnConfigChange func(namespace, group, dataID, data string) // Configure change callback function
+	Watch          bool                                        // Watch keeps the in-memory value synchronized with remote changes.
+	OnConfigChange func(namespace, group, dataID, data string) // OnConfigChange runs asynchronously after a valid update is applied.
 }
 
-// Client implements gcfg.Adapter implementing using nacos service.
+// Client implements mcfg.Adapter using Nacos Config.
 type Client struct {
 	config Config                          // Config object when created.
 	client nacosConfigClient.IConfigClient // Nacos config client.
 	value  *m.Var                          // Configmap content cached. It is json string.
 }
 
-// New creates and returns gcfg.Adapter implementing using nacos service.
-func New(_ context.Context, config Config) (adapte mcfg.Adapter, err error) {
+// New creates a Nacos-backed configuration adapter.
+func New(_ context.Context, config Config) (adapter mcfg.Adapter, err error) {
 	// Data validation.
 	err = validator.New().Struct(config)
 	if err != nil {
@@ -90,9 +90,7 @@ func (c *Client) Get(_ context.Context, pattern string) (value interface{}, err 
 	return gjson.Get(c.value.String(), pattern).Value(), nil
 }
 
-// Data retrieves and returns all configuration data in current resource as map.
-// Note that this function may lead lots of memory usage if configuration data is too large,
-// you can implement this function if necessary.
+// Data returns all configuration data in the current resource.
 func (c *Client) Data(_ context.Context) (data map[string]interface{}, err error) {
 	if c.value.IsNil() {
 		if err = c.updateLocalValue(); err != nil {

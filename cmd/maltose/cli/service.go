@@ -17,11 +17,15 @@ definitions (structs for request and response).
 The command defaults to using 'api' as input and 'internal' as output.
 You can provide a single file or a directory as input. When a directory is provided,
 it will recursively find all .go files.`,
+	Args: cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		name, _ := cmd.Flags().GetString("name")
 		src, _ := cmd.Flags().GetString("src")
 		dst, _ := cmd.Flags().GetString("dst")
 		mode, _ := cmd.Flags().GetString("mode")
+		if err := validateServiceMode(name, mode); err != nil {
+			return err
+		}
 
 		utils.PrintInfo("✍️  Generating controller and service files...", nil)
 
@@ -36,6 +40,13 @@ it will recursively find all .go files.`,
 		utils.PrintSuccess("✅ Successfully generated controller and service files.", nil)
 		return nil
 	},
+}
+
+func validateServiceMode(name, mode string) error {
+	if name == "" && mode != "interface" && mode != "struct" {
+		return merror.Newf("unsupported service generation mode %q: use interface or struct", mode)
+	}
+	return nil
 }
 
 func init() {

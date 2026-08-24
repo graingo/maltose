@@ -58,27 +58,33 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.25.12"
+          go-version-file: go.mod
 
       - name: Wait for Apollo to be ready
         run: |
-          for i in {1..60}; do
-            if curl -sf http://localhost:8080; then
+          set -euo pipefail
+          for attempt in {1..60}; do
+            if curl -sf http://localhost:8080 >/dev/null; then
               echo "Apollo is up"
-              break
+              exit 0
             fi
             sleep 2
           done
+          echo "::error::Apollo did not become ready within 120 seconds."
+          exit 1
 
       - name: Wait for Nacos to be ready
         run: |
-          for i in {1..60}; do
-            if curl -sf http://localhost:8848/nacos; then
+          set -euo pipefail
+          for attempt in {1..60}; do
+            if curl -sf http://localhost:8848/nacos >/dev/null; then
               echo "Nacos is up"
-              break
+              exit 0
             fi
             sleep 2
           done
+          echo "::error::Nacos did not become ready within 120 seconds."
+          exit 1
 
       - name: Run unit tests
         env:
@@ -98,7 +104,19 @@ jobs:
 
       - name: Run integration tests
         run: |
+          set -euo pipefail
           go test -v -race -tags=integration ./database/mredis ./contrib/cache/redis
+          (
+            cd contrib/config/apollo
+            GOWORK=off go test -v -race -tags=integration ./...
+          )
+          # nacos-sdk-go v2.3.5 has a known race in its RPC reconnect state.
+          # Keep exercising the real server integration without hiding races in
+          # Maltose's unit-testable adapter code.
+          (
+            cd contrib/config/nacos
+            GOWORK=off go test -v -tags=integration ./...
+          )
 
       # Test each nested module as a consumer of the current checkout. A single
       # go.work would activate every module graph at once, which differs from
@@ -174,7 +192,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.25.12"
+          go-version-file: go.mod
 
       - name: Lint
         uses: golangci/golangci-lint-action@v9
@@ -191,7 +209,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.25.12"
+          go-version-file: go.mod
 
       - name: Install govulncheck
         run: go install golang.org/x/vuln/cmd/govulncheck@v1.6.0
@@ -222,7 +240,7 @@ jobs:
       - name: Set up Go
         uses: actions/setup-go@v7
         with:
-          go-version: "1.25.12"
+          go-version-file: go.mod
 
       - name: Check public API compatibility
         run: |

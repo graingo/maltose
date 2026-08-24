@@ -14,7 +14,8 @@ type Config struct {
 	Address string `mconv:"address"`
 	// ServerName is the name of the server.
 	ServerName string `mconv:"server_name"`
-	// ServerRoot is the root directory of the server.
+	// ServerRoot is retained for configuration compatibility.
+	// Deprecated: pass the directory explicitly to Server.SetStaticPath.
 	ServerRoot string `mconv:"server_root"`
 	// ServerLocale is the locale of the server.
 	ServerLocale string `mconv:"server_locale"`
@@ -34,7 +35,8 @@ type Config struct {
 	TLSCertFile string `mconv:"tls_cert_file"`
 	// TLSKeyFile is the path to the tls key file.
 	TLSKeyFile string `mconv:"tls_key_file"`
-	// TLSServerName is the server name for tls.
+	// TLSServerName is retained for configuration compatibility.
+	// Deprecated: server identity is configured by TLSCertFile and TLSKeyFile.
 	TLSServerName string `mconv:"tls_server_name"`
 	// GracefulEnable is the graceful shutdown config.
 	GracefulEnable bool `mconv:"graceful_enable"`
@@ -50,8 +52,8 @@ type Config struct {
 	SwaggerTemplate string `mconv:"swagger_template"`
 	// PrintRoutes is the print routes config.
 	PrintRoutes bool `mconv:"print_routes"`
-	// Logger is the logger config.
-	Logger *mlog.Logger
+	// Logger is configured through SetLogger or frame/mins component assembly.
+	Logger *mlog.Logger `mconv:"-"`
 }
 
 func defaultConfig() *Config {

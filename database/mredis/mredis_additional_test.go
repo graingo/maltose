@@ -112,6 +112,13 @@ func TestConfigRegistryAndInstanceInvalidation(t *testing.T) {
 
 	_, err := ConfigFromMap(map[string]any{"db": []int{1}})
 	assert.Error(t, err)
+	configWithRuntimeObjects, err := ConfigFromMap(map[string]any{
+		"logger": []string{"configured by mins"},
+		"hooks":  []string{"configured in Go"},
+	})
+	require.NoError(t, err)
+	assert.Nil(t, configWithRuntimeObjects.Logger)
+	assert.Empty(t, configWithRuntimeObjects.Hooks)
 }
 
 var _ Hook = passthroughHook{}

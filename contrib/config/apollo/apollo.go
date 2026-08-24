@@ -17,7 +17,7 @@ import (
 	"github.com/tidwall/sjson"
 )
 
-// Config is the configuration object for apollo client.
+// Config defines an Apollo Config client.
 type Config struct {
 	AppID             string `binding:"required"` // See apolloConfig.Config.
 	IP                string `binding:"required"` // See apolloConfig.Config.
@@ -28,17 +28,17 @@ type Config struct {
 	Secret            string // See apolloConfig.Config.
 	SyncServerTimeout int    // See apolloConfig.Config.
 	MustStart         bool   // See apolloConfig.Config.
-	Watch             bool   // Watch watches remote configuration updates, which updates local configuration in memory immediately when remote configuration changes.
+	Watch             bool   // Watch keeps the in-memory value synchronized with remote changes.
 }
 
-// Client implements mcfg.Adapter implementing using apollo service.
+// Client implements mcfg.Adapter using Apollo Config.
 type Client struct {
 	config Config        // Config object when created.
 	client agollo.Client // Apollo client.
 	value  *m.Var        // Configmap content cached. It is json string.
 }
 
-// New creates and returns mcfg.Adapter implementing using apollo service.
+// New creates an Apollo-backed configuration adapter.
 func New(_ context.Context, config Config) (adapter mcfg.Adapter, err error) {
 	// Data validation.
 	err = validator.New().Struct(config)
@@ -106,9 +106,7 @@ func (c *Client) Get(ctx context.Context, pattern string) (value any, err error)
 	return gjson.Get(c.value.String(), pattern).Value(), nil
 }
 
-// Data retrieves and returns all configuration data in current resource as map.
-// Note that this function may lead lots of memory usage if configuration data is too large,
-// you can implement this function if necessary.
+// Data returns all configuration data in the current resource.
 func (c *Client) Data(ctx context.Context) (data map[string]any, err error) {
 	if c.value.IsNil() {
 		if err = c.updateLocalValue(ctx); err != nil {

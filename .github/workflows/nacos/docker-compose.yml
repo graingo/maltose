@@ -1,8 +1,7 @@
-version: "3.8"
-
 services:
   nacos:
     image: nacos/nacos-server:v2.1.2
+    platform: linux/amd64
     container_name: nacos
     env_file:
       - ./env/nacos.env

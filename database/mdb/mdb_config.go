@@ -37,12 +37,12 @@ type Config struct {
 	MaxLifetime time.Duration `mconv:"max_lifetime"`
 	// SlowThreshold is the slow query threshold.
 	SlowThreshold time.Duration `mconv:"slow_threshold"`
-	// Logger is the logger for the database.
-	Logger *mlog.Logger
+	// Logger is configured through SetLogger or frame/mins component assembly.
+	Logger *mlog.Logger `mconv:"-"`
 	// Replicas is the replicas list.
 	Replicas []Config
-	// Plugins is the plugins list.
-	Plugins []gorm.Plugin
+	// Plugins is configured through AddPlugin or SetPlugins.
+	Plugins []gorm.Plugin `mconv:"-"`
 }
 
 func defaultConfig() *Config {

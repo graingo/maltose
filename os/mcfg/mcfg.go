@@ -48,11 +48,9 @@ func NewWithAdapter(adapter Adapter) *Config {
 	}
 }
 
-// Instance returns a Config instance with default settings.
-// The `name` parameter is the instance name. Note that if a file named "name.yaml" exists in the config directory, it will be used as the default config file.
-//
-// Note: If a file named "name.yaml" exists in the config directory, it will be used as the default config file.
-// If a file named "name.yaml" does not exist in the config directory, the default config file name "config" will be used.
+// Instance returns a shared Config with the requested instance name.
+// A named instance loads a matching configuration file, such as "redis.yaml",
+// and panics during initialization when that file cannot be found or parsed.
 func Instance(name ...string) *Config {
 	var instanceName = DefaultInstanceName
 	if len(name) > 0 && name[0] != "" {
@@ -81,7 +79,7 @@ func (c *Config) SetAdapter(adapter Adapter) {
 	c.cachedData = nil // Clear cache when adapter changes.
 }
 
-// GetAdapter gets the configuration adapter.
+// GetAdapter returns the configuration adapter.
 func (c *Config) GetAdapter() Adapter {
 	c.mu.RLock()
 	defer c.mu.RUnlock()
@@ -138,7 +136,7 @@ func (c *Config) MustGet(ctx context.Context, pattern string, def ...any) *mvar.
 	return v
 }
 
-// Data gets all configuration data.
+// Data returns all configuration data.
 func (c *Config) Data(ctx context.Context) (map[string]any, error) {
 	c.mu.RLock()
 	if c.cachedData != nil {

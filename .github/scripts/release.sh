@@ -224,6 +224,18 @@ validate_workspace() {
 	# go.work merges unrelated transitive dependency graphs and can produce
 	# conflicts that downstream consumers never encounter.
 	.github/scripts/test-local-modules.sh
+
+	echo "-> Testing remote configuration integrations."
+	(
+		cd contrib/config/apollo
+		GOWORK=off go test -race -tags=integration ./...
+	)
+	# nacos-sdk-go v2.3.5 has an upstream race in its RPC reconnect state.
+	# The adapter's unit-testable paths remain covered by the race suite above.
+	(
+		cd contrib/config/nacos
+		GOWORK=off go test -tags=integration ./...
+	)
 }
 
 publish_root() {

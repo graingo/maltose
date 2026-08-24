@@ -72,6 +72,13 @@ func TestConfigRegistryAndInvalidInstance(t *testing.T) {
 
 	_, err := ConfigFromMap(map[string]any{"max_open_connection": []string{"invalid"}})
 	assert.Error(t, err)
+	configWithRuntimeObjects, err := ConfigFromMap(map[string]any{
+		"logger":  []string{"configured by mins"},
+		"plugins": []string{"configured in Go"},
+	})
+	require.NoError(t, err)
+	assert.NotNil(t, configWithRuntimeObjects.Logger)
+	assert.NotEmpty(t, configWithRuntimeObjects.Plugins)
 }
 
 func TestTransactionsAndNilSafeMethods(t *testing.T) {

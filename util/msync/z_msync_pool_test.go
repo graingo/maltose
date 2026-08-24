@@ -11,6 +11,22 @@ import (
 )
 
 func TestPool_Basic(t *testing.T) {
+	t.Run("rejects_non_positive_capacity", func(t *testing.T) {
+		create := func() any { return "object" }
+		assert.PanicsWithValue(t, "msync: pool capacity must be positive", func() {
+			msync.NewPool(0, create, nil)
+		})
+		assert.PanicsWithValue(t, "msync: pool capacity must be positive", func() {
+			msync.NewPool(-1, create, nil)
+		})
+	})
+
+	t.Run("rejects_nil_create_function", func(t *testing.T) {
+		assert.PanicsWithValue(t, "msync: pool create function cannot be nil", func() {
+			msync.NewPool(1, nil, nil)
+		})
+	})
+
 	t.Run("get_and_put", func(t *testing.T) {
 		var createCount int32
 		pool := msync.NewPool(
@@ -384,6 +400,21 @@ func TestPool_Clear(t *testing.T) {
 }
 
 func TestPool_CallbackPanics(t *testing.T) {
+	t.Run("nil_create_result_releases_reserved_capacity", func(t *testing.T) {
+		var createCount int32
+		pool := msync.NewPool(1, func() any {
+			if atomic.AddInt32(&createCount, 1) == 1 {
+				return nil
+			}
+			return "created"
+		}, nil)
+
+		assert.PanicsWithValue(t, "msync: pool create function returned nil", func() { pool.Get() })
+		assert.Equal(t, 0, pool.Size())
+		assert.Equal(t, "created", pool.Get())
+		assert.Equal(t, 1, pool.Size())
+	})
+
 	t.Run("create_panic_releases_reserved_capacity", func(t *testing.T) {
 		var createCount int32
 		pool := msync.NewPool(1, func() any {

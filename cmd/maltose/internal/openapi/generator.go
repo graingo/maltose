@@ -15,6 +15,10 @@ import (
 
 // Generate creates the final OpenAPI specification file.
 func Generate(src, outputFile, format string) error {
+	if format != "yaml" && format != "json" {
+		return merror.Newf("unsupported OpenAPI output format %q: use yaml or json", format)
+	}
+
 	utils.PrintInfo("🔍 Scanning directory: {{.Path}}", utils.TplData{"Path": filepath.Base(src)})
 
 	// Step 1: Parse the source code in the directory.

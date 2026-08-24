@@ -1,54 +1,45 @@
-# apollo
+# Apollo configuration adapter
 
-Package `apollo` implements maltose `mcfg.Adapter` using apollo service.
+Package `apollo` connects Maltose `mcfg.Config` to Apollo Config and optionally keeps the in-memory value synchronized with remote changes.
 
 ## Installation
 
 ```bash
-go get -u github.com/graingo/maltose/contrib/config/apollo
+go get github.com/graingo/maltose/contrib/config/apollo
 ```
 
 ## Usage
 
-### Create a custom boot package
-
-If you wish using configuration from apollo globally,
-it is strongly recommended creating a custom boot package in very top import,
-which sets the Adapter of default configuration instance before any other package boots.
-
 ```go
-package boot
+package main
 
 import (
 	"context"
-	"fmt"
 
 	"github.com/graingo/maltose/contrib/config/apollo"
-	"github.com/graingo/maltose/frame/m"
+	"github.com/graingo/maltose/os/mcfg"
 )
 
-func init() {
-	var (
-		ctx     = context.Background()
-		appID   = "SampleApp"
-		cluster = "default"
-		ip      = "http://localhost:8080"
-	)
-	// Create apollo Client that implements mcfg.Adapter
+func loadConfig(ctx context.Context) (*mcfg.Config, error) {
 	adapter, err := apollo.New(ctx, apollo.Config{
-		AppID:   appID,
-		IP:      ip,
-		Cluster: cluster,
+		AppID:         "checkout-api",
+		IP:            "http://127.0.0.1:8080",
+		Cluster:       "default",
+		NamespaceName: "application",
+		Watch:         true,
 	})
 	if err != nil {
-		fmt.Printf("init apollo failed: %+v\n", err)
-		return
+		return nil, err
 	}
-	// Change the adapter of default configuration instance
-	m.Config().SetAdapter(adapter)
+
+	return mcfg.NewWithAdapter(adapter), nil
 }
 ```
 
+`Watch` refreshes the adapter's in-memory value when Apollo publishes a change. If process-wide `mcfg` hooks are registered, clear the `Config` cache after a remote change so the hooks run again for the new value.
+
+To replace the process-wide default configuration, initialize the adapter before other components and call `m.Config().SetAdapter(adapter)`. Prefer `m.NewScope(mcfg.NewWithAdapter(adapter))` when an application or test needs an isolated component scope.
+
 ## License
 
-`maltose apollo` is licensed under the [MIT License](../../../LICENSE), 100% free and open-source, forever.
+This module is licensed under the [MIT License](../../../LICENSE).

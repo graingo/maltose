@@ -6,12 +6,12 @@ import (
 	"sync"
 )
 
-// StatefulHook is an interface for hooks that need to maintain state across multiple calls.
-// This is useful for caching results of expensive operations, like fetching remote configuration.
+// StatefulHook transforms loaded configuration while retaining state between calls.
 type StatefulHook interface {
 	Hook(ctx context.Context, data map[string]any) (map[string]any, error)
 }
 
+// ConfigHookFunc transforms configuration after an adapter loads it.
 type ConfigHookFunc func(ctx context.Context, data map[string]any) (map[string]any, error)
 
 type hookRegistry struct {
@@ -51,12 +51,10 @@ func (r *hookRegistry) clear() {
 	r.ordered = nil
 }
 
-// RegisterAfterLoadHook registers a hook to be executed after configuration is loaded.
-// It accepts either a function with the signature `func(context.Context, map[string]any) (map[string]any, error)`
-// or an implementation of the `StatefulHook` interface.
-// Using a `StatefulHook` is the recommended way to handle expensive operations that should only run once (e.g., fetching remote config),
-// as it allows caching within the hook's state.
-// Each hook is stored with a unique key to prevent duplicate registrations.
+// RegisterAfterLoadHook registers a process-wide hook that runs after an
+// adapter loads configuration. It accepts ConfigHookFunc, its underlying
+// function signature, or StatefulHook. Register hooks before the first read.
+// Hooks run in registration order.
 func RegisterAfterLoadHook(hook any) {
 	var hookFunc ConfigHookFunc
 	switch h := hook.(type) {

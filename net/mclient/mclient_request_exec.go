@@ -230,9 +230,7 @@ func (r *Request) attemptRequest(ctx context.Context, method string, urlPath str
 
 // Do executes the request.
 //
-// Deprecated: This method is deprecated and will be removed in a future version.
-// Please use the HTTP method-specific functions like Get, Post, etc., instead.
-// For example, instead of `req.Method("GET").Do()`, use `req.Get(url)`.
+// Deprecated: use an HTTP method-specific function such as Get or Post.
 func (r *Request) Do() (*Response, error) {
 	if r.Request == nil || r.Request.URL == nil {
 		return nil, merror.New("mclient: request URL is not set")

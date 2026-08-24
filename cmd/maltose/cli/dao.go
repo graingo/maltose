@@ -11,8 +11,9 @@ import (
 // daoCmd represents the dao command
 var daoCmd = &cobra.Command{
 	Use:   "dao",
-	Short: "Generate DAO layer based on existing models.",
-	Long:  "This command scans for GORM models and generates a complete data access object (DAO) layer, including interfaces and implementations.",
+	Short: "Generate a DAO layer from database schema",
+	Long:  "Connects to a database and generates data access objects for the existing tables and entity models.",
+	Args:  cobra.NoArgs,
 	RunE: func(cmd *cobra.Command, _ []string) error {
 		utils.PrintInfo("✍️  Generating DAO layer...", nil)
 

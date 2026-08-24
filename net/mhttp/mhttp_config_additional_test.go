@@ -18,6 +18,10 @@ func TestServerConfigMutationAndCloning(t *testing.T) {
 	defaults := cloneConfig(nil)
 	assert.Equal(t, defaultPort, defaults.Address)
 	assert.NotNil(t, defaults.Logger)
+	defaultServer := New()
+	assert.Equal(t, ":8080", defaultServer.normalizeAddress())
+	defaultServer.SetAddress("127.0.0.1:9000")
+	assert.Equal(t, "127.0.0.1:9000", defaultServer.normalizeAddress())
 
 	original := &Config{Address: ":9000"}
 	cloned := cloneConfig(original)
@@ -33,6 +37,9 @@ func TestServerConfigMutationAndCloning(t *testing.T) {
 
 	config, err := ConfigFromMap(map[string]any{"address": ":8088", "server_locale": ""})
 	require.NoError(t, err)
+	configWithLoggerNode, err := ConfigFromMap(map[string]any{"logger": []string{"configured by mins"}})
+	require.NoError(t, err)
+	assert.NotNil(t, configWithLoggerNode.Logger)
 	server := New(config)
 	server.SetAddress(":8089")
 	server.SetServerName("api")

@@ -2,161 +2,171 @@ package mclient_test
 
 import (
 	"fmt"
-	"log"
 	"net/http"
+	"net/http/httptest"
+	"sync/atomic"
 	"time"
 
 	"github.com/graingo/maltose/net/mclient"
 )
 
-// Example demonstrates basic usage of the client.
-// This is a runnable example, but it will not make a real network call
-// as the URL is a placeholder. To make it a "godoc" example,
-// we'd typically mock the server.
+// Example demonstrates a basic request with the chain-style API.
 func Example() {
-	client := mclient.New()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Accept") != "application/json" {
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		w.WriteHeader(http.StatusOK)
+	}))
+	defer server.Close()
 
-	// In a real scenario, you would handle the response and error.
-	_, err := client.R().
+	response, err := mclient.New().R().
 		SetHeader("Accept", "application/json").
-		Get("https://api.example.com/users")
-
+		Get(server.URL)
 	if err != nil {
-		// This will likely print an error in a test environment, which is expected.
-		fmt.Println("Request intended to fail for example purposes.")
+		fmt.Println("request failed")
+		return
 	}
+	defer response.Close()
+
+	fmt.Println(response.StatusCode)
 	// Output:
-	// Request intended to fail for example purposes.
+	// 200
 }
 
 // Example_jSON demonstrates JSON request and response handling.
 func Example_jSON() {
-	client := mclient.New()
-
-	// Define request and response structures
 	type User struct {
 		Name  string `json:"name"`
 		Email string `json:"email"`
 	}
-
 	type CreateResponse struct {
 		ID     int    `json:"id"`
 		Name   string `json:"name"`
 		Status string `json:"status"`
 	}
 
-	// Prepare request data
-	user := User{
-		Name:  "John Doe",
-		Email: "john@example.com",
-	}
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Content-Type") != "application/json" {
+			w.WriteHeader(http.StatusUnsupportedMediaType)
+			return
+		}
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusCreated)
+		_, _ = w.Write([]byte(`{"id":7,"name":"John Doe","status":"active"}`))
+	}))
+	defer server.Close()
 
-	// Prepare result container
 	var result CreateResponse
-
-	// Send request (this will fail as the URL is not real)
-	_, err := client.R().
-		SetBody(user).
+	response, err := mclient.New().R().
+		SetBody(User{Name: "John Doe", Email: "john@example.com"}).
 		SetResult(&result).
-		Post("https://api.example.com/users")
-
+		Post(server.URL)
 	if err != nil {
-		fmt.Println("JSON request example finished.")
+		fmt.Println("request failed")
+		return
 	}
+	defer response.Close()
 
-	// In a real case, you might print the result:
-	// fmt.Printf("Created user: %s (ID: %d)\n", result.Name, result.ID)
-
+	fmt.Println(result.ID, result.Name, result.Status)
 	// Output:
-	// JSON request example finished.
+	// 7 John Doe active
 }
 
-// Example_retry demonstrates retry mechanism.
+// Example_retry demonstrates retrying temporary server failures.
 func Example_retry() {
-	client := mclient.New()
+	var attempts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if attempts.Add(1) < 3 {
+			w.WriteHeader(http.StatusServiceUnavailable)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
 
-	// Configure retry strategy
 	config := mclient.RetryConfig{
 		Count:         3,
-		BaseInterval:  time.Second,
-		MaxInterval:   30 * time.Second,
-		BackoffFactor: 2.0,
-		JitterFactor:  0.1,
+		BaseInterval:  time.Millisecond,
+		MaxInterval:   time.Millisecond,
+		BackoffFactor: 1,
 	}
-
-	// Send request with retry (this will fail as the URL is not real)
-	_, err := client.R().
-		SetRetry(config).
-		Get("https://api.example.com/users")
-
+	response, err := mclient.New().R().SetRetry(config).Get(server.URL)
 	if err != nil {
-		fmt.Println("Retry example finished.")
+		fmt.Println("request failed")
+		return
 	}
+	defer response.Close()
 
+	fmt.Println(response.StatusCode, attempts.Load())
 	// Output:
-	// Retry example finished.
+	// 204 3
 }
 
-// Example_customRetryCondition demonstrates custom retry conditions.
+// Example_customRetryCondition demonstrates selecting retryable responses.
 func Example_customRetryCondition() {
-	client := mclient.New()
+	var attempts atomic.Int32
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		if attempts.Add(1) == 1 {
+			w.WriteHeader(http.StatusTooManyRequests)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
 
-	// Define custom retry condition
-	customRetryCondition := func(resp *http.Response, err error) bool {
-		// Retry on network errors
-		if err != nil {
-			return true
-		}
-		// Retry on server errors (5xx) or rate limiting (429)
-		if resp != nil && (resp.StatusCode >= 500 || resp.StatusCode == 429) {
-			return true
-		}
-		return false
+	retryRateLimits := func(response *http.Response, err error) bool {
+		return err == nil && response != nil && response.StatusCode == http.StatusTooManyRequests
 	}
-
-	config := mclient.RetryConfig{Count: 3}
-
-	_, err := client.R().
+	config := mclient.RetryConfig{
+		Count:         3,
+		BaseInterval:  time.Millisecond,
+		MaxInterval:   time.Millisecond,
+		BackoffFactor: 1,
+	}
+	response, err := mclient.New().R().
 		SetRetry(config).
-		SetRetryCondition(customRetryCondition).
-		Get("https://api.example.com/users")
-
+		SetRetryCondition(retryRateLimits).
+		Get(server.URL)
 	if err != nil {
-		fmt.Println("Custom retry example finished.")
+		fmt.Println("request failed")
+		return
 	}
+	defer response.Close()
+
+	fmt.Println(response.StatusCode, attempts.Load())
 	// Output:
-	// Custom retry example finished.
+	// 204 2
 }
 
-// Example_middleware demonstrates middleware usage.
+// Example_middleware demonstrates adding authentication with client middleware.
 func Example_middleware() {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		if r.Header.Get("Authorization") != "Bearer test-token" {
+			w.WriteHeader(http.StatusUnauthorized)
+			return
+		}
+		w.WriteHeader(http.StatusNoContent)
+	}))
+	defer server.Close()
+
 	client := mclient.New()
-
-	// Add auth middleware
-	client.Use(mclient.MiddlewareFunc(func(next mclient.HandlerFunc) mclient.HandlerFunc {
-		return func(req *mclient.Request) (*mclient.Response, error) {
-			req.SetHeader("Authorization", "Bearer test-token")
-			return next(req)
+	client.Use(func(next mclient.HandlerFunc) mclient.HandlerFunc {
+		return func(request *mclient.Request) (*mclient.Response, error) {
+			request.SetHeader("Authorization", "Bearer test-token")
+			return next(request)
 		}
-	}))
+	})
 
-	// Add logging middleware
-	client.Use(mclient.MiddlewareFunc(func(next mclient.HandlerFunc) mclient.HandlerFunc {
-		return func(req *mclient.Request) (*mclient.Response, error) {
-			log.Printf("Sending request to %s", req.Request.URL.String())
-			resp, err := next(req)
-			if err != nil {
-				log.Printf("Request failed: %v", err)
-			}
-			return resp, err
-		}
-	}))
-
-	_, err := client.R().Get("https://api.example.com/users")
-
+	response, err := client.R().Get(server.URL)
 	if err != nil {
-		fmt.Println("Middleware example finished.")
+		fmt.Println("request failed")
+		return
 	}
+	defer response.Close()
+
+	fmt.Println(response.StatusCode)
 	// Output:
-	// Middleware example finished.
+	// 204
 }

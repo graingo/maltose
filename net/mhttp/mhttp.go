@@ -17,10 +17,8 @@ import (
 var configureGinOnce sync.Once
 
 const (
-	DefaultServerName  = "default"
-	defaultPort        = "8080"
-	defaultOpenapiPath = "/api.json"
-	defaultSwaggerPath = "/swagger"
+	DefaultServerName = "default"
+	defaultPort       = "8080"
 )
 
 // Server HTTP server structure.

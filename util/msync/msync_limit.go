@@ -16,6 +16,9 @@ type Limit struct {
 // NewLimit creates and returns a new Limit instance with the specified capacity.
 // The capacity determines the maximum number of concurrent operations allowed.
 func NewLimit(n int) *Limit {
+	if n <= 0 {
+		panic("msync: limit capacity must be positive")
+	}
 	return &Limit{
 		pool: make(chan struct{}, n),
 	}

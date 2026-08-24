@@ -2,6 +2,7 @@ package mclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"encoding/xml"
 	"errors"
@@ -23,6 +24,9 @@ type Response struct {
 
 // initCookie initializes the cookie map attribute of Response.
 func (r *Response) initCookie() {
+	if r == nil {
+		return
+	}
 	if r.cookies == nil {
 		r.cookies = make(map[string]string)
 		// Response might be nil.
@@ -36,18 +40,27 @@ func (r *Response) initCookie() {
 
 // GetCookie retrieves and returns the cookie value of specified `key`.
 func (r *Response) GetCookie(key string) string {
+	if r == nil {
+		return ""
+	}
 	r.initCookie()
 	return r.cookies[key]
 }
 
 // GetCookies retrieves and returns all cookie values.
 func (r *Response) GetCookies() map[string]string {
+	if r == nil {
+		return nil
+	}
 	r.initCookie()
 	return r.cookies
 }
 
 // GetCookieMap retrieves and returns a copy of current cookie values map.
 func (r *Response) GetCookieMap() map[string]string {
+	if r == nil {
+		return nil
+	}
 	r.initCookie()
 	m := make(map[string]string, len(r.cookies))
 	for k, v := range r.cookies {
@@ -59,13 +72,16 @@ func (r *Response) GetCookieMap() map[string]string {
 // ReadAll retrieves and returns the response content as []byte.
 func (r *Response) ReadAll() []byte {
 	// Response might be nil.
-	if r == nil || r.Response == nil {
+	if r == nil || r.Response == nil || r.Response.Body == nil {
 		return []byte{}
 	}
 	body, err := io.ReadAll(r.Response.Body)
 	if err != nil {
-		// This logs error internally without interrupting execution flow
-		intlog.Error(r.Request.Context(), "ReadAll error:", err)
+		ctx := context.Background()
+		if r.Request != nil {
+			ctx = r.Request.Context()
+		}
+		intlog.Error(ctx, "ReadAll error:", err)
 		return []byte{}
 	}
 	// Reset Body for multiple reads
@@ -80,7 +96,7 @@ func (r *Response) ReadAllString() string {
 
 // Parse parses the response body into the given result.
 func (r *Response) Parse(result interface{}) error {
-	if r.Response == nil || r.Response.Body == nil {
+	if r == nil || r.Response == nil || r.Response.Body == nil {
 		return errors.New("response or response body is nil")
 	}
 
@@ -128,6 +144,9 @@ func (r *Response) IsSuccess() bool {
 
 // SetBodyContent overwrites response content with custom one.
 func (r *Response) SetBodyContent(content []byte) {
+	if r == nil || r.Response == nil {
+		return
+	}
 	buffer := bytes.NewBuffer(content)
 	r.Body = io.NopCloser(buffer)
 	r.ContentLength = int64(buffer.Len())
@@ -135,7 +154,7 @@ func (r *Response) SetBodyContent(content []byte) {
 
 // Close closes the response when it will never be used.
 func (r *Response) Close() error {
-	if r == nil || r.Response == nil {
+	if r == nil || r.Response == nil || r.Response.Body == nil {
 		return nil
 	}
 	return r.Response.Body.Close()
@@ -143,17 +162,23 @@ func (r *Response) Close() error {
 
 // SetResult sets the result object for successful response.
 func (r *Response) SetResult(result interface{}) {
+	if r == nil {
+		return
+	}
 	r.result = result
 }
 
 // SetError sets the error result object for error response.
 func (r *Response) SetError(err interface{}) {
+	if r == nil {
+		return
+	}
 	r.errorResult = err
 }
 
 // parseResponse parses the response based on status code.
 func (r *Response) parseResponse() error {
-	if r.Response == nil {
+	if r == nil || r.Response == nil {
 		return errors.New("response is nil")
 	}
 
@@ -174,10 +199,16 @@ func (r *Response) parseResponse() error {
 
 // GetResult returns the result object.
 func (r *Response) GetResult() any {
+	if r == nil {
+		return nil
+	}
 	return r.result
 }
 
 // GetError returns the error result object.
 func (r *Response) GetError() any {
+	if r == nil {
+		return nil
+	}
 	return r.errorResult
 }

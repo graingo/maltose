@@ -48,8 +48,11 @@ func WithMaxAge(d time.Duration) PoolOption {
 //   - destroy: Function to destroy objects (can be nil)
 //   - opts: Optional configuration options
 func NewPool(limit int, create func() any, destroy func(any), opts ...PoolOption) *Pool {
+	if limit <= 0 {
+		panic("msync: pool capacity must be positive")
+	}
 	if create == nil {
-		panic("msync: Pool create function cannot be nil")
+		panic("msync: pool create function cannot be nil")
 	}
 	if destroy == nil {
 		destroy = func(any) {} // No-op destroy function
@@ -121,10 +124,17 @@ func (p *Pool) createObject() (item any) {
 		}
 	}()
 
-	return p.create()
+	item = p.create()
+	if item == nil {
+		panic("msync: pool create function returned nil")
+	}
+	return item
 }
 
 // Put returns an object to the pool.
+// Return each object obtained from Get exactly once. Passing external objects
+// or returning the same object more than once violates the pool's capacity
+// accounting contract.
 // If x is nil, it is ignored.
 func (p *Pool) Put(x any) {
 	if x == nil {
