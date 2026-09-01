@@ -1,33 +1,33 @@
-# Maltose Contrib Instructions
+# Maltose Contrib 说明
 
-These rules extend the repository root `AGENTS.md` for adapters and observability integrations under `contrib/`.
+本文件适用于 `contrib/` 下的适配器和可观测性集成，并补充仓库根目录的 `AGENTS.md`。
 
-## Module Boundaries
+## 模块边界
 
-- Treat every nested `go.mod` as an independently versioned and independently consumable module.
-- Do not commit repository-local `replace` directives.
-- Keep leaf adapters focused on one external system or protocol.
-- Keep `contrib/observability` as the composition layer for trace and metric integrations. Preserve the release order: root module, leaf modules, then observability.
-- Avoid leaking provider-specific types through shared Maltose interfaces unless the integration explicitly exposes an escape hatch.
-- Preserve configuration defaults, environment-variable behavior, lifecycle, shutdown, retry, and error semantics as public contracts.
+- 每个包含 `go.mod` 的目录都是独立发布、独立使用的模块。
+- 不要提交仓库本地 `replace`。
+- 每个叶子适配器只负责一个外部系统或协议。
+- `contrib/observability` 是 trace 和 metric 集成的组合层。保持发布顺序为根模块、叶子模块、observability。
+- 只有集成明确暴露底层能力时，Maltose 公共接口才可以返回供应商专用类型。
+- 配置默认值、环境变量行为、生命周期、关闭、重试和错误语义都属于公共契约。
 
-## External Services and Telemetry
+## 外部服务与遥测
 
-- Separate unit-testable adapter behavior from real-service integration tests.
-- Preserve `context.Context` cancellation and deadlines across provider calls.
-- Close clients, exporters, and background workers deterministically.
-- Keep telemetry instrumentation bounded and avoid high-cardinality attributes by default.
-- Do not log credentials, tokens, connection strings, or configuration payloads containing secrets.
+- 将可单元测试的适配器行为与真实服务集成测试分开。
+- 调用供应商服务时完整传递 `context.Context` 的取消和 deadline。
+- 确保客户端、exporter 和后台任务按生命周期关闭。
+- 控制遥测数据规模，默认不添加高基数属性。
+- 不要记录凭证、token、连接串或包含秘密的配置内容。
 
-## Verification
+## 验证
 
-For every affected nested module, run:
+在每个受影响的嵌套模块中运行：
 
 ```bash
 GOWORK=off go mod tidy -diff
 GOWORK=off go test -race -mod=readonly ./...
 ```
 
-Then run the repository-level `.github/scripts/test-local-modules.sh` so the module consumes the current local framework APIs without changing committed module files.
+然后从仓库根目录运行 `.github/scripts/test-local-modules.sh`，使用当前框架源码验证模块，同时保持提交的模块文件不变。
 
-Apollo and Nacos integration tests require their respective services. Nacos real-server integration currently runs without `-race` because the pinned SDK has a reconnect-state race; keep race testing enabled for unit-testable adapter code.
+Apollo 和 Nacos 集成测试依赖真实服务。当前 Nacos 真实服务集成测试不使用 `-race`，因为固定版本 SDK 的 reconnect 状态存在已知竞态；可单元测试的适配器代码继续启用竞态检测。
