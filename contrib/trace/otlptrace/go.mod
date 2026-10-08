@@ -5,7 +5,7 @@ go 1.25.0
 toolchain go1.25.13
 
 require (
-	github.com/graingo/maltose v0.3.0
+	github.com/graingo/maltose v0.4.0
 	go.opentelemetry.io/otel v1.45.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace v1.45.0
 	go.opentelemetry.io/otel/exporters/otlp/otlptrace/otlptracegrpc v1.45.0
