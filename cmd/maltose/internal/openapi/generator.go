@@ -19,6 +19,7 @@ import (
 
 type Config struct {
 	Source, Output, Format, Version, Extensions string
+	Title, APIVersion                           string
 	Check                                       bool
 }
 type sourcePackage struct {
@@ -198,10 +199,14 @@ func exporter(endpoints []endpoint, c Config) ([]byte, error) {
 		alias := aliases[e.Package]
 		fmt.Fprintf(&b, "{op,err:=contract.Compile(contract.TypeOf[%s.%s](),contract.TypeOf[%s.%sRes]());if err!=nil{return err};operations=append(operations,op)}\n", alias, e.Name, alias, strings.TrimSuffix(e.Name, "Req"))
 	}
-	configure := "nil"
+	b.WriteString("configure:=func(e *contract.Extensions)error{\n")
+	fmt.Fprintf(&b, "if err:=e.Info(contract.Info{Title:%q,Version:%q});err!=nil{return err}\n", c.Title, c.APIVersion)
 	if c.Extensions != "" {
-		configure = "extensions.Configure"
+		b.WriteString("return extensions.Configure(e)\n")
+	} else {
+		b.WriteString("return nil\n")
 	}
-	fmt.Fprintf(&b, "artifact,err:=contract.Generate(operations,contract.Options{Version:%q,Format:%q},%s);if err!=nil{return err};if err=os.WriteFile(os.Args[1],artifact.Document,0600);err!=nil{return err};return os.WriteFile(os.Args[1]+\".manifest.json\",artifact.Manifest,0600) }", c.Version, c.Format, configure)
+	b.WriteString("}\n")
+	fmt.Fprintf(&b, "artifact,err:=contract.Generate(operations,contract.Options{Version:%q,Format:%q},configure);if err!=nil{return err};if err=os.WriteFile(os.Args[1],artifact.Document,0600);err!=nil{return err};return os.WriteFile(os.Args[1]+\".manifest.json\",artifact.Manifest,0600) }", c.Version, c.Format)
 	return format.Source([]byte(b.String()))
 }

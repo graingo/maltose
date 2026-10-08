@@ -49,6 +49,43 @@ func TestSharedCompilerEndToEnd(t *testing.T) {
 	second, err := os.ReadFile(output)
 	require.NoError(t, err)
 	require.Equal(t, first, second)
+	// The command's title/version are applied through the same Info API as the extension.
+	for _, format := range []string{"json", "yaml"} {
+		config.Format = format
+		config.Title = "App API"
+		config.APIVersion = "0.2.0"
+		require.NoError(t, Run(context.Background(), config))
+		document, err := os.ReadFile(output)
+		require.NoError(t, err)
+		require.Contains(t, string(document), "App API")
+		require.Contains(t, string(document), "0.2.0")
+		manifest, err := os.ReadFile(output + ".manifest.json")
+		require.NoError(t, err)
+		config.Check = true
+		require.NoError(t, Run(context.Background(), config))
+		config.Title = "Changed API"
+		require.ErrorContains(t, Run(context.Background(), config), "stale")
+		unchanged, err := os.ReadFile(output)
+		require.NoError(t, err)
+		require.Equal(t, document, unchanged)
+		unchanged, err = os.ReadFile(output + ".manifest.json")
+		require.NoError(t, err)
+		require.Equal(t, manifest, unchanged)
+		config.Check = false
+	}
+	config.Title = "App API"
+	require.NoError(t, os.WriteFile(filepath.Join(extension, "extension.go"), []byte(`package extension
+import "github.com/graingo/maltose/net/mhttp/contract"
+func Configure(e *contract.Extensions)error {
+ if err:=e.Info(contract.Info{Title:"App API",Description:"Application description"});err!=nil{return err}
+ if err:=e.Server(contract.Server{URL:"/"});err!=nil{return err}
+ return e.Tag(contract.Tag{Name:"Items",Description:"Item operations"})
+}`), 0600))
+	require.NoError(t, Run(context.Background(), config))
+	config.Title = "Conflicting API"
+	require.ErrorContains(t, Run(context.Background(), config), "info.title conflicts")
+	config.Title = "App API"
+
 	config.Check = true
 	require.NoError(t, Run(context.Background(), config))
 	require.NoError(t, os.WriteFile(output, []byte("stale"), 0600))

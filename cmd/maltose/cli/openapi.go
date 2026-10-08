@@ -35,7 +35,9 @@ API packages must compile and should keep init functions free of side effects.`,
 		version, _ := cmd.Flags().GetString("openapi-version")
 		extensions, _ := cmd.Flags().GetString("extensions")
 		check, _ := cmd.Flags().GetBool("check")
-		if err := openapi.Run(cmd.Context(), openapi.Config{Source: src, Output: outputFile, Format: format, Version: version, Extensions: extensions, Check: check}); err != nil {
+		title, _ := cmd.Flags().GetString("title")
+		apiVersion, _ := cmd.Flags().GetString("api-version")
+		if err := openapi.Run(cmd.Context(), openapi.Config{Source: src, Output: outputFile, Format: format, Version: version, Extensions: extensions, Check: check, Title: title, APIVersion: apiVersion}); err != nil {
 			return err
 		}
 
@@ -52,6 +54,8 @@ func init() {
 	genCmd.AddCommand(openapiCmd)
 	openapiCmd.Flags().String("openapi-version", "3.1.0", "OpenAPI version: 3.0.0 or 3.1.0")
 	openapiCmd.Flags().String("extensions", "", "Go package exporting Configure(*contract.Extensions) error")
+	openapiCmd.Flags().String("title", "", "API document title (default API)")
+	openapiCmd.Flags().String("api-version", "", "API document version (default 1.0.0)")
 	openapiCmd.Flags().Bool("check", false, "Check generated document and manifest without writing")
 
 	openapiCmd.Flags().StringP("src", "s", "api", "Source directory to parse for OpenAPI specs")

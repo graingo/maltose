@@ -31,7 +31,15 @@ func TestDocumentation(t *testing.T) {
 	require.NoError(t, err)
 	for _, version := range []string{"3.0.0", "3.1.0"} {
 		t.Run(version, func(t *testing.T) {
-			artifact, err := contract.Generate([]*contract.Operation{op}, contract.Options{Version: version, Format: "json"}, nil)
+			artifact, err := contract.Generate([]*contract.Operation{op}, contract.Options{Version: version, Format: "json"}, func(e *contract.Extensions) error {
+				if err := e.Info(contract.Info{Title: "Docs API", Version: "0.2.0", Contact: &contract.Contact{Name: "Owner"}}); err != nil {
+					return err
+				}
+				if err := e.Server(contract.Server{URL: "/"}); err != nil {
+					return err
+				}
+				return e.Tag(contract.Tag{Name: "Docs", Description: "Document operations"})
+			})
 			require.NoError(t, err)
 			for _, file := range []bool{false, true} {
 				s := mhttp.New()

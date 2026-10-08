@@ -19,8 +19,8 @@ import (
 )
 
 type Options struct {
+	// Version is the OpenAPI specification version, independent of Info.Version.
 	Version string
-	Title   string
 	Format  string
 }
 type Artifact struct {
@@ -53,10 +53,7 @@ func Generate(operations []*Operation, options Options, configure func(*Extensio
 	if options.Format != "yaml" && options.Format != "json" {
 		return Artifact{}, fmt.Errorf("format must be yaml or json")
 	}
-	if options.Title == "" {
-		options.Title = "API"
-	}
-	doc := map[string]any{"openapi": options.Version, "info": map[string]any{"title": options.Title, "version": "1.0.0"}, "paths": map[string]any{}, "components": map[string]any{"schemas": map[string]any{}, "securitySchemes": map[string]any{}}}
+	doc := map[string]any{"openapi": options.Version, "info": map[string]any{}, "paths": map[string]any{}, "components": map[string]any{"schemas": map[string]any{}, "securitySchemes": map[string]any{}}}
 	components := doc["components"].(map[string]any)["schemas"].(map[string]any)
 	ext := &Extensions{doc: doc, operations: map[string]map[string]any{}, statuses: map[string]int{}, version: options.Version, schemas: components}
 	manifest := Manifest{Version: Version, Operations: map[string]string{}}
@@ -86,6 +83,13 @@ func Generate(operations []*Operation, options Options, configure func(*Extensio
 		if err := configure(ext); err != nil {
 			return Artifact{}, err
 		}
+	}
+	info := doc["info"].(map[string]any)
+	if info["title"] == nil {
+		info["title"] = "API"
+	}
+	if info["version"] == nil {
+		info["version"] = "1.0.0"
 	}
 	data, err := json.MarshalIndent(doc, "", "  ")
 	if err != nil {
