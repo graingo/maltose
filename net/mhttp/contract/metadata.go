@@ -5,7 +5,6 @@ import (
 	"net/mail"
 	"net/url"
 	"reflect"
-	"slices"
 	"sort"
 	"strings"
 )
@@ -33,16 +32,10 @@ type License struct {
 	URL  string `json:"url,omitempty"`
 }
 
+// Server describes a fixed absolute or relative server URL.
 type Server struct {
-	URL         string                    `json:"url"`
-	Description string                    `json:"description,omitempty"`
-	Variables   map[string]ServerVariable `json:"variables,omitempty"`
-}
-
-type ServerVariable struct {
-	Default     string   `json:"default"`
-	Enum        []string `json:"enum,omitempty"`
-	Description string   `json:"description,omitempty"`
+	URL         string `json:"url"`
+	Description string `json:"description,omitempty"`
 }
 
 type Tag struct {
@@ -112,22 +105,8 @@ func (e *Extensions) Info(info Info) error {
 }
 
 // Server appends a server in display order. URLs uniquely identify declarations.
-// Variables use the standard OpenAPI template syntax and are validated at export.
 func (e *Extensions) Server(server Server) error {
-	expanded := server.URL
-	keys := make([]string, 0, len(server.Variables))
-	for name := range server.Variables {
-		keys = append(keys, name)
-	}
-	sort.Strings(keys)
-	for _, name := range keys {
-		variable := server.Variables[name]
-		if len(variable.Enum) > 0 && !slices.Contains(variable.Enum, variable.Default) {
-			return fmt.Errorf("server variable %q default must belong to enum", name)
-		}
-		expanded = strings.ReplaceAll(expanded, "{"+name+"}", variable.Default)
-	}
-	if err := metadataURL("server.url", expanded, true); err != nil {
+	if err := metadataURL("server.url", server.URL, true); err != nil {
 		return err
 	}
 	return e.appendMetadata("servers", "url", server.URL, server)

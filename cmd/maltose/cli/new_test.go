@@ -9,6 +9,8 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/graingo/maltose/cmd/maltose/internal/openapi"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -106,4 +108,57 @@ func runCommand(t *testing.T, dir, name string, args ...string) {
 	command.Dir = dir
 	output, err := command.CombinedOutput()
 	require.NoError(t, err, "%s %s failed: %s", name, strings.Join(args, " "), output)
+}
+
+func TestCreateProjectRegeneratesContractWithTemplateDependency(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("local Git fixture uses Unix paths")
+	}
+	_, file, _, ok := runtime.Caller(0)
+	require.True(t, ok)
+	framework := filepath.Clean(filepath.Join(filepath.Dir(file), "../../.."))
+	const templateModule = "example.com/contract-template"
+	const projectModule = "example.com/contract-service"
+	template := t.TempDir()
+	require.NoError(t, os.MkdirAll(filepath.Join(template, "api"), 0755))
+	require.NoError(t, os.MkdirAll(filepath.Join(template, "cmd"), 0755))
+	require.NoError(t, os.WriteFile(filepath.Join(template, "go.mod"), []byte("module "+templateModule+"\n\ngo 1.25.0\n\nrequire github.com/graingo/maltose v0.5.0\n"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(template, "api", "api.go"), []byte(`package api
+import "github.com/graingo/maltose/frame/m"
+type GetReq struct { m.Meta `+"`method:\"GET\" path:\"/example\"`"+` }
+type GetRes struct { Message string `+"`json:\"message\"`"+` }
+`), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(template, "cmd", "openapi.yaml"), []byte("stale"), 0600))
+	require.NoError(t, os.WriteFile(filepath.Join(template, "cmd", "openapi.yaml.manifest.json"), []byte("stale"), 0600))
+	runCommand(t, template, "git", "init", "--quiet")
+	runCommand(t, template, "git", "add", ".")
+	runCommand(t, template, "git", "-c", "user.name=Maltose Test", "-c", "user.email=maltose@example.com", "commit", "--quiet", "-m", "contract template")
+
+	// Exercise the template's next-version dependency against the checkout without
+	// writing a local replace into the template or generated project.
+	mod, err := os.ReadFile(filepath.Join(framework, "go.mod"))
+	require.NoError(t, err)
+	temporaryMod := filepath.Join(t.TempDir(), "project.mod")
+	mod = []byte(strings.Replace(string(mod), "module github.com/graingo/maltose", "module "+projectModule, 1) + "\nrequire github.com/graingo/maltose v0.5.0\nreplace github.com/graingo/maltose => " + framework + "\n")
+	require.NoError(t, os.WriteFile(temporaryMod, mod, 0600))
+	sum, err := os.ReadFile(filepath.Join(framework, "go.sum"))
+	require.NoError(t, err)
+	require.NoError(t, os.WriteFile(strings.TrimSuffix(temporaryMod, ".mod")+".sum", sum, 0600))
+	t.Setenv("GOWORK", "off")
+	t.Setenv("GOFLAGS", "-modfile="+temporaryMod)
+	workingDir := t.TempDir()
+	require.NoError(t, createProject(context.Background(), os.Stdout, os.Stderr, workingDir, "service", projectModule, template))
+	project := filepath.Join(workingDir, "service")
+	generatedMod, err := os.ReadFile(filepath.Join(project, "go.mod"))
+	require.NoError(t, err)
+	require.Contains(t, string(generatedMod), projectModule)
+	require.Contains(t, string(generatedMod), "github.com/graingo/maltose v0.5.0")
+	require.NotContains(t, string(generatedMod), "replace")
+	doc := filepath.Join(project, "cmd", "openapi.yaml")
+	data, err := os.ReadFile(doc)
+	require.NoError(t, err)
+	require.Contains(t, string(data), "/example:")
+	require.NotContains(t, string(data), templateModule)
+	require.NoError(t, openapi.Run(context.Background(), openapi.Config{Source: filepath.Join(project, "api"), Output: doc, Format: "yaml", Check: true}))
+	runCommand(t, project, "go", "test", "./...")
 }

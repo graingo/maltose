@@ -37,11 +37,11 @@ func TestDocumentMetadata(t *testing.T) {
 					}
 					contact.Name = "mutated"
 					license.Name = "mutated"
-					server := contract.Server{URL: "https://{host}/api", Variables: map[string]contract.ServerVariable{"host": {Default: "example.com", Enum: []string{"example.com"}}}}
+					server := contract.Server{URL: "https://example.com/api", Description: "Production"}
 					if err := e.Server(server); err != nil {
 						return err
 					}
-					server.Variables["host"].Enum[0] = "mutated"
+					server.URL = "https://mutated.example.com"
 					if err := e.Server(contract.Server{URL: "/", Description: "Current server"}); err != nil {
 						return err
 					}
@@ -76,8 +76,7 @@ func TestDocumentMetadata(t *testing.T) {
 				require.Equal(t, "https://example.com/docs", tags[0].(map[string]any)["externalDocs"].(map[string]any)["url"])
 				servers := doc["servers"].([]any)
 				require.Equal(t, "/", servers[1].(map[string]any)["url"])
-				variable := servers[0].(map[string]any)["variables"].(map[string]any)["host"].(map[string]any)
-				require.Equal(t, []any{"example.com"}, variable["enum"])
+				require.Equal(t, "https://example.com/api", servers[0].(map[string]any)["url"])
 				require.NoError(t, contract.CheckArtifact(artifact.Document, artifact.Manifest, []*contract.Operation{op}))
 				var before, after contract.Manifest
 				require.NoError(t, json.Unmarshal(base.Manifest, &before))
@@ -123,8 +122,8 @@ func TestMetadataErrors(t *testing.T) {
 			return e.Server(contract.Server{URL: "/"})
 		}, "already exists"},
 		{"server variable", func(e *contract.Extensions) error {
-			return e.Server(contract.Server{URL: "https://{host}", Variables: map[string]contract.ServerVariable{"host": {Default: "example.com", Enum: []string{"other.com"}}}})
-		}, "default"},
+			return e.Server(contract.Server{URL: "https://{host}"})
+		}, "server.url"},
 		{"tag required", func(e *contract.Extensions) error { return e.Tag(contract.Tag{}) }, "tag.name"},
 		{"tag duplicate", func(e *contract.Extensions) error {
 			if err := e.Tag(contract.Tag{Name: "A"}); err != nil {
