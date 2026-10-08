@@ -6,7 +6,7 @@ toolchain go1.25.13
 
 require (
 	github.com/fatih/color v1.18.0
-	github.com/graingo/maltose v0.4.0
+	github.com/graingo/maltose v0.5.0
 	github.com/iancoleman/strcase v0.3.0
 	github.com/jinzhu/inflection v1.0.0
 	github.com/joho/godotenv v1.5.1

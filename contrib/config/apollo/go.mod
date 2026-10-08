@@ -7,7 +7,7 @@ toolchain go1.25.13
 require (
 	github.com/apolloconfig/agollo/v4 v4.4.0
 	github.com/go-playground/validator/v10 v10.27.0
-	github.com/graingo/maltose v0.4.0
+	github.com/graingo/maltose v0.5.0
 	github.com/graingo/mconv v1.2.1
 	github.com/spf13/viper v1.20.1
 	github.com/stretchr/testify v1.11.1
