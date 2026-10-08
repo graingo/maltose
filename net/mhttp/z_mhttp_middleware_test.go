@@ -21,7 +21,7 @@ import (
 type TestMiddlewareController struct{}
 
 type SuccessReq struct {
-	mmeta.Meta `path:"/success" method:"get"`
+	mmeta.Meta `path:"/success" method:"get" envelope:"maltose"`
 }
 type SuccessRes struct {
 	Data string `json:"data"`

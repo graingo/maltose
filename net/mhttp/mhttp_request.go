@@ -3,6 +3,8 @@ package mhttp
 import (
 	"context"
 
+	"github.com/graingo/maltose/net/mhttp/contract"
+
 	"github.com/gin-gonic/gin"
 	ut "github.com/go-playground/universal-translator"
 	"github.com/graingo/maltose/os/mlog"
@@ -20,7 +22,9 @@ const (
 // Request is the request wrapper.
 type Request struct {
 	*gin.Context
-	server *Server // server instance
+	server    *Server // server instance
+	operation *contract.Operation
+	input     contract.Input
 }
 
 // RequestFromCtx gets the Request object from the context.
@@ -86,4 +90,23 @@ func (r *Request) Error(err error) *Request {
 // GetTranslator gets the translator.
 func (r *Request) GetTranslator() ut.Translator {
 	return r.server.translator
+}
+
+// Presence returns the original field state, before request defaults.
+func (r *Request) Presence(path string) contract.Presence { return r.input.Presence(path) }
+
+// SuccessStatus returns the controller's declared HTTP success status.
+func (r *Request) SuccessStatus() int {
+	if r.operation != nil {
+		return r.operation.Status
+	}
+	return 200
+}
+
+// OperationID identifies the currently matched controller operation.
+func (r *Request) OperationID() string {
+	if r.operation != nil {
+		return r.operation.ID
+	}
+	return ""
 }

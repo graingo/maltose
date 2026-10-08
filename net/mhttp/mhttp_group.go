@@ -2,11 +2,13 @@ package mhttp
 
 import (
 	"context"
+	"fmt"
 	"reflect"
 	"strings"
 
+	"github.com/graingo/maltose/net/mhttp/contract"
+
 	"github.com/gin-gonic/gin"
-	"github.com/graingo/maltose/util/mmeta"
 )
 
 // RouterGroup is the router group for the server.
@@ -166,28 +168,26 @@ func (rg *RouterGroup) bindObject(object any) *RouterGroup {
 			continue
 		}
 
-		// get request parameter type and metadata
 		reqType := method.Type.In(2)
 		reqElem := reqType.Elem()
-		reqInstance := reflect.New(reqElem).Interface()
-
-		// get route information
-		path := mmeta.Get(reqInstance, "path").String()
-		httpMethod := strings.ToUpper(mmeta.Get(reqInstance, "method").String())
-		if path == "" || httpMethod == "" {
+		compiled, err := contract.Compile(reqType, method.Type.Out(0))
+		if err != nil {
+			rg.server.registrationErr = fmt.Errorf("%s.%s: %w", typ, method.Name, err)
 			continue
 		}
-
-		// create handler function
+		group := strings.TrimSuffix(rg.path, "/")
+		if compiled.Group != group {
+			rg.server.registrationErr = fmt.Errorf("%s: m.Meta group %q must match router group %q", compiled.ID, compiled.Group, group)
+			continue
+		}
+		path, httpMethod, fullPath := compiled.RelativePath, compiled.Method, compiled.Path
 		handlerFunc := func(r *Request) {
+			r.operation = compiled
 			req := reflect.New(reqElem).Interface()
 			if err := handleRequest(r, method, val, req); err != nil {
 				r.Error(err)
 			}
 		}
-
-		// build full path
-		fullPath := joinPaths(rg.path, path)
 
 		// save to routes list
 		rg.server.routes = append(rg.server.routes, Route{
@@ -199,11 +199,13 @@ func (rg *RouterGroup) bindObject(object any) *RouterGroup {
 			ControllerMethod: method,
 			ReqType:          reqType,
 			RespType:         method.Type.Out(0),
+			contract:         compiled,
 		})
 
 		// add to pre-bind list
 		rg.server.preBindItems = append(rg.server.preBindItems, preBindItem{
 			Group:       rg,
+			Contract:    compiled,
 			Method:      httpMethod,
 			Path:        path,
 			HandlerFunc: handlerFunc,

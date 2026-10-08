@@ -11,6 +11,8 @@ import (
 	"syscall"
 	"time"
 
+	"github.com/graingo/maltose/net/mhttp/contract"
+
 	"github.com/graingo/maltose/errors/merror"
 )
 
@@ -28,7 +30,10 @@ func (s *Server) Handler() http.Handler {
 
 // ServeHTTP implements http.Handler and allows Server to be used with httptest.
 func (s *Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
-	s.prepare(request.Context())
+	if err := s.Prepare(request.Context()); err != nil {
+		http.Error(writer, "server contract configuration failed", 500)
+		return
+	}
 	s.engine.ServeHTTP(writer, request)
 }
 
@@ -59,7 +64,9 @@ func (s *Server) Run() {
 
 // Start starts the server on its configured address and blocks until it stops.
 func (s *Server) Start(ctx context.Context) error {
-	s.prepare(ctx)
+	if err := s.Prepare(ctx); err != nil {
+		return err
+	}
 	server := &http.Server{
 		Addr:           s.normalizeAddress(),
 		Handler:        s,
@@ -94,7 +101,9 @@ func (s *Server) StartListener(ctx context.Context, listener net.Listener) error
 	if listener == nil {
 		return merror.New("HTTP listener is required")
 	}
-	s.prepare(ctx)
+	if err := s.Prepare(ctx); err != nil {
+		return err
+	}
 	server := &http.Server{
 		Handler:        s,
 		ReadTimeout:    s.config.ReadTimeout,
@@ -144,14 +153,41 @@ func (s *Server) Stop(ctx context.Context) error {
 	return server.Shutdown(shutdownCtx)
 }
 
-func (s *Server) prepare(ctx context.Context) {
+// Prepare validates contracts and installs routes once, before accepting requests.
+func (s *Server) Prepare(ctx context.Context) error {
 	s.prepareOnce.Do(func() {
+		if s.registrationErr != nil {
+			s.prepareErr = s.registrationErr
+			return
+		}
+		if err := contract.ValidateOperations(s.contracts()); err != nil {
+			s.prepareErr = err
+			return
+		}
+		if s.config.SwaggerPath != "" && s.config.OpenapiPath == "" {
+			s.prepareErr = merror.New("swagger_path requires openapi_path")
+			return
+		}
+		if s.config.OpenAPIFile != "" {
+			if err := s.LoadOpenAPIFile(s.config.OpenAPIFile); err != nil {
+				s.prepareErr = err
+				return
+			}
+		}
+		if len(s.openapi) > 0 || s.config.OpenapiPath != "" || s.config.SwaggerPath != "" {
+			if err := s.ValidateOpenAPIRoutes(); err != nil {
+				s.prepareErr = err
+				return
+			}
+		}
 		s.registerHealthCheck(ctx)
 		s.registerDoc(ctx)
 		s.bindRoutes(ctx)
 		s.printRoute(ctx)
 	})
+	return s.prepareErr
 }
+func (s *Server) prepare(ctx context.Context) { _ = s.Prepare(ctx) }
 
 func (s *Server) handleServeError(ctx context.Context, err error) error {
 	if err == nil || err == http.ErrServerClosed {

@@ -2,119 +2,67 @@ package mhttp_test
 
 import (
 	"context"
-	"encoding/json"
-	"io"
-	"net/http"
+	"net/http/httptest"
+	"os"
+	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/graingo/maltose/net/mhttp"
+	"github.com/graingo/maltose/net/mhttp/contract"
 	"github.com/graingo/maltose/util/mmeta"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-// --- Test Controller for Documentation ---
-
 type TestDocController struct{}
-
 type DocReq struct {
-	mmeta.Meta `path:"/doc/test" method:"post" summary:"Test endpoint" tag:"Documentation" dc:"This is a test endpoint for documentation generation."`
-	ID         int `json:"id" binding:"required" dc:"The unique identifier"`
+	mmeta.Meta `path:"/doc/test" method:"POST" operation_id:"createDoc" status:"201"`
+	ID         int `json:"id" field:"required" binding:"min=0"`
 }
 type DocRes struct {
-	Status string `json:"status" dc:"The status of the operation"`
+	Status string `json:"status"`
 }
 
-func (c *TestDocController) CreateDoc(_ context.Context, _ *DocReq) (*DocRes, error) {
-	return &DocRes{Status: "created"}, nil
+func (*TestDocController) Create(_ context.Context, _ *DocReq) (*DocRes, error) {
+	return &DocRes{"created"}, nil
 }
-
-// --- Tests ---
-
 func TestDocumentation(t *testing.T) {
-	t.Run("swagger_ui", func(t *testing.T) {
-		teardown := setupServer(t, func(s *mhttp.Server) {
-			s.SetConfigWithMap(map[string]any{
-				"openapi_path": "/api/v1/openapi.json",
-				"swagger_path": "/api/v1/swagger",
-			})
-			s.Bind(&TestDocController{})
+	op, err := contract.Compile(contract.TypeOf[DocReq](), contract.TypeOf[DocRes]())
+	require.NoError(t, err)
+	for _, version := range []string{"3.0.0", "3.1.0"} {
+		t.Run(version, func(t *testing.T) {
+			artifact, err := contract.Generate([]*contract.Operation{op}, contract.Options{Version: version, Format: "json"}, nil)
+			require.NoError(t, err)
+			for _, file := range []bool{false, true} {
+				s := mhttp.New()
+				s.SetConfigWithMap(map[string]any{"openapi_path": "/api.json", "swagger_path": "/swagger"})
+				s.Bind(&TestDocController{})
+				if file {
+					name := filepath.Join(t.TempDir(), "openapi.json")
+					require.NoError(t, os.WriteFile(name, artifact.Document, 0600))
+					require.NoError(t, os.WriteFile(name+".manifest.json", artifact.Manifest, 0600))
+					require.NoError(t, s.LoadOpenAPIFile(name))
+				} else {
+					require.NoError(t, s.LoadOpenAPI(artifact.Document, artifact.Manifest))
+				}
+				require.NoError(t, s.Prepare(context.Background()))
+				w := httptest.NewRecorder()
+				s.ServeHTTP(w, httptest.NewRequest("GET", "/api.json", nil))
+				require.Equal(t, 200, w.Code)
+				require.Equal(t, artifact.Document, w.Body.Bytes())
+				w = httptest.NewRecorder()
+				s.ServeHTTP(w, httptest.NewRequest("GET", "/swagger", nil))
+				require.Contains(t, w.Body.String(), `url: "/api.json"`)
+				req := httptest.NewRequest("POST", "/doc/test", strings.NewReader(`{"id":0}`))
+				req.Header.Set("Content-Type", "application/json")
+				w = httptest.NewRecorder()
+				s.ServeHTTP(w, req)
+				require.Equal(t, 201, w.Code)
+				require.JSONEq(t, `{"status":"created"}`, w.Body.String())
+			}
 		})
-		defer teardown()
-
-		resp, err := http.Get(baseURL + "/api/v1/swagger")
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Equal(t, "text/html", resp.Header.Get("Content-Type"))
-		// Check if the HTML contains the correct openapi path
-		assert.Contains(t, string(body), `url: "/api/v1/openapi.json"`)
-		// Check for a known swagger-ui element
-		assert.Contains(t, string(body), `<div id="swagger-ui"></div>`)
-	})
-
-	t.Run("openapi_json", func(t *testing.T) {
-		teardown := setupServer(t, func(s *mhttp.Server) {
-			s.SetConfigWithMap(map[string]any{
-				"openapi_path": "/api/v1/openapi.json",
-				"swagger_path": "/api/v1/swagger",
-			})
-			s.Bind(&TestDocController{})
-		})
-		defer teardown()
-
-		resp, err := http.Get(baseURL + "/api/v1/openapi.json")
-		require.NoError(t, err)
-		defer resp.Body.Close()
-
-		body, err := io.ReadAll(resp.Body)
-		require.NoError(t, err)
-		assert.Equal(t, http.StatusOK, resp.StatusCode)
-		assert.Equal(t, "application/json; charset=utf-8", resp.Header.Get("Content-Type"))
-
-		// Unmarshal and verify the content
-		var openapiSpec map[string]interface{}
-		err = json.Unmarshal(body, &openapiSpec)
-		require.NoError(t, err, "Should be valid JSON")
-
-		assert.Equal(t, "3.0.0", openapiSpec["openapi"])
-
-		// Check paths
-		paths, ok := openapiSpec["paths"].(map[string]interface{})
-		require.True(t, ok, "Paths should exist")
-
-		pathItem, ok := paths["/doc/test"].(map[string]interface{})
-		require.True(t, ok, "Path /doc/test should exist")
-
-		postOp, ok := pathItem["post"].(map[string]interface{})
-		require.True(t, ok, "POST operation should exist")
-
-		// Check operation details
-		assert.Equal(t, "Test endpoint", postOp["summary"])
-		assert.Contains(t, postOp["tags"], "Documentation")
-		assert.Equal(t, "This is a test endpoint for documentation generation.", postOp["description"])
-
-		// Check request body schema by diving into the nested map structure
-		reqBody, _ := postOp["requestBody"].(map[string]interface{})
-		content, _ := reqBody["content"].(map[string]interface{})
-		appJSON, _ := content["application/json"].(map[string]interface{})
-		schemaRef, _ := appJSON["schema"].(map[string]interface{})
-		ref, _ := schemaRef["$ref"].(string)
-
-		// Verify component schema reference
-		assert.Equal(t, "#/components/schemas/DocReq", ref)
-
-		// Check response schema
-		responses, _ := postOp["responses"].(map[string]interface{})
-		resp200, _ := responses["200"].(map[string]interface{})
-		respContent, _ := resp200["content"].(map[string]interface{})
-		respAppJSON, _ := respContent["application/json"].(map[string]interface{})
-		respSchemaRef, _ := respAppJSON["schema"].(map[string]interface{})
-		respRef, _ := respSchemaRef["$ref"].(string)
-
-		assert.Equal(t, "#/components/schemas/DocRes", respRef)
-	})
+	}
+	s := mhttp.New()
+	s.SetConfigWithMap(map[string]any{"openapi_path": "/api.json"})
+	require.ErrorContains(t, s.Prepare(context.Background()), "load generated")
 }

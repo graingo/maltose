@@ -45,6 +45,7 @@ type Config struct {
 	// GracefulWaitTime is the wait time for graceful shutdown.
 	GracefulWaitTime time.Duration `mconv:"graceful_wait_time"`
 	// OpenapiPath is the path to the openapi file.
+	OpenAPIFile string `mconv:"openapi_file"`
 	OpenapiPath string `mconv:"openapi_path"`
 	// SwaggerPath is the path to the swagger file.
 	SwaggerPath string `mconv:"swagger_path"`

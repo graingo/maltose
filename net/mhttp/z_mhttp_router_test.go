@@ -20,7 +20,7 @@ type TestRouterController struct{}
 
 type HelloReq struct {
 	mmeta.Meta `path:"/hello" method:"get"`
-	Name       string `json:"name" form:"name"`
+	Name       string `query:"name"`
 }
 type HelloRes struct {
 	Message string `json:"message"`
@@ -32,7 +32,7 @@ func (c *TestRouterController) Hello(_ context.Context, req *HelloReq) (*HelloRe
 
 type UserReq struct {
 	mmeta.Meta `path:"/user/:id" method:"post"`
-	ID         int    `json:"-" uri:"id"`
+	ID         int    `path:"id"`
 	Content    string `json:"content"`
 }
 type UserRes struct {

@@ -7,6 +7,8 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/graingo/maltose/net/mhttp/contract"
+
 	"github.com/gin-gonic/gin"
 )
 
@@ -19,6 +21,7 @@ const (
 
 // Route is the route information.
 type Route struct {
+	contract         *contract.Operation
 	Method           string
 	Path             string
 	HandlerFunc      HandlerFunc

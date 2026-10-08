@@ -3,11 +3,14 @@ package mhttp
 import (
 	"context"
 
+	"github.com/graingo/maltose/net/mhttp/contract"
+
 	"github.com/gin-gonic/gin"
 )
 
 // preBindItem is the pre-binding item.
 type preBindItem struct {
+	Contract         *contract.Operation
 	Group            *RouterGroup
 	Method           string
 	Path             string
@@ -21,6 +24,9 @@ type preBindItem struct {
 func (s *Server) bindRoutes(_ context.Context) {
 	for _, item := range s.preBindItems {
 		var allHandlers []gin.HandlerFunc
+		if item.Contract != nil {
+			allHandlers = append(allHandlers, func(c *gin.Context) { newRequest(c, s).operation = item.Contract })
+		}
 		var collectedMiddlewares []MiddlewareFunc
 
 		// Traverse up from the current group to the root.

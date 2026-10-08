@@ -12,6 +12,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/graingo/maltose/cmd/maltose/internal/openapi"
 	"github.com/graingo/maltose/cmd/maltose/utils"
 	"github.com/graingo/maltose/errors/merror"
 	"github.com/spf13/cobra"
@@ -101,6 +102,14 @@ func createProject(ctx context.Context, stdout, stderr io.Writer, cwd, projectNa
 		return merror.Wrap(err, "failed to prepare project dependencies")
 	}
 
+	document := filepath.Join(target, "cmd", "openapi.yaml")
+	if _, statErr := os.Stat(document + ".manifest.json"); statErr == nil {
+		if err := openapi.Run(ctx, openapi.Config{Source: filepath.Join(target, "api"), Output: document, Format: "yaml", Version: "3.1.0"}); err != nil {
+			return merror.Wrap(err, "failed to generate project OpenAPI")
+		}
+	} else if !os.IsNotExist(statErr) {
+		return statErr
+	}
 	completed = true
 	return nil
 }

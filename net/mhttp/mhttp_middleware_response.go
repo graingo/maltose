@@ -1,7 +1,10 @@
 package mhttp
 
 import (
+	"errors"
 	"net/http"
+
+	"github.com/graingo/maltose/net/mhttp/contract"
 
 	"github.com/graingo/maltose/errors/mcode"
 	"github.com/graingo/maltose/errors/merror"
@@ -41,6 +44,11 @@ func MiddlewareResponse() MiddlewareFunc {
 			return
 		}
 
+		if r.operation != nil && len(r.Errors) == 0 {
+			writeContractResponse(r)
+			return
+		}
+
 		var (
 			msg  string
 			code mcode.Code = mcode.CodeOK
@@ -63,10 +71,31 @@ func MiddlewareResponse() MiddlewareFunc {
 
 		// return standard response
 		httpStatus := codeToHTTPStatus(code)
+		if len(r.Errors) > 0 {
+			var decode *contract.DecodeError
+			if errors.As(r.Errors.Last().Err, &decode) {
+				httpStatus = decode.Status
+			}
+		}
 		r.JSON(httpStatus, DefaultResponse{
 			Code:    code.Code(),
 			Message: msg,
 			Data:    data,
 		})
 	}
+}
+
+func writeContractResponse(r *Request) {
+	status := r.SuccessStatus()
+	if status == http.StatusNoContent || r.Request.Method == http.MethodHead {
+		r.Status(status)
+		r.Writer.WriteHeaderNow()
+		return
+	}
+	data := r.GetHandlerResponse()
+	if r.operation.Envelope == "maltose" {
+		r.JSON(status, DefaultResponse{Code: 0, Message: mcode.CodeOK.Message(), Data: data})
+		return
+	}
+	r.JSON(status, data)
 }

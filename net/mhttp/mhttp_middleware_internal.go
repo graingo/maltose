@@ -8,6 +8,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/graingo/maltose/net/mhttp/contract"
+
 	"github.com/graingo/maltose"
 	"github.com/graingo/maltose/errors/mcode"
 	"github.com/graingo/maltose/errors/merror"
@@ -38,12 +40,22 @@ func internalMiddlewareDefaultResponse() MiddlewareFunc {
 		// Let user middleware handle structured errors with error codes
 		if len(r.Errors) > 0 {
 			err := r.Errors.Last().Err
+			var decode *contract.DecodeError
+			if errors.As(err, &decode) {
+				r.String(decode.Status, decode.Error())
+				return
+			}
 			code := merror.Code(err)
 			if code == mcode.CodeNil {
 				r.String(500, fmt.Sprintf("Error: %s", err.Error()))
 			} else {
 				r.String(codeToHTTPStatus(code), code.Message())
 			}
+			return
+		}
+
+		if r.operation != nil {
+			writeContractResponse(r)
 			return
 		}
 

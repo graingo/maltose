@@ -6,7 +6,6 @@ import (
 	"net/http"
 	"sync"
 
-	"github.com/getkin/kin-openapi/openapi3"
 	"github.com/graingo/maltose/errors/mcode"
 	"github.com/graingo/maltose/errors/merror"
 
@@ -24,17 +23,20 @@ const (
 // Server HTTP server structure.
 type Server struct {
 	RouterGroup
-	engine       *gin.Engine
-	config       *Config
-	routes       []Route
-	openapi      *openapi3.T
-	preBindItems []preBindItem
-	uni          *ut.UniversalTranslator
-	translator   ut.Translator
-	srv          *http.Server
-	prepareOnce  sync.Once
-	serverMu     sync.RWMutex
-	panicHandler func(r *Request, err error)
+	engine          *gin.Engine
+	config          *Config
+	routes          []Route
+	openapi         []byte
+	openapiManifest []byte
+	registrationErr error
+	prepareErr      error
+	preBindItems    []preBindItem
+	uni             *ut.UniversalTranslator
+	translator      ut.Translator
+	srv             *http.Server
+	prepareOnce     sync.Once
+	serverMu        sync.RWMutex
+	panicHandler    func(r *Request, err error)
 }
 
 // New creates a new HTTP server.

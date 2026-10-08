@@ -2,10 +2,12 @@ package mhttp
 
 import (
 	"context"
+	"errors"
 	"reflect"
 	"strings"
 
-	"github.com/go-playground/validator/v10"
+	"github.com/graingo/maltose/net/mhttp/contract"
+
 	"github.com/graingo/maltose/errors/mcode"
 	"github.com/graingo/maltose/errors/merror"
 )
@@ -13,31 +15,20 @@ import (
 // HandlerFunc defines the basic handler function type.
 type HandlerFunc func(*Request)
 
-// handleValidationErrors handles the validation errors.
-func handleValidationErrors(r *Request, err error) error {
-	if validationErrors, ok := err.(validator.ValidationErrors); ok {
-		var errMsgs []string
-		trans := r.GetTranslator()
-		for _, e := range validationErrors.Translate(trans) {
-			errMsgs = append(errMsgs, e)
-		}
-		if len(errMsgs) > 0 {
-			return merror.NewCode(mcode.CodeValidationFailed, strings.Join(errMsgs, "; "))
-		}
-	}
-	return err
-}
-
 // handleRequest handles the request and returns the result.
 func handleRequest(r *Request, method reflect.Method, val reflect.Value, req interface{}) error {
-	// Parameter binding from URI. We can ignore the error here because
-	// not all requests have URI parameters. The main validation for body,
-	// query, etc., is handled by ShouldBind below.
-	_ = r.ShouldBindUri(req)
-
-	// parameter binding from query, form, body, etc.
-	if err := r.ShouldBind(req); err != nil {
-		return handleValidationErrors(r, err)
+	paths := make(map[string]string, len(r.Params))
+	for _, p := range r.Params {
+		paths[p.Key] = p.Value
+	}
+	input, err := r.operation.Bind(r.Request, paths, req)
+	r.input = input
+	if err != nil {
+		var validation *contract.ValidationError
+		if errors.As(err, &validation) {
+			return merror.WrapCode(err, mcode.CodeValidationFailed, "request validation failed")
+		}
+		return err
 	}
 
 	// call method
@@ -50,6 +41,10 @@ func handleRequest(r *Request, method reflect.Method, val reflect.Value, req int
 	// handle return value
 	if !results[1].IsNil() {
 		return results[1].Interface().(error)
+	}
+
+	if results[0].IsNil() && r.SuccessStatus() != 204 {
+		return merror.New("controller returned a nil success response")
 	}
 
 	// set response to Request for middleware usage
@@ -67,7 +62,7 @@ func checkMethodSignature(typ reflect.Type) error {
 	}
 
 	// check if the second parameter is context.Context
-	if !typ.In(1).Implements(reflect.TypeOf((*context.Context)(nil)).Elem()) {
+	if typ.In(1) != reflect.TypeOf((*context.Context)(nil)).Elem() {
 		return merror.New("first parameter should be context.Context")
 	}
 
@@ -90,7 +85,7 @@ func checkMethodSignature(typ reflect.Type) error {
 	}
 
 	// check if the second return value is error
-	if !typ.Out(1).Implements(reflect.TypeOf((*error)(nil)).Elem()) {
+	if typ.Out(1) != reflect.TypeOf((*error)(nil)).Elem() {
 		return merror.New("second return value should be error")
 	}
 

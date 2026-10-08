@@ -1,125 +1,207 @@
-// Package openapi handles the generation of the OpenAPI specification.
 package openapi
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
+	"fmt"
+	"go/ast"
+	"go/format"
+	"go/parser"
+	"go/token"
+	"io"
 	"os"
-	"path"
+	"os/exec"
 	"path/filepath"
-
-	"github.com/graingo/maltose/cmd/maltose/utils"
-	"github.com/graingo/maltose/errors/merror"
-	"gopkg.in/yaml.v3"
+	"sort"
+	"strings"
 )
 
-// Generate creates the final OpenAPI specification file.
-func Generate(src, outputFile, format string) error {
-	if format != "yaml" && format != "json" {
-		return merror.Newf("unsupported OpenAPI output format %q: use yaml or json", format)
+type Config struct {
+	Source, Output, Format, Version, Extensions string
+	Check                                       bool
+}
+type sourcePackage struct {
+	Dir, ImportPath string
+	GoFiles         []string
+}
+type endpoint struct{ Package, Name string }
+
+func Generate(src, output, format string) error {
+	return Run(context.Background(), Config{Source: src, Output: output, Format: format})
+}
+
+// Run discovers types and compiles a temporary exporter against the application's
+// own Maltose version. Field semantics live entirely in the shared compiler.
+func Run(ctx context.Context, c Config) error {
+	if c.Format != "yaml" && c.Format != "json" {
+		return fmt.Errorf("unsupported OpenAPI output format %q: use yaml or json", c.Format)
 	}
-
-	utils.PrintInfo("🔍 Scanning directory: {{.Path}}", utils.TplData{"Path": filepath.Base(src)})
-
-	// Step 1: Parse the source code in the directory.
-	// The parser will return a structured representation of the API definitions.
-	apiDefs, allStructs, err := ParseDir(src)
+	if c.Version == "" {
+		c.Version = "3.1.0"
+	}
+	if c.Version != "3.0.0" && c.Version != "3.1.0" {
+		return fmt.Errorf("unsupported OpenAPI version %q: use 3.0.0 or 3.1.0", c.Version)
+	}
+	src, err := filepath.Abs(c.Source)
 	if err != nil {
-		return merror.Wrap(err, "failed to parse source directory")
+		return err
 	}
-
-	if len(apiDefs) == 0 {
-		return merror.Newf("no API definitions (structs with m.Meta) found in %s", src)
-	}
-
-	utils.PrintInfo("ℹ️  Found {{.Count}} API endpoint definitions.", utils.TplData{"Count": len(apiDefs)})
-
-	moduleName, _, err := utils.GetModuleInfo(".")
+	endpoints, err := discover(ctx, src)
 	if err != nil {
-		return merror.Wrap(err, "failed to get project name")
+		return err
 	}
-	projectName := path.Base(moduleName)
-
-	// Step 2: Build the OpenAPI specification from the parsed definitions.
-	spec, err := BuildSpec(apiDefs, projectName, allStructs)
+	if len(endpoints) == 0 {
+		return fmt.Errorf("no m.Meta request structs found in %s", src)
+	}
+	dir, err := os.MkdirTemp(src, ".maltose-openapi-")
 	if err != nil {
-		return merror.Wrap(err, "failed to build OpenAPI spec")
+		return err
 	}
-
-	var outputBytes []byte
-	var marshalErr error
-
-	if format == "json" {
-		// Step 3 (JSON): Marshal the specification to JSON.
-		outputBytes, marshalErr = spec.MarshalJSON()
-		if marshalErr == nil {
-			// Pretty-print the JSON
-			var prettyJSON bytes.Buffer
-			if err := json.Indent(&prettyJSON, outputBytes, "", "  "); err == nil {
-				outputBytes = prettyJSON.Bytes()
-			}
-		}
-	} else {
-		// Step 3 (YAML): Marshal the specification to YAML, manually controlling field order.
-		var buf bytes.Buffer
-		encoder := yaml.NewEncoder(&buf)
-		encoder.SetIndent(2)
-
-		// We build a yaml.Node tree to ensure the order is openapi, info, paths, components.
-		var content []*yaml.Node
-		appendNode := func(key string, value interface{}) error {
-			valNode := &yaml.Node{}
-			if err := valNode.Encode(value); err != nil {
-				return merror.Wrapf(err, "failed to encode yaml for key '%s'", key)
-			}
-			content = append(content,
-				&yaml.Node{Kind: yaml.ScalarNode, Value: key, Tag: "!!str"},
-				valNode,
-			)
-			return nil
-		}
-
-		// Add fields in the desired order
-		if err := appendNode("openapi", spec.OpenAPI); err != nil {
-			return err
-		}
-		if err := appendNode("info", spec.Info); err != nil {
-			return err
-		}
-		if spec.Paths != nil && len(spec.Paths.Map()) > 0 {
-			if err := appendNode("paths", spec.Paths); err != nil {
+	defer os.RemoveAll(dir)
+	program, err := exporter(endpoints, c)
+	if err != nil {
+		return err
+	}
+	runner := filepath.Join(dir, "main.go")
+	if err = os.WriteFile(runner, program, 0600); err != nil {
+		return err
+	}
+	generated := filepath.Join(dir, "document")
+	cmd := exec.CommandContext(ctx, "go", "run", runner, generated)
+	cmd.Dir = src
+	if output, err := cmd.CombinedOutput(); err != nil {
+		return fmt.Errorf("compile API exporter (requires Maltose contract compiler): %w\n%s", err, output)
+	}
+	document, err := os.ReadFile(generated)
+	if err != nil {
+		return err
+	}
+	manifest, err := os.ReadFile(generated + ".manifest.json")
+	if err != nil {
+		return err
+	}
+	outputs := []struct {
+		path string
+		data []byte
+	}{{c.Output, document}, {c.Output + ".manifest.json", manifest}}
+	if c.Check {
+		for _, out := range outputs {
+			existing, err := os.ReadFile(out.path)
+			if err != nil {
 				return err
 			}
-		}
-
-		// Manually check if components are empty
-		if spec.Components != nil && len(spec.Components.Schemas) > 0 {
-			if err := appendNode("components", spec.Components); err != nil {
-				return err
+			if !bytes.Equal(existing, out.data) {
+				return fmt.Errorf("generated file is stale: %s", out.path)
 			}
 		}
-
-		root := &yaml.Node{
-			Kind:    yaml.MappingNode,
-			Content: content,
-		}
-
-		if err := encoder.Encode(root); err != nil {
-			marshalErr = err
-		} else {
-			outputBytes = buf.Bytes()
+		return nil
+	}
+	for _, out := range outputs {
+		if err = writeFile(out.path, out.data); err != nil {
+			return err
 		}
 	}
-
-	if marshalErr != nil {
-		return merror.Wrapf(marshalErr, "failed to marshal spec to %s", format)
-	}
-
-	// Step 4: Write the output to the file.
-	utils.PrintInfo("📝 Writing OpenAPI specification to {{.Path}}", utils.TplData{"Path": outputFile})
-	if err := os.WriteFile(outputFile, outputBytes, 0644); err != nil {
-		return merror.Wrapf(err, "failed to write OpenAPI spec to %s", outputFile)
-	}
-
 	return nil
+}
+func writeFile(name string, data []byte) error {
+	if err := os.MkdirAll(filepath.Dir(name), 0755); err != nil {
+		return err
+	}
+	f, err := os.CreateTemp(filepath.Dir(name), ".openapi-")
+	if err != nil {
+		return err
+	}
+	defer os.Remove(f.Name())
+	if _, err = f.Write(data); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Chmod(0644); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return os.Rename(f.Name(), name)
+}
+func discover(ctx context.Context, src string) ([]endpoint, error) {
+	cmd := exec.CommandContext(ctx, "go", "list", "-json", "./...")
+	cmd.Dir = src
+	var stderr bytes.Buffer
+	cmd.Stderr = &stderr
+	data, err := cmd.Output()
+	if err != nil {
+		return nil, fmt.Errorf("load API packages: %w\n%s", err, stderr.String())
+	}
+	decoder := json.NewDecoder(bytes.NewReader(data))
+	var endpoints []endpoint
+	for {
+		var pkg sourcePackage
+		err := decoder.Decode(&pkg)
+		if err == io.EOF {
+			break
+		}
+		if err != nil {
+			return nil, err
+		}
+		for _, file := range pkg.GoFiles {
+			node, err := parser.ParseFile(token.NewFileSet(), filepath.Join(pkg.Dir, file), nil, 0)
+			if err != nil {
+				return nil, err
+			}
+			ast.Inspect(node, func(n ast.Node) bool {
+				spec, ok := n.(*ast.TypeSpec)
+				if !ok || !ast.IsExported(spec.Name.Name) || !strings.HasSuffix(spec.Name.Name, "Req") {
+					return true
+				}
+				body, ok := spec.Type.(*ast.StructType)
+				if !ok {
+					return false
+				}
+				for _, field := range body.Fields.List {
+					if len(field.Names) != 0 {
+						continue
+					}
+					selector, ok := field.Type.(*ast.SelectorExpr)
+					if ok && selector.Sel.Name == "Meta" {
+						endpoints = append(endpoints, endpoint{pkg.ImportPath, spec.Name.Name})
+						break
+					}
+				}
+				return false
+			})
+		}
+	}
+	sort.Slice(endpoints, func(i, j int) bool {
+		return endpoints[i].Package+endpoints[i].Name < endpoints[j].Package+endpoints[j].Name
+	})
+	return endpoints, nil
+}
+func exporter(endpoints []endpoint, c Config) ([]byte, error) {
+	var b strings.Builder
+	b.WriteString("package main\nimport (\"os\";\"fmt\";\"github.com/graingo/maltose/net/mhttp/contract\"\n")
+	aliases := map[string]string{}
+	for _, e := range endpoints {
+		if aliases[e.Package] == "" {
+			alias := fmt.Sprintf("api%d", len(aliases))
+			aliases[e.Package] = alias
+			fmt.Fprintf(&b, "%s %q\n", alias, e.Package)
+		}
+	}
+	if c.Extensions != "" {
+		fmt.Fprintf(&b, "extensions %q\n", c.Extensions)
+	}
+	b.WriteString(")\nfunc main(){if err:=run();err!=nil{fmt.Fprintln(os.Stderr,err);os.Exit(1)}}\nfunc run()error{operations:=[]*contract.Operation{}\n")
+	for _, e := range endpoints {
+		alias := aliases[e.Package]
+		fmt.Fprintf(&b, "{op,err:=contract.Compile(contract.TypeOf[%s.%s](),contract.TypeOf[%s.%sRes]());if err!=nil{return err};operations=append(operations,op)}\n", alias, e.Name, alias, strings.TrimSuffix(e.Name, "Req"))
+	}
+	configure := "nil"
+	if c.Extensions != "" {
+		configure = "extensions.Configure"
+	}
+	fmt.Fprintf(&b, "artifact,err:=contract.Generate(operations,contract.Options{Version:%q,Format:%q},%s);if err!=nil{return err};if err=os.WriteFile(os.Args[1],artifact.Document,0600);err!=nil{return err};return os.WriteFile(os.Args[1]+\".manifest.json\",artifact.Manifest,0600) }", c.Version, c.Format, configure)
+	return format.Source([]byte(b.String()))
 }
