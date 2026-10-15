@@ -7,6 +7,11 @@ on:
         description: "要发布的版本，例如 v0.3.1"
         required: true
         type: string
+      vulnerability_waiver:
+        description: "本次发布接受漏洞扫描结果的原因；留空时发现漏洞仍阻断发布"
+        required: false
+        type: string
+        default: ""
 
 concurrency:
   group: release-${{ github.repository }}
@@ -41,6 +46,7 @@ jobs:
           --health-retries 10
     env:
       VERSION: ${{ github.event.inputs.version }}
+      RELEASE_VULNERABILITY_WAIVER: ${{ inputs.vulnerability_waiver }}
       RELEASE_BRANCH: master
       GOPROXY: "https://proxy.golang.org|direct"
       LEAF_MODULES: |

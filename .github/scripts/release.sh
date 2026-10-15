@@ -215,10 +215,25 @@ validate_context() {
 	echo "-> Release state: root=${root_exists}, leaves=${leaves_exist}, observability=${observability_exists}."
 }
 
+# A per-run waiver accepts findings (exit 3). Scanner failures remain fatal.
+check_vulnerabilities() {
+	local status=0
+	GOWORK=off govulncheck ./... || status=$?
+	if [[ "$status" == 3 && -n "${RELEASE_VULNERABILITY_WAIVER:-}" ]]; then
+		echo "::warning::Vulnerability findings accepted for this release; see the scan and job summary."
+		printf 'Release vulnerability waiver (%s): %s\n' "$PWD" "$RELEASE_VULNERABILITY_WAIVER"
+		if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+			printf '\n- Vulnerability findings accepted for `%s`: %s\n' "$PWD" "$RELEASE_VULNERABILITY_WAIVER" >> "$GITHUB_STEP_SUMMARY"
+		fi
+		return 0
+	fi
+	return "$status"
+}
+
 validate_workspace() {
 	echo "-> Testing the root module against the current checkout."
 	GOWORK=off go test -race ./...
-	GOWORK=off govulncheck ./...
+	check_vulnerabilities
 
 	# Test one nested module graph at a time. Activating every module in one
 	# go.work merges unrelated transitive dependency graphs and can produce
@@ -267,7 +282,7 @@ publish_leaves() {
 			GOWORK=off go mod tidy
 			GOWORK=off go mod tidy -diff
 			GOWORK=off go test -race -mod=readonly ./...
-			GOWORK=off govulncheck ./...
+			check_vulnerabilities
 		)
 		git add "${module_dir}/go.mod" "${module_dir}/go.sum"
 	done
@@ -299,7 +314,7 @@ publish_observability() {
 		GOWORK=off go mod tidy
 		GOWORK=off go mod tidy -diff
 		GOWORK=off go test -race -mod=readonly ./...
-		GOWORK=off govulncheck ./...
+		check_vulnerabilities
 	)
 
 	git add "${OBSERVABILITY_MODULE}/go.mod" "${OBSERVABILITY_MODULE}/go.sum"
@@ -319,7 +334,7 @@ validate_standalone_modules() {
 			cd "$module_dir"
 			GOWORK=off go mod tidy -diff
 			GOWORK=off go test -race -mod=readonly ./...
-			GOWORK=off govulncheck ./...
+			check_vulnerabilities
 		)
 	done
 }
