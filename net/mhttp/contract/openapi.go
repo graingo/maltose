@@ -157,7 +157,28 @@ type schemaWriter struct {
 	components map[string]any
 }
 
+// ref preserves type-level nullability for collection elements and root values.
 func (b schemaWriter) ref(id string, request bool) (map[string]any, error) {
+	n := b.op.Types[id]
+	if n.Kind == "pointer" {
+		s, err := b.ref(n.Elem, request)
+		if err != nil {
+			return nil, err
+		}
+		return nullable(s, b.version), nil
+	}
+	s, err := b.value(id, request)
+	if err != nil {
+		return nil, err
+	}
+	if !request && (n.Go.Kind() == reflect.Slice || n.Go.Kind() == reflect.Map) {
+		return nullable(s, b.version), nil
+	}
+	return s, nil
+}
+
+// value exports a non-pointer type; the caller owns the field's null policy.
+func (b schemaWriter) value(id string, request bool) (map[string]any, error) {
 	n := b.op.Types[id]
 	if n.Kind == "object" {
 		if _, exists := b.components[id]; !exists {
@@ -169,13 +190,6 @@ func (b schemaWriter) ref(id string, request bool) (map[string]any, error) {
 			b.components[id] = schema
 		}
 		return map[string]any{"$ref": "#/components/schemas/" + id}, nil
-	}
-	if n.Kind == "pointer" {
-		s, err := b.ref(n.Elem, request)
-		if err != nil {
-			return nil, err
-		}
-		return nullable(s, b.version), nil
 	}
 	s := map[string]any{}
 	switch n.Kind {
@@ -218,9 +232,6 @@ func (b schemaWriter) ref(id string, request bool) (map[string]any, error) {
 	default:
 		s["type"] = n.Kind
 	}
-	if !request && (n.Go.Kind() == reflect.Slice || n.Go.Kind() == reflect.Map) {
-		return nullable(s, b.version), nil
-	}
 	return s, nil
 }
 func nullable(s map[string]any, version string) map[string]any {
@@ -233,19 +244,15 @@ func nullable(s map[string]any, version string) map[string]any {
 }
 func (b schemaWriter) field(f Field, request bool) (map[string]any, error) {
 	id := f.Type
-	if request {
-		for b.op.Types[id].Kind == "pointer" {
-			id = b.op.Types[id].Elem
-		}
+	for b.op.Types[id].Kind == "pointer" {
+		id = b.op.Types[id].Elem
 	}
-	s, err := b.ref(id, request)
+	s, err := b.value(id, request)
 	if err != nil {
 		return nil, err
 	}
-	if !request && f.OmitEmpty {
-		if branches, ok := s["anyOf"].([]any); ok {
-			s = branches[0].(map[string]any)
-		}
+	if b.op.Types[id].Kind == "any" && !f.Nullable {
+		s["not"] = map[string]any{"enum": []any{nil}}
 	}
 	if _, ok := s["$ref"]; ok {
 		s = map[string]any{"allOf": []any{s}}
@@ -280,7 +287,7 @@ func (b schemaWriter) field(f Field, request bool) (map[string]any, error) {
 		}
 		s["default"] = v
 	}
-	if request && f.Nullable {
+	if f.Nullable {
 		s = nullable(s, b.version)
 	}
 	return s, nil
@@ -297,7 +304,7 @@ func (b schemaWriter) object(n *Type, request, root bool) (map[string]any, error
 			return nil, err
 		}
 		properties[f.Name] = s
-		if request && f.Required || !request && (!f.OmitEmpty || !canOmit(b.op.Types[f.Type].Go)) {
+		if f.Required {
 			required = append(required, f.Name)
 		}
 	}
@@ -552,17 +559,6 @@ func (e *Extensions) ErrorResponse(id string, status int, description, media str
 		return err
 	}
 	return add(o["responses"].(map[string]any), strconv.Itoa(status), map[string]any{"description": description, "content": map[string]any{media: map[string]any{"schema": s}}})
-}
-
-func canOmit(t reflect.Type) bool {
-	switch t.Kind() {
-	case reflect.Struct:
-		return false
-	case reflect.Array:
-		return t.Len() == 0
-	default:
-		return true
-	}
 }
 
 func supplement(target, extra, inferred map[string]any) error {

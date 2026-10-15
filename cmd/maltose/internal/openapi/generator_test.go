@@ -2,6 +2,7 @@ package openapi
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,7 +32,7 @@ func TestSharedCompilerEndToEnd(t *testing.T) {
 	require.NoError(t, os.WriteFile(filepath.Join(dir, "go.sum"), sum, 0600))
 	api := filepath.Join(dir, "api")
 	require.NoError(t, os.MkdirAll(api, 0755))
-	source := "package api\nimport \"github.com/graingo/maltose/util/mmeta\"\ntype CreateReq struct {mmeta.Meta `method:\"POST\" path:\"/items\" status:\"201\" operation_id:\"create\"`; Count int `json:\"count\" field:\"required\" binding:\"min=0\"`}\ntype CreateRes struct {ID string `json:\"id\"`}\n"
+	source := "package api\nimport \"github.com/graingo/maltose/util/mmeta\"\ntype CreateReq struct {mmeta.Meta `method:\"POST\" path:\"/items\" status:\"201\" operation_id:\"create\"`; Count int `json:\"count\" field:\"required\" binding:\"min=0\"`}\ntype CreateRes struct {ID string `json:\"id\"`; PermissionCodes []string `json:\"permission_codes\" field:\"required\"`}\n"
 	require.NoError(t, os.WriteFile(filepath.Join(api, "api.go"), []byte(source), 0600))
 	extension := filepath.Join(dir, "extension")
 	require.NoError(t, os.MkdirAll(extension, 0755))
@@ -45,10 +46,35 @@ func TestSharedCompilerEndToEnd(t *testing.T) {
 	require.NoError(t, err)
 	require.Contains(t, string(first), `"201"`)
 	require.Contains(t, string(first), `"Etag"`)
+	var document struct {
+		Components struct {
+			Schemas map[string]struct {
+				Required   []string
+				Properties map[string]map[string]any
+			}
+		}
+	}
+	require.NoError(t, json.Unmarshal(first, &document))
+	found := false
+	for _, schema := range document.Components.Schemas {
+		if property, ok := schema.Properties["permission_codes"]; ok {
+			found = true
+			require.Contains(t, schema.Required, "permission_codes")
+			require.Equal(t, "array", property["type"])
+			require.NotContains(t, property, "anyOf")
+			require.Equal(t, map[string]any{"type": "string"}, property["items"])
+		}
+	}
+	require.True(t, found, "response schema must include permission_codes")
+	firstManifest, err := os.ReadFile(output + ".manifest.json")
+	require.NoError(t, err)
 	require.NoError(t, Run(context.Background(), config))
 	second, err := os.ReadFile(output)
 	require.NoError(t, err)
 	require.Equal(t, first, second)
+	secondManifest, err := os.ReadFile(output + ".manifest.json")
+	require.NoError(t, err)
+	require.Equal(t, firstManifest, secondManifest)
 	// The command's title/version are applied through the same Info API as the extension.
 	for _, format := range []string{"json", "yaml"} {
 		config.Format = format

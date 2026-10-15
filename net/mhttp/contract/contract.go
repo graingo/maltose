@@ -29,8 +29,8 @@ type Field struct {
 	Name        string
 	Source      string
 	Type        string
-	Required    bool
-	Nullable    bool
+	Required    bool // Effective field presence after compilation.
+	Nullable    bool // Effective field nullability after compilation.
 	Rules       []Rule
 	Default     json.RawMessage `json:",omitempty"`
 	Description string          `json:",omitempty"`
@@ -419,6 +419,11 @@ func (c *compiler) fields(t reflect.Type, request, root bool, prefix []int) ([]F
 				}
 			}
 		}
+		if !request {
+			if err := compileResponseField(&f, sf.Type); err != nil {
+				return nil, fmt.Errorf("%s.%s: %w", t, sf.Name, err)
+			}
+		}
 		f.Schema, err = parseSchema(sf.Tag.Get("schema"), sf.Type)
 		if err != nil {
 			return nil, fmt.Errorf("%s.%s: %w", t, sf.Name, err)
@@ -434,6 +439,47 @@ func (c *compiler) fields(t reflect.Type, request, root bool, prefix []int) ([]F
 		seen[key] = true
 	}
 	return fields, nil
+}
+
+// compileResponseField resolves explicit promises before JSON's inferred defaults.
+func compileResponseField(f *Field, t reflect.Type) error {
+	if f.Required && f.OmitEmpty && canOmit(t) {
+		return fmt.Errorf("response field:required conflicts with json omitempty; remove omitempty")
+	}
+	if f.Nullable && !canBeNull(t) {
+		return fmt.Errorf("response nullable requires a pointer, slice, map or interface")
+	}
+	if !f.Required && !f.Nullable {
+		// omitempty removes an empty field itself. A non-nil pointer or an
+		// interface containing a typed nil can still encode a null value.
+		value := t
+		if f.OmitEmpty && t.Kind() == reflect.Pointer {
+			value = t.Elem()
+		}
+		f.Nullable = canBeNull(value) && (!f.OmitEmpty || t.Kind() == reflect.Pointer || t.Kind() == reflect.Interface)
+	}
+	f.Required = f.Required || !f.OmitEmpty || !canOmit(t)
+	return nil
+}
+
+func canBeNull(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Pointer, reflect.Slice, reflect.Map, reflect.Interface:
+		return true
+	default:
+		return false
+	}
+}
+
+func canOmit(t reflect.Type) bool {
+	switch t.Kind() {
+	case reflect.Struct:
+		return false
+	case reflect.Array:
+		return t.Len() == 0
+	default:
+		return true
+	}
 }
 
 // requiresValue checks this value's rules; dive starts the element's scope.
