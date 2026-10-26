@@ -1,8 +1,8 @@
 # Raw HTTP upload and download
 
-This example belongs to the unreleased `feat/raw-http-stream` branch. It uses the
-root module directly; framework and CLI version constants remain v0.5.1 until a
-release is authorized. The new feature is intended for the next minor release.
+Raw HTTP stream contracts are available in Maltose v0.5.2. Use matching framework
+and CLI versions, then regenerate the OpenAPI document and manifest. This example
+uses the repository's root module directly.
 
 From the Maltose repository root, build the CLI and generate the documents:
 
