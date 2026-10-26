@@ -54,30 +54,46 @@ func (r *Request) ResponseController() *http.ResponseController {
 
 const transportWriterKey contextKey = "MaltoseTransportWriter"
 
-// streamFlusher sits below application writers and preserves transport errors
-// across Gin's void Flush method. Writes and flushes follow the same
-// middleware chain; deadline and duplex controls target the transport directly.
-type streamFlusher struct {
+// streamResponseWriter sits below application writers and retains the first
+// transport failure, including writes performed inside a middleware's void Flush.
+// Writes and flushes follow the middleware chain; deadlines target the transport.
+type streamResponseWriter struct {
 	gin.ResponseWriter
 	transport *http.ResponseController
 	err       error
 }
 
-func (w *streamFlusher) FlushError() error {
+func (w *streamResponseWriter) recordError(err error) {
+	if w.err == nil {
+		w.err = err
+	}
+}
+func (w *streamResponseWriter) Write(p []byte) (int, error) {
+	n, err := w.ResponseWriter.Write(p)
+	w.recordError(err)
+	return n, err
+}
+func (w *streamResponseWriter) WriteString(s string) (int, error) {
+	n, err := w.ResponseWriter.WriteString(s)
+	w.recordError(err)
+	return n, err
+}
+func (w *streamResponseWriter) FlushError() error {
 	w.WriteHeaderNow()
-	w.err = w.transport.Flush()
+	err := w.transport.Flush()
+	if errors.Is(err, http.ErrNotSupported) {
+		return w.err
+	}
+	w.recordError(err)
 	return w.err
 }
-func (w *streamFlusher) Flush()                      { _ = w.FlushError() }
-func (w *streamFlusher) Unwrap() http.ResponseWriter { return w.ResponseWriter }
+func (w *streamResponseWriter) Flush()                      { _ = w.FlushError() }
+func (w *streamResponseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
-func (w *streamFlusher) flush(writer gin.ResponseWriter) error {
+func (w *streamResponseWriter) flush(writer gin.ResponseWriter) error {
 	err := http.NewResponseController(writer).Flush()
-	if err == nil {
-		err = w.err
-	}
-	if errors.Is(err, http.ErrNotSupported) {
-		return nil
+	if err == nil || errors.Is(err, http.ErrNotSupported) {
+		return w.err
 	}
 	return err
 }
@@ -161,7 +177,7 @@ type streamWriter struct{ request *Request }
 func (w streamWriter) Write(p []byte) (int, error) {
 	n, err := w.request.Writer.Write(p)
 	if err == nil {
-		err = w.request.streamFlush.flush(w.request.Writer)
+		err = w.request.streamOutput.flush(w.request.Writer)
 	}
 	return n, err
 }

@@ -57,7 +57,9 @@ cleanup also runs before the existing panic handler handles a controller or
 pre-read panic. Writes and flushes follow the active response writer chain, so
 buffering and compression middleware can release chunks before the source ends.
 Wrappers flush their own buffers before forwarding Flush; FlushError reports
-wrapper failures, and Maltose preserves underlying transport flush errors.
+wrapper failures. Maltose retains the first transport write or flush failure,
+including writes performed inside a middleware's legacy Flush method. Later
+successful operations preserve that failure for middleware observation.
 Read cancellation and deadlines remain application policy; the example shows
 how to coordinate deadline callbacks before the request ends.
 

@@ -30,8 +30,8 @@ func (s *Server) bindRoutes(_ context.Context) {
 				r := newRequest(c, s)
 				r.operation = item.Contract
 				if item.Contract.RawResponseMedia != "" {
-					r.streamFlush = &streamFlusher{ResponseWriter: r.Writer, transport: r.ResponseController()}
-					r.Writer = r.streamFlush
+					r.streamOutput = &streamResponseWriter{ResponseWriter: r.Writer, transport: r.ResponseController()}
+					r.Writer = r.streamOutput
 				}
 				defer func() {
 					if r.stream != nil {

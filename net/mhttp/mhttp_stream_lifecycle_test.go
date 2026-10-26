@@ -35,6 +35,82 @@ func (w *bufferedStreamWriter) FlushError() error {
 }
 func (w *bufferedStreamWriter) Flush() { _ = w.FlushError() }
 
+// This wrapper exposes Gin's legacy Flush method without FlushError.
+type legacyBufferedStreamWriter struct {
+	gin.ResponseWriter
+	buffer *bufio.Writer
+}
+
+func (w *legacyBufferedStreamWriter) Write(p []byte) (int, error) { return w.buffer.Write(p) }
+func (w *legacyBufferedStreamWriter) Flush() {
+	_ = w.buffer.Flush()
+	w.ResponseWriter.Flush()
+}
+
+type stringStreamWriter struct{ gin.ResponseWriter }
+
+func (w stringStreamWriter) Write(p []byte) (int, error) {
+	return w.ResponseWriter.WriteString(string(p))
+}
+
+type streamWriteFailure struct {
+	*httptest.ResponseRecorder
+	failure          error
+	successfulWrites int
+	flushError       error
+}
+
+func (w *streamWriteFailure) Write(p []byte) (int, error) {
+	if w.successfulWrites > 0 {
+		w.successfulWrites--
+		return w.ResponseRecorder.Write(p)
+	}
+	return 0, w.failure
+}
+func (w *streamWriteFailure) WriteString(s string) (int, error) { return w.Write([]byte(s)) }
+func (w *streamWriteFailure) FlushError() error {
+	w.ResponseRecorder.Flush()
+	return w.flushError
+}
+
+func TestRawLegacyFlushPreservesBufferedWriteFailure(t *testing.T) {
+	for _, method := range []string{"Write", "WriteString", "unsupported flush"} {
+		t.Run(method, func(t *testing.T) {
+			failure := errors.New("buffered transport write failed")
+			source := &streamBody{Reader: strings.NewReader("bytes")}
+			observed := make(chan error, 1)
+			w := &streamWriteFailure{ResponseRecorder: httptest.NewRecorder(), failure: failure}
+			prefix := ""
+			if method == "unsupported flush" {
+				prefix = "ok"
+				w.successfulWrites = 1
+				w.flushError = http.ErrNotSupported
+				source.Reader = io.MultiReader(strings.NewReader(prefix), source.Reader)
+			}
+			s := streamServer(t, &fileController{download: func(context.Context, *api.DownloadReq) (*api.DownloadRes, error) {
+				return &api.DownloadRes{Body: source}, nil
+			}}, observeError(observed), appStreamErrors, mhttp.MiddlewareLog(), func(r *mhttp.Request) {
+				var destination io.Writer = r.Writer
+				if method == "WriteString" {
+					destination = stringStreamWriter{ResponseWriter: r.Writer}
+				}
+				r.Writer = &legacyBufferedStreamWriter{ResponseWriter: r.Writer, buffer: bufio.NewWriter(destination)}
+				r.Next()
+			})
+			require.PanicsWithValue(t, http.ErrAbortHandler, func() { s.ServeHTTP(w, httptest.NewRequest("GET", filePath, nil)) })
+			require.Len(t, observed, 1, "middleware observes the failure before the transport is aborted")
+			recorded := <-observed
+			var stream *mhttp.StreamError
+			require.ErrorAs(t, recorded, &stream)
+			require.ErrorIs(t, recorded, failure)
+			require.Equal(t, int64(len(prefix)+5), stream.Written, "bytes accepted by the outer buffering writer")
+			require.True(t, w.Flushed, "a later successful flush preserves the earlier write failure")
+			require.Equal(t, prefix, w.Body.String())
+			require.Equal(t, int32(1), source.closes.Load())
+		})
+	}
+}
+
 func TestRawDownloadFlushesMiddlewareBuffers(t *testing.T) {
 	for _, protocol := range []string{"HTTP1", "HTTP2"} {
 		for _, encoding := range []string{"buffer", "gzip"} {

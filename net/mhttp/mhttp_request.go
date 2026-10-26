@@ -22,12 +22,12 @@ const (
 // Request is the request wrapper.
 type Request struct {
 	*gin.Context
-	server      *Server // server instance
-	operation   *contract.Operation
-	input       contract.Input
-	stream      *streamResponse
-	streamFlush *streamFlusher
-	abortStream bool
+	server       *Server // server instance
+	operation    *contract.Operation
+	input        contract.Input
+	stream       *streamResponse
+	streamOutput *streamResponseWriter
+	abortStream  bool
 }
 
 // RequestFromCtx gets the Request object from the context.
