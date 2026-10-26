@@ -3,6 +3,7 @@ package mhttp
 import (
 	"bytes"
 	"io"
+	"net/http"
 	"sort"
 	"time"
 
@@ -20,6 +21,12 @@ type responseWriter struct {
 	body  *bytes.Buffer
 	limit int
 }
+
+func (w *responseWriter) FlushError() error {
+	return http.NewResponseController(w.ResponseWriter).Flush()
+}
+func (w *responseWriter) Flush()                      { _ = w.FlushError() }
+func (w *responseWriter) Unwrap() http.ResponseWriter { return w.ResponseWriter }
 
 func (w *responseWriter) capture(data []byte) {
 	if w.limit == 0 {

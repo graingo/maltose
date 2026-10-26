@@ -52,7 +52,12 @@ Close must be safe alongside Read and unblock it for cancellation. Errors before
 the first byte reach application error middleware; errors after response commit
 are recorded as `*mhttp.StreamError` and terminate the transport. Error middleware
 checks `Writer.Written()` before writing JSON. Preparation failures restore headers
-to their state before the controller ran, preserving middleware metadata.
+to their state before the controller ran, preserving middleware metadata. This
+cleanup also runs before the existing panic handler handles a controller or
+pre-read panic. Writes and flushes follow the active response writer chain, so
+buffering and compression middleware can release chunks before the source ends.
+Wrappers flush their own buffers before forwarding Flush; FlushError reports
+wrapper failures, and Maltose preserves underlying transport flush errors.
 Read cancellation and deadlines remain application policy; the example shows
 how to coordinate deadline callbacks before the request ends.
 

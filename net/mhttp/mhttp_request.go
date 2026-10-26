@@ -26,6 +26,7 @@ type Request struct {
 	operation   *contract.Operation
 	input       contract.Input
 	stream      *streamResponse
+	streamFlush *streamFlusher
 	abortStream bool
 }
 
