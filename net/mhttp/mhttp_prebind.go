@@ -2,6 +2,7 @@ package mhttp
 
 import (
 	"context"
+	"net/http"
 
 	"github.com/graingo/maltose/net/mhttp/contract"
 
@@ -25,7 +26,21 @@ func (s *Server) bindRoutes(_ context.Context) {
 	for _, item := range s.preBindItems {
 		var allHandlers []gin.HandlerFunc
 		if item.Contract != nil {
-			allHandlers = append(allHandlers, func(c *gin.Context) { newRequest(c, s).operation = item.Contract })
+			allHandlers = append(allHandlers, func(c *gin.Context) {
+				r := newRequest(c, s)
+				r.operation = item.Contract
+				defer func() {
+					if r.stream != nil {
+						_ = r.stream.finish()
+					}
+				}()
+				r.Next()
+				// Abort outside the framework recovery middleware so net/http terminates
+				// the transport after application errors, logs and metrics have run.
+				if r.abortStream {
+					panic(http.ErrAbortHandler)
+				}
+			})
 		}
 		var collectedMiddlewares []MiddlewareFunc
 
@@ -55,6 +70,15 @@ func (s *Server) bindRoutes(_ context.Context) {
 			})
 		}
 
+		if item.Contract != nil && item.Contract.RawResponseMedia != "" {
+			allHandlers = append(allHandlers, func(c *gin.Context) {
+				r := newRequest(c, s)
+				r.Next()
+				if len(r.Errors) == 0 && !r.Writer.Written() {
+					r.writeStreamResponse()
+				}
+			})
+		}
 		// add final handler function
 		finalHandler := func(c *gin.Context) {
 			item.HandlerFunc(newRequest(c, s))

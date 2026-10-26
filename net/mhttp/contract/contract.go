@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"math"
 	"net/http"
 	"path"
@@ -47,21 +48,23 @@ type Type struct {
 	Go     reflect.Type `json:"-"`
 }
 type Operation struct {
-	Method       string
-	Path         string
-	RelativePath string
-	Group        string
-	ID           string
-	Summary      string
-	Description  string
-	Tag          string
-	Status       int
-	Body         string
-	Envelope     string
-	Unknown      string
-	Request      string
-	Response     string
-	Types        map[string]*Type
+	Method           string
+	Path             string
+	RelativePath     string
+	Group            string
+	ID               string
+	Summary          string
+	Description      string
+	Tag              string
+	Status           int
+	Body             string
+	RawRequestMedia  string `json:",omitempty"`
+	RawResponseMedia string `json:",omitempty"`
+	Envelope         string
+	Unknown          string
+	Request          string
+	Response         string
+	Types            map[string]*Type
 }
 
 func TypeOf[T any]() reflect.Type { return reflect.TypeOf((*T)(nil)).Elem() }
@@ -128,7 +131,7 @@ func Compile(req, res reflect.Type) (*Operation, error) {
 	if op.Unknown != "reject" && op.Unknown != "allow" {
 		return nil, fmt.Errorf("unknown must be reject or allow")
 	}
-	c := compiler{op: op, visiting: map[reflect.Type]bool{}}
+	c := compiler{op: op, visiting: map[reflect.Type]bool{}, response: res}
 	var err error
 	op.Request, err = c.add(req, true, true)
 	if err != nil {
@@ -146,6 +149,12 @@ func Compile(req, res reflect.Type) (*Operation, error) {
 			params[f.Name] = true
 		}
 	}
+	if err := compileTransport(op, meta); err != nil {
+		return nil, err
+	}
+	if sources["stream"] && (sources["json"] || sources["form"]) {
+		return nil, fmt.Errorf("raw request body requires stream fields and path/query/header parameters")
+	}
 	if sources["json"] && sources["form"] {
 		return nil, fmt.Errorf("request uses both JSON and form bodies")
 	}
@@ -155,6 +164,9 @@ func Compile(req, res reflect.Type) (*Operation, error) {
 	}
 	if sources["form"] {
 		inferred = "form"
+	}
+	if sources["stream"] {
+		inferred = "raw"
 	}
 	if op.Body == "" {
 		op.Body = inferred
@@ -213,6 +225,7 @@ func typeID(t reflect.Type, request, root bool, unknown string) string {
 type compiler struct {
 	op       *Operation
 	visiting map[reflect.Type]bool
+	response reflect.Type
 }
 
 func (c *compiler) add(t reflect.Type, request, root bool) (string, error) {
@@ -304,6 +317,23 @@ func (c *compiler) fields(t reflect.Type, request, root bool, prefix []int) ([]F
 				}
 				opts[s] = true
 			}
+		}
+		if raw, ok := sf.Tag.Lookup("stream"); ok {
+			if raw != "body" || sf.Anonymous || len(prefix) != 0 || !(request && root || !request && t == c.response) {
+				return nil, fmt.Errorf("%s.%s: stream:body requires a direct root DTO field", t, sf.Name)
+			}
+			if sf.Type != reflect.TypeFor[io.ReadCloser]() || opts["nullable"] || opts["inline"] {
+				return nil, fmt.Errorf("%s.%s: stream body requires io.ReadCloser and supports field:required", t, sf.Name)
+			}
+			for _, key := range []string{"json", "form", "query", "path", "header", "binding", "schema", "default"} {
+				if _, exists := sf.Tag.Lookup(key); exists {
+					return nil, fmt.Errorf("%s.%s: stream body conflicts with %s", t, sf.Name, key)
+				}
+			}
+			id := typeID(sf.Type, request, root, c.op.Unknown)
+			c.op.Types[id] = &Type{ID: id, Kind: "stream", Go: sf.Type}
+			fields = append(fields, Field{Name: "body", Source: "stream", Type: id, Index: index, Required: opts["required"] || !request, Description: sf.Tag.Get("dc")})
+			continue
 		}
 		if sf.Anonymous {
 			if !opts["inline"] || sf.Type.Kind() != reflect.Struct || len(opts) != 1 || sf.Tag.Get("binding") != "" {

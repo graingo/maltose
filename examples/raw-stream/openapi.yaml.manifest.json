@@ -1,0 +1,8 @@
+{
+  "version": 1,
+  "document_sha256": "3b622a0ad200e7649dfb2fd25517c39c9fa48ed544486a7dae018d8141a772ec",
+  "operations": {
+    "GET /files/:id": "48ee4c0b5fd1619c9fe67a5ce10d8bea5b916bd622a1db5bf3fa23d5eaa8301c",
+    "PUT /files/:id": "86247e9f703208ba2b1b6dd0af4a1958997fdf895cbf8ffb0cab80415e175ef2"
+  }
+}

@@ -74,7 +74,12 @@ func (op *Operation) Bind(request *http.Request, paths map[string]string, target
 	}
 	body := map[string]json.RawMessage{}
 	form := url.Values{}
-	if op.Body != "none" && request.Body != nil && request.Body != http.NoBody {
+	if op.Body == "raw" {
+		if err := op.bindStream(request, value.Elem(), input); err != nil {
+			return input, err
+		}
+	}
+	if (op.Body == "json" || op.Body == "form") && request.Body != nil && request.Body != http.NoBody {
 		reader := json.NewDecoder(request.Body)
 		if op.Body == "json" {
 			// Decode first to distinguish a truly absent body from a supplied value.
@@ -122,6 +127,9 @@ func (op *Operation) Bind(request *http.Request, paths map[string]string, target
 		}
 	}
 	for _, f := range fields {
+		if f.Source == "stream" {
+			continue
+		}
 		var raw json.RawMessage
 		var exists bool
 		switch f.Source {

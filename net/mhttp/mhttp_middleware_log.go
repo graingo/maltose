@@ -78,15 +78,20 @@ func MiddlewareLog() MiddlewareFunc {
 
 		// Safely read and capture the request body for logging, then restore it.
 		var reqBodyBytes []byte
-		if bodyLimit != 0 && r.Request.Body != nil {
+		if bodyLimit != 0 && r.Request.Body != nil && r.RawRequestMediaType() == "" {
 			reqBodyBytes, r.Request.Body = readBodyForLog(r.Request.Body, bodyLimit)
 		}
 
+		// Raw response bytes remain transport data even when body logging is enabled.
+		responseLimit := bodyLimit
+		if r.RawResponseMediaType() != "" {
+			responseLimit = 0
+		}
 		// Create a custom response writer to capture the response body and status.
 		writer := &responseWriter{
 			ResponseWriter: r.Writer,
 			body:           &bytes.Buffer{},
-			limit:          bodyLimit,
+			limit:          responseLimit,
 		}
 		r.Writer = writer
 

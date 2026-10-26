@@ -16,7 +16,21 @@ import (
 type HandlerFunc func(*Request)
 
 // handleRequest handles the request and returns the result.
-func handleRequest(r *Request, method reflect.Method, val reflect.Value, req interface{}) error {
+func handleRequest(r *Request, method reflect.Method, val reflect.Value, req interface{}) (err error) {
+	if r.RawResponseMediaType() != "" {
+		// Headers set by the controller describe its success stream. Preserve the
+		// middleware headers when preparation fails before committing a response.
+		before := r.Writer.Header().Clone()
+		defer func() {
+			if err != nil && !r.Writer.Written() {
+				headers := r.Writer.Header()
+				clear(headers)
+				for name, values := range before {
+					headers[name] = values
+				}
+			}
+		}()
+	}
 	paths := make(map[string]string, len(r.Params))
 	for _, p := range r.Params {
 		paths[p.Key] = p.Value
@@ -50,6 +64,9 @@ func handleRequest(r *Request, method reflect.Method, val reflect.Value, req int
 	// set response to Request for middleware usage
 	response := results[0].Interface()
 	r.SetHandlerResponse(response)
+	if r.RawResponseMediaType() != "" {
+		return r.prepareStreamResponse(response)
+	}
 
 	return nil
 }

@@ -82,6 +82,14 @@ func internalMiddlewareRecovery() MiddlewareFunc {
 	return func(r *Request) {
 		defer func() {
 			if err := recover(); err != nil {
+				if r.RawResponseMediaType() != "" && r.Writer.Written() {
+					failure := &StreamError{Written: int64(r.Writer.Size()), Cause: fmt.Errorf("raw response panic: %v", err)}
+					r.Logger().Errorf(r.Request.Context(), failure, "Raw response panic")
+					r.Error(failure)
+					r.abortStream = true
+					r.Abort()
+					return
+				}
 				// Check for a broken connection, as it is not really a
 				// condition that warrants a panic stack trace.
 				var brokenPipe bool

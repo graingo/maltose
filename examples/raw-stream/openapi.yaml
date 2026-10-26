@@ -1,0 +1,170 @@
+components:
+    schemas:
+        ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a:
+            properties:
+                error:
+                    type: string
+            required:
+                - error
+            type: object
+        UploadRes_9a0b89e312f370f335aa3791d24d4719fab61270275db93f76919ff24de18c30:
+            properties:
+                size:
+                    maximum: 9223372036854775807
+                    minimum: -9223372036854775808
+                    type: integer
+            required:
+                - size
+            type: object
+    securitySchemes:
+        bearer:
+            scheme: bearer
+            type: http
+info:
+    title: API
+    version: 1.0.0
+openapi: 3.1.0
+paths:
+    /files/{id}:
+        get:
+            description: ""
+            operationId: file.download
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    format: uuid
+                    type: string
+            responses:
+                "200":
+                    content:
+                        application/octet-stream:
+                            schema:
+                                format: binary
+                                type: string
+                    description: OK
+                    headers:
+                        Content-Disposition:
+                            description: Download metadata
+                            schema:
+                                type: string
+                        Content-Length:
+                            description: Download metadata
+                            schema:
+                                type: string
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+                "408":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+                "413":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+                "415":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+            security:
+                - bearer: []
+            summary: ""
+        put:
+            description: ""
+            operationId: file.upload
+            parameters:
+                - in: path
+                  name: id
+                  required: true
+                  schema:
+                    format: uuid
+                    type: string
+            requestBody:
+                content:
+                    application/octet-stream:
+                        schema:
+                            format: binary
+                            type: string
+                description: File bytes, including an empty file
+                required: true
+            responses:
+                "200":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/UploadRes_9a0b89e312f370f335aa3791d24d4719fab61270275db93f76919ff24de18c30'
+                    description: OK
+                "400":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+                "401":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+                "404":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+                "408":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+                "413":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+                "415":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+                "500":
+                    content:
+                        application/json:
+                            schema:
+                                $ref: '#/components/schemas/ErrorBody_1fc1a4acdeebcac9d868645e62ee4dfb3326d216a1e67ef3708707b1b781a08a'
+                    description: Request failed
+            security:
+                - bearer: []
+            summary: ""

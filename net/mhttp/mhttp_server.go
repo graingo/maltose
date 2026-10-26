@@ -34,6 +34,7 @@ func (s *Server) ServeHTTP(writer http.ResponseWriter, request *http.Request) {
 		http.Error(writer, "server contract configuration failed", 500)
 		return
 	}
+	request = request.WithContext(context.WithValue(request.Context(), transportWriterKey, writer))
 	s.engine.ServeHTTP(writer, request)
 }
 

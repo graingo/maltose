@@ -421,7 +421,7 @@ func (b schemaWriter) operation() (map[string]any, error) {
 	}
 	parameters := []any{}
 	for _, f := range op.Types[op.Request].Fields {
-		if f.Source == "json" || f.Source == "form" {
+		if f.Source == "json" || f.Source == "form" || f.Source == "stream" {
 			continue
 		}
 		s, err := b.field(f, true)
@@ -433,7 +433,10 @@ func (b schemaWriter) operation() (map[string]any, error) {
 	if len(parameters) > 0 {
 		o["parameters"] = parameters
 	}
-	if op.Body != "none" {
+	if op.Body == "raw" {
+		f := op.Types[op.Request].Fields[streamFieldIndex(op.Types[op.Request])]
+		o["requestBody"] = map[string]any{"required": f.Required, "description": f.Description, "content": map[string]any{op.RawRequestMedia: map[string]any{"schema": binarySchema()}}}
+	} else if op.Body != "none" {
 		schema, err := b.object(op.Types[op.Request], true, true)
 		if err != nil {
 			return nil, err
@@ -452,14 +455,22 @@ func (b schemaWriter) operation() (map[string]any, error) {
 	}
 	response := map[string]any{"description": http.StatusText(op.Status)}
 	if op.Status != 204 && op.Method != "HEAD" {
-		s, err := b.ref(op.Response, false)
+		var s map[string]any
+		var err error
+		media := "application/json"
+		if op.RawResponseMedia != "" {
+			s = binarySchema()
+			media = op.RawResponseMedia
+		} else {
+			s, err = b.ref(op.Response, false)
+		}
 		if err != nil {
 			return nil, err
 		}
 		if op.Envelope == "maltose" {
 			s = map[string]any{"type": "object", "required": []string{"code", "message", "data"}, "properties": map[string]any{"code": map[string]any{"type": "integer", "enum": []any{0}}, "message": map[string]any{"type": "string"}, "data": s}}
 		}
-		response["content"] = map[string]any{"application/json": map[string]any{"schema": s}}
+		response["content"] = map[string]any{media: map[string]any{"schema": s}}
 	}
 	o["responses"] = map[string]any{strconv.Itoa(op.Status): response}
 	return o, nil

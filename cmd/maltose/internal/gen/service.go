@@ -9,6 +9,7 @@ import (
 	"go/token"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"text/template"
 
@@ -156,20 +157,18 @@ func (g *ServiceGenerator) genFromFile(file string) error {
 
 	svcOutputPath := filepath.Join(g.Dst, "service", snakeCaseModule+".go")
 
-	svcFullTpl := TplGenService
-	svcAppendTpl := TplGenServiceMethodOnly
-	if g.InterfaceMode {
-		svcFullTpl = TplGenServiceInterface
-		svcAppendTpl = TplGenServiceInterfaceMethodOnly
-	}
-
 	// Use generateOrAppend to create the service file or append to it.
 	// Note: We need to adapt the logic slightly for services, as the `data` for the template
 	// needs to have its `Service` field based on the module, not the file.
 	serviceData := *info
 	serviceData.Service = camelCaseModule // Use CamelCase for the service struct name.
 
-	if err := g.generateOrAppend(svcOutputPath, svcFullTpl, svcAppendTpl, &serviceData); err != nil {
+	if g.InterfaceMode {
+		err = g.generateInterface(svcOutputPath, &serviceData)
+	} else {
+		err = g.generateOrAppend(svcOutputPath, TplGenService, TplGenServiceMethodOnly, &serviceData)
+	}
+	if err != nil {
 		return merror.Wrap(err, "failed to generate or append service file")
 	}
 
@@ -418,6 +417,7 @@ func (p *Parser) parse() (*serviceTplData, error) {
 		return nil, nil
 	}
 
+	sort.Slice(functions, func(i, j int) bool { return functions[i].Name < functions[j].Name })
 	info.Functions = functions
 	return info, nil
 }

@@ -86,6 +86,10 @@ func MiddlewareResponse() MiddlewareFunc {
 }
 
 func writeContractResponse(r *Request) {
+	if r.RawResponseMediaType() != "" {
+		r.writeStreamResponse()
+		return
+	}
 	status := r.SuccessStatus()
 	if status == http.StatusNoContent || r.Request.Method == http.MethodHead {
 		r.Status(status)

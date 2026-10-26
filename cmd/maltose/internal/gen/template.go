@@ -114,8 +114,17 @@ func (s *s{{$.Service}}) {{.Name}}(ctx context.Context, req *{{$.APIPkg}}.{{.Req
 	// =================================================================================
 	package service
 
+	{{if .Functions}}
+	import (
+		"context"
+		{{.APIPkg}} "{{.APIModule}}"
+	)
+	{{end}}
+
 	type I{{.Service}} interface {
-		// TODO: Define your service interface methods here.
+		{{if .Functions}}{{range .Functions}}
+		{{.Name}}(ctx context.Context, req *{{$.APIPkg}}.{{.ReqName}}) (res *{{$.APIPkg}}.{{.ResName}}, err error)
+		{{end}}{{else}}// TODO: Define your service interface methods here.{{end}}
 	}
 
 	var local{{.Service}} I{{.Service}}

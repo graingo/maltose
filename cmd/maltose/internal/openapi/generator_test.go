@@ -34,6 +34,10 @@ func TestSharedCompilerEndToEnd(t *testing.T) {
 	require.NoError(t, os.MkdirAll(api, 0755))
 	source := "package api\nimport \"github.com/graingo/maltose/util/mmeta\"\ntype CreateReq struct {mmeta.Meta `method:\"POST\" path:\"/items\" status:\"201\" operation_id:\"create\"`; Count int `json:\"count\" field:\"required\" binding:\"min=0\"`}\ntype CreateRes struct {ID string `json:\"id\"`; PermissionCodes []string `json:\"permission_codes\" field:\"required\"`}\n"
 	require.NoError(t, os.WriteFile(filepath.Join(api, "api.go"), []byte(source), 0600))
+	streamSource, err := os.ReadFile(filepath.Join(framework, "examples/raw-stream/api/file.go"))
+	require.NoError(t, err)
+	streamFile := filepath.Join(api, "stream.go")
+	require.NoError(t, os.WriteFile(streamFile, streamSource, 0600))
 	extension := filepath.Join(dir, "extension")
 	require.NoError(t, os.MkdirAll(extension, 0755))
 	require.NoError(t, os.WriteFile(filepath.Join(extension, "extension.go"), []byte("package extension\nimport \"github.com/graingo/maltose/net/mhttp/contract\"\nfunc Configure(e *contract.Extensions)error{return e.ResponseHeader(\"create\",\"ETag\",\"Version\",map[string]any{\"type\":\"string\"})}"), 0600))
@@ -66,6 +70,9 @@ func TestSharedCompilerEndToEnd(t *testing.T) {
 		}
 	}
 	require.True(t, found, "response schema must include permission_codes")
+	require.Contains(t, string(first), `"application/octet-stream"`)
+	require.Contains(t, string(first), `"format": "binary"`)
+	require.Contains(t, string(first), `"/files/{id}"`)
 	firstManifest, err := os.ReadFile(output + ".manifest.json")
 	require.NoError(t, err)
 	require.NoError(t, Run(context.Background(), config))
@@ -75,6 +82,14 @@ func TestSharedCompilerEndToEnd(t *testing.T) {
 	secondManifest, err := os.ReadFile(output + ".manifest.json")
 	require.NoError(t, err)
 	require.Equal(t, firstManifest, secondManifest)
+	// Transport metadata participates in CLI stale-artifact checks.
+	config.Check = true
+	changedStream := strings.Replace(string(streamSource), `produces:"application/octet-stream"`, `produces:"image/png"`, 1)
+	require.NoError(t, os.WriteFile(streamFile, []byte(changedStream), 0600))
+	require.ErrorContains(t, Run(context.Background(), config), "stale")
+	require.NoError(t, os.WriteFile(streamFile, streamSource, 0600))
+	require.NoError(t, Run(context.Background(), config))
+	config.Check = false
 	// The command's title/version are applied through the same Info API as the extension.
 	for _, format := range []string{"json", "yaml"} {
 		config.Format = format
