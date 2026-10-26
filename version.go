@@ -2,7 +2,7 @@ package maltose
 
 const (
 	// VERSION is the current maltose version.
-	VERSION = "v0.5.1"
+	VERSION = "v0.5.2"
 	// COMPONENT is the component name.
 	COMPONENT = "component"
 )
